@@ -86,7 +86,7 @@ npm test
 
 ## Design system
 
-`shared/theme.css` holds the palette and typography every tool uses — the light,
+`shared/theme.css` holds the shared palette and typography — the light,
 instrument-panel look established by the LV Cable Voltage Drop app:
 
 | Token | Value | Use |
@@ -105,9 +105,17 @@ Google Fonts with a system fallback. Static pages link `shared/theme.css`
 directly; Vite apps import it from their entry CSS. Colours should not be
 defined anywhere else.
 
-One deliberate exception: the MV Panel Load Router keeps its own ten-hue
-`PALETTE` array. Those colours identify individual routes and have to stay
-visually distinct from each other.
+The hub, Neher-McGrath, Cable Tray, LV Cable Voltage Drop and Underground Route
+Planner are on it, and the MV Panel Load Router uses it for its chrome. Two
+deliberate exceptions stay outside:
+
+- **MV Panel Load Router** keeps its own ten-hue `PALETTE` array. Those colours
+  identify individual routes and have to stay visually distinct from each other.
+- **LV Panel Sizer** keeps its own green/orange signal palette
+  (`apps/dimensionador/src/index.css`). It reads well as-is and is intentionally
+  left alone.
+
+New work should use the shared tokens rather than adding a third palette.
 
 ## The Neher-McGrath app
 
