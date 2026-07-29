@@ -1,0 +1,241 @@
+/* ===========================================================================
+   Engineering Tools Hub — shared design system.
+
+   Single source of truth for the palette and typography used across every
+   application. The tokens are the ones established by the LV Cable Voltage
+   Drop tool: a light, technical, instrument-panel look — no gradients, no
+   decorative colour.
+
+   Fonts come from Google Fonts. If the network is unavailable the stack falls
+   back to system sans / system monospace and the layout is unaffected.
+   ======================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #eceff2;
+  --panel: #ffffff;
+  --ink: #1d2530;
+  --muted: #5c6875;
+  --steel: #c6cdd4;
+  --accent: #0e5da8;
+  --accent-dark: #0b4c8a;
+  --accent-wash: #eef4fb;
+  --ok: #1e7d46;
+  --bad: #b3261e;
+  --warn: #d99a00;
+  --warn-wash: #fdf6e3;
+  --plate: #2a323c;
+  --plate-edge: #3d4854;
+  --plate-ink: #e8edf2;
+  --plate-mut: #9fb0c0;
+  --field: #fbfcfd;
+
+  --ui: 'Saira Semi Condensed', system-ui, -apple-system, Segoe UI, sans-serif;
+  --data: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--ui);
+}
+
+/* ------------------------------- header -------------------------------- */
+
+.eh-header {
+  border-bottom: 3px solid var(--ink);
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.eh-header h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.eh-sub {
+  font-family: var(--data);
+  font-size: 12px;
+  color: var(--muted);
+}
+.eh-back {
+  font-family: var(--data);
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--steel);
+  background: var(--panel);
+  border-radius: 4px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+.eh-back:hover { background: var(--accent-wash); border-color: var(--accent); }
+
+/* -------------------------------- cards -------------------------------- */
+
+.eh-card {
+  background: var(--panel);
+  border: 1px solid var(--steel);
+  border-radius: 6px;
+  padding: 18px;
+}
+.eh-card > h2 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* -------------------------------- fields ------------------------------- */
+
+.eh-label,
+.eh-card label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.eh-card input,
+.eh-card select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--steel);
+  border-radius: 4px;
+  font-family: var(--data);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--field);
+}
+.eh-card input:focus,
+.eh-card select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.eh-card input:disabled,
+.eh-card input[readonly],
+.eh-card select:disabled { background: #eef1f4; color: #7d8894; }
+
+/* ------------------------------- buttons ------------------------------- */
+
+.eh-btn {
+  border: 1px solid var(--steel);
+  background: var(--field);
+  color: var(--ink);
+  padding: 9px 14px;
+  border-radius: 4px;
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+.eh-btn:hover { background: var(--accent-wash); border-color: var(--accent); }
+.eh-btn-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.eh-btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+
+.eh-seg { display: flex; border: 1px solid var(--steel); border-radius: 4px; overflow: hidden; }
+.eh-seg button {
+  flex: 1;
+  padding: 8px 4px;
+  border: 0;
+  background: var(--field);
+  cursor: pointer;
+  font-family: var(--data);
+  font-size: 13px;
+  color: var(--muted);
+}
+.eh-seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* ------------------------------ nameplate ------------------------------ */
+
+.eh-plate {
+  background: linear-gradient(160deg, var(--plate-edge), var(--plate) 40%);
+  border-radius: 8px;
+  padding: 20px 22px;
+  color: var(--plate-ink);
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 4px 14px rgba(0, 0, 0, 0.25);
+  border: 1px solid #171c22;
+}
+.eh-screw {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #cfd6dd, #6b747d 70%);
+}
+.eh-screw::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: 4px;
+  height: 1.5px;
+  background: #3a4149;
+}
+.eh-plate .tagline {
+  font-family: var(--data);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--plate-mut);
+  text-transform: uppercase;
+}
+.eh-plate table { width: 100%; border-collapse: collapse; font-family: var(--data); font-size: 13px; }
+.eh-plate td { padding: 5px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.eh-plate td:last-child { text-align: right; font-weight: 600; }
+
+.eh-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.eh-status-ok { background: var(--ok); color: #fff; }
+.eh-status-bad { background: var(--bad); color: #fff; }
+.eh-status-warn { background: var(--warn); color: #3a2a00; }
+.eh-status-idle { background: #55606c; color: #d6dde4; }
+
+/* ------------------------------- notices ------------------------------- */
+
+.eh-warn {
+  padding: 8px 12px;
+  border-left: 4px solid var(--warn);
+  background: var(--warn-wash);
+  font-size: 13px;
+  border-radius: 0 4px 4px 0;
+}
+.eh-note {
+  border: 1px dashed var(--accent);
+  background: var(--accent-wash);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+.eh-foot {
+  margin-top: 20px;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: var(--data);
+  line-height: 1.6;
+}
+
+.eh-mono { font-family: var(--data); }

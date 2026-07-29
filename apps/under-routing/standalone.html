@@ -1,0 +1,2499 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Underground Route Planner</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%231f2733'/><path d='M2 11 L7 6 L10 6 L14 3' stroke='%23d98a2b' stroke-width='1.6' fill='none'/></svg>"
+    />
+    <meta
+      name="description"
+      content="Plan the shortest 45° underground cable routes between feeder panels and loads while minimising crossings."
+    />
+    <style>
+:root {
+  --ink: #1f2733;
+  --ink-soft: #6a7686;
+  --line: #c4ccd6;
+  --bg: #f7f8fa;
+  --panel-bg: #ffffff;
+  --accent: #2f6fd8;
+  --orange: #d98a2b;
+  --mono: 'Courier New', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--mono);
+}
+
+/* ---- toolbar ---- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  flex-wrap: wrap;
+}
+
+.toolbar-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tbtn {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  background: #fff;
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tbtn:hover {
+  background: #eef1f5;
+}
+
+.tbtn.active {
+  background: var(--ink);
+  color: #fff;
+}
+
+.tbtn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.statusline {
+  flex: 1;
+  text-align: right;
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  min-width: 260px;
+}
+
+.statusline b {
+  color: var(--ink);
+}
+
+/* ---- stage / canvas ---- */
+
+.stage {
+  position: relative;
+  height: calc(100% - 52px);
+  overflow: hidden;
+}
+
+#canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: default;
+  touch-action: none;
+}
+
+#canvas.panning {
+  cursor: grabbing;
+}
+
+#canvas.adding {
+  cursor: crosshair;
+}
+
+#canvas.foundation-mode,
+#canvas.drawing-foundation {
+  cursor: crosshair;
+}
+
+/* SVG element styling */
+.panel-box {
+  fill: var(--panel-bg);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.panel-box.selected {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.panel-sep {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.panel-numstrip {
+  fill: #1f2733;
+  stroke: none;
+}
+.panel-numsep {
+  stroke: #4a5666;
+  stroke-width: 1;
+}
+.panel-bus {
+  stroke: var(--orange);
+  stroke-width: 2.5;
+}
+.panel-hatch {
+  fill: url(#hatch);
+  stroke: none;
+}
+.panel-num {
+  fill: #fff;
+  font: 600 11px var(--mono);
+  dominant-baseline: middle;
+}
+.panel-label {
+  fill: #3b4756;
+  font: 600 11px var(--mono);
+  letter-spacing: 0.5px;
+  dominant-baseline: middle;
+}
+.panel-size {
+  fill: #6a7686;
+  font: 500 7px var(--mono);
+  letter-spacing: 0.25px;
+  dominant-baseline: middle;
+}
+.panel-end-label {
+  fill: #3b4756;
+  font: 600 6px var(--mono);
+  letter-spacing: 0.25px;
+  dominant-baseline: middle;
+}
+.panel-title {
+  fill: var(--ink);
+  font: 700 13px var(--mono);
+  letter-spacing: 1px;
+}
+.panel-tap {
+  fill: #ffffff;
+  stroke: #1f2733;
+  stroke-width: 0.6;
+}
+.route {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.route.blocked {
+  stroke: #b42318 !important;
+  stroke-width: 3.2;
+  stroke-dasharray: 8 5;
+}
+.foundation {
+  cursor: move;
+}
+.foundation-area {
+  fill: rgba(180, 57, 45, 0.16);
+  stroke: #a9362b;
+  stroke-width: 2;
+  stroke-dasharray: 7 4;
+}
+.foundation-area.selected {
+  fill: rgba(47, 111, 216, 0.12);
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.foundation-label {
+  fill: #8f2f27;
+  font: 700 11px var(--mono);
+  letter-spacing: 0.5px;
+  pointer-events: none;
+}
+.foundation-size {
+  fill: #8f2f27;
+  font: 600 10px var(--mono);
+  pointer-events: none;
+}
+.load {
+  cursor: pointer;
+}
+.load-ring {
+  fill: #fff;
+  stroke-width: 2.4;
+}
+.load-select {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+.load-tag {
+  font: 700 12px var(--mono);
+  letter-spacing: 0.5px;
+}
+.load-sub {
+  fill: var(--ink-soft);
+  font: 500 10px var(--mono);
+}
+.rotate-handle {
+  cursor: grab;
+}
+.rotate-handle circle {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.rotate-handle text {
+  fill: var(--accent);
+  font: 700 12px var(--mono);
+}
+
+/* ---- zoom controls ---- */
+
+.zoom-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.zoom-controls button {
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+  background: #fff;
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--mono);
+}
+
+.zoom-controls button:hover {
+  background: #eef1f5;
+}
+
+.zoom-level {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 4px 10px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* ---- modals ---- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 26, 34, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal {
+  background: #fff;
+  border: 1.5px solid var(--ink);
+  border-radius: 5px;
+  width: min(680px, 92vw);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 18px 20px 20px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+}
+
+.modal.small {
+  width: min(420px, 92vw);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.modal h2 {
+  font-size: 16px;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.modal-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 4px 0 14px;
+  line-height: 1.5;
+}
+
+.icon-btn {
+  border: none;
+  background: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  line-height: 1;
+}
+
+.panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-row {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 12px;
+  background: #fafbfc;
+}
+
+.panel-row .row-top {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.field span {
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+
+.field input,
+.field select,
+.panel-row input,
+.panel-row textarea {
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 7px 9px;
+  border: 1.5px solid var(--line);
+  border-radius: 3px;
+  background: #fff;
+}
+
+.panel-row .grow {
+  flex: 1;
+  min-width: 140px;
+}
+
+.panel-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.panel-row textarea {
+  width: 100%;
+  margin-top: 10px;
+  resize: vertical;
+  min-height: 60px;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.panel-row .row-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  color: #c0392b;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 0;
+}
+
+.ghost-btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 12px;
+  border: 1.5px dashed var(--line);
+  background: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ghost-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.toggle-cols {
+  border: none;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 0;
+}
+
+</style>
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="toolbar-buttons">
+        <button id="btn-setup" class="tbtn">&larr; SETUP</button>
+        <button id="btn-route" class="tbtn active">ROUTE LOADS</button>
+        <button id="btn-foundation" class="tbtn">DRAW FOUNDATION</button>
+        <button id="btn-wall" class="tbtn">&#8635; WALL: RIGHT</button>
+        <button id="btn-clear-routes" class="tbtn">CLEAR ROUTES</button>
+        <button id="btn-clear-loads" class="tbtn">CLEAR LOADS</button>
+        <button id="btn-clear-foundations" class="tbtn">CLEAR FOUNDATIONS</button>
+        <button id="btn-export" class="tbtn">EXPORT PDF</button>
+      </div>
+      <div class="statusline" id="statusline"></div>
+    </header>
+
+    <main class="stage">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern
+            id="hatch"
+            width="6"
+            height="6"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#c9d2dd" stroke-width="1.2" />
+          </pattern>
+        </defs>
+      </svg>
+
+      <div class="zoom-controls">
+        <button id="zoom-in" title="Zoom in">+</button>
+        <button id="zoom-out" title="Zoom out">&minus;</button>
+        <button id="zoom-fit" title="Fit to content">&#8599;</button>
+        <div class="zoom-level" id="zoom-level">132%</div>
+      </div>
+
+      <div class="hint" id="hint"></div>
+    </main>
+
+    <!-- Setup modal: configure panels -->
+    <div class="modal-backdrop" id="modal-setup" hidden>
+      <div class="modal">
+        <div class="modal-head">
+          <h2>Panel setup</h2>
+          <button class="icon-btn" id="setup-close">&times;</button>
+        </div>
+        <p class="modal-note">
+          Each column is always 3&nbsp;ft (36&nbsp;in) wide. Define one or more
+          panels, their number of columns and — optionally — a label per column.
+          An END SECTION is added automatically at each end.
+        </p>
+        <div id="panel-list" class="panel-list"></div>
+        <button class="ghost-btn" id="add-panel">+ Add panel</button>
+        <div class="modal-actions">
+          <button class="tbtn" id="setup-cancel">Cancel</button>
+          <button class="tbtn primary" id="setup-save">Save panels</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load modal: add / edit a load -->
+    <div class="modal-backdrop" id="modal-load" hidden>
+      <div class="modal small">
+        <div class="modal-head">
+          <h2 id="load-title">Add load</h2>
+          <button class="icon-btn" id="load-close">&times;</button>
+        </div>
+        <label class="field">
+          <span>Tag</span>
+          <input type="text" id="load-tag" placeholder="e.g. MCC A" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Panel</span>
+          <select id="load-panel"></select>
+        </label>
+        <label class="field">
+          <span>Column</span>
+          <select id="load-col"></select>
+        </label>
+        <div class="modal-actions">
+          <button class="tbtn" id="load-cancel">Cancel</button>
+          <button class="tbtn primary" id="load-save">Add load</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+// ===== js/geometry.js =====
+// geometry.js — coordinate transforms and octilinear (45°) path construction.
+//
+// The whole app works in "world" units of inches. A panel column is always
+// 36 in (3 ft) wide. Rendering maps world → screen via a simple pan/zoom view.
+
+const IN_PER_FT = 12;
+const COL_WIDTH_IN = 36; // every column is exactly 3 ft wide
+const END_SECTION_WIDTH_IN = 4.156;
+const SQRT2 = Math.SQRT2;
+
+// ---- vector helpers -------------------------------------------------------
+
+function rotateVec(x, y, deg) {
+  const r = (deg * Math.PI) / 180;
+  const c = Math.cos(r);
+  const s = Math.sin(r);
+  return [x * c - y * s, x * s + y * c];
+}
+
+// Transform a point from a panel's local frame into world coordinates.
+// Local frame: origin at the panel's front-top corner, +x points into the
+// panel depth (toward the wall), +y runs down the column stack.
+function panelLocalToWorld(panel, lx, ly) {
+  const [rx, ry] = rotateVec(lx, ly, panel.rotation);
+  return [panel.x + rx, panel.y + ry];
+}
+
+// Unit vector, in world space, pointing out of the panel front (the side the
+// cables exit — away from the wall). In local space that direction is -x.
+function panelFrontDir(panel) {
+  return rotateVec(-1, 0, panel.rotation);
+}
+
+// The tap point (world) for a given column index of a panel: the middle of
+// that column on the front face.
+function columnTapWorld(panel, colIndex) {
+  // The first equipment column starts after the leading END SECTION.
+  const y = END_SECTION_WIDTH_IN + colIndex * COL_WIDTH_IN + COL_WIDTH_IN / 2;
+  return panelLocalToWorld(panel, 0, y);
+}
+
+// Panels always have a non-connectable END SECTION at both ends of the
+// configured equipment-column lineup.
+function panelLengthIn(panel) {
+  return panel.columns.length * COL_WIDTH_IN + END_SECTION_WIDTH_IN * 2;
+}
+
+// ---- octilinear routing ---------------------------------------------------
+
+// Build an octilinear polyline (segments at 0/45/90/135°) from a free load
+// point to a panel tap, arriving along the panel's front direction.
+//
+//   load      – [x, y] world
+//   tap       – [x, y] world
+//   frontDir  – unit vector, world, the tap's outward (exit) direction
+//   slack     – how far, in inches, the route runs straight out of the load
+//               before it starts its diagonal (the "fan" offset). Larger
+//               values push a route's diagonal outward, letting neighbouring
+//               routes nest without overlapping.
+//
+// Returns { points: [[x,y]...], length } with length in inches.
+function octRoute(load, tap, frontDir, slack) {
+  // Work in the tap's local frame: tap at origin, +x = frontDir (exit side).
+  const ang = Math.atan2(frontDir[1], frontDir[0]);
+  const cos = Math.cos(-ang);
+  const sin = Math.sin(-ang);
+  const toLocal = (p) => {
+    const dx = p[0] - tap[0];
+    const dy = p[1] - tap[1];
+    return [dx * cos - dy * sin, dx * sin + dy * cos];
+  };
+  const toWorld = (p) => {
+    const c = Math.cos(ang);
+    const s = Math.sin(ang);
+    return [tap[0] + (p[0] * c - p[1] * s), tap[1] + (p[0] * s + p[1] * c)];
+  };
+
+  const L = toLocal(load); // load in tap frame
+  const a = L[0]; // horizontal distance from tap to load (front axis)
+  const b = L[1]; // perpendicular offset
+  const sign = b >= 0 ? 1 : -1;
+  const ab = Math.abs(b);
+
+  let local;
+  if (a <= 0) {
+    // Load is behind the front face (unusual): fall back to a straight line.
+    local = [L, [0, 0]];
+  } else if (a >= ab) {
+    // Horizontal-dominant: run out of the load, one diagonal, run into tap.
+    const g = Math.max(0, Math.min(slack, a - ab)); // clamp the fan offset
+    const diagStart = [a - g, b];
+    const diagEnd = [a - g - ab, 0];
+    local = [L, diagStart, diagEnd, [0, 0]];
+  } else {
+    // Vertical-dominant: a perpendicular run then a diagonal into the tap.
+    const diagStart = [a, sign * a];
+    local = [L, diagStart, [0, 0]];
+  }
+
+  // Drop consecutive duplicate points.
+  const cleaned = [];
+  for (const p of local) {
+    const last = cleaned[cleaned.length - 1];
+    if (!last || Math.hypot(last[0] - p[0], last[1] - p[1]) > 1e-6) cleaned.push(p);
+  }
+
+  const points = cleaned.map(toWorld);
+  let length = 0;
+  for (let i = 1; i < points.length; i++) {
+    length += Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+  }
+  return { points, length };
+}
+
+// ---- rectangular obstacle avoidance -------------------------------------
+
+const GEOMETRY_EPSILON = 1e-6;
+
+// Replace an octilinear route with its shortest obstacle-free equivalent.
+// Foundations are axis-aligned rectangles in world coordinates. Their
+// boundaries may be followed, but no route segment may enter their interior.
+function avoidRectangles(points, foundations, clearance = 0) {
+  const obstacles = foundations.map((foundation) => ({
+    left: foundation.x - clearance,
+    top: foundation.y - clearance,
+    right: foundation.x + foundation.width + clearance,
+    bottom: foundation.y + foundation.height + clearance,
+  }));
+
+  if (!polylineHitsRectangles(points, obstacles)) {
+    return { points, length: polylineLength(points), blocked: false };
+  }
+
+  const anchors = [...points];
+  for (const obstacle of obstacles) {
+    anchors.push(
+      [obstacle.left, obstacle.top],
+      [obstacle.right, obstacle.top],
+      [obstacle.right, obstacle.bottom],
+      [obstacle.left, obstacle.bottom]
+    );
+  }
+
+  const candidates = buildOctilinearCandidates(anchors, obstacles);
+  const graph = buildVisibilityGraph(candidates, obstacles);
+  const start = findPointIndex(candidates, points[0]);
+  const end = findPointIndex(candidates, points[points.length - 1]);
+  const routed = shortestPath(graph, start, end);
+
+  if (!routed) {
+    return { points, length: polylineLength(points), blocked: true };
+  }
+
+  const routedPoints = removeCollinearPoints(routed.map((index) => candidates[index]));
+  return { points: routedPoints, length: polylineLength(routedPoints), blocked: false };
+}
+
+function polylineHitsRectangles(points, obstacles) {
+  for (let index = 1; index < points.length; index++) {
+    if (!segmentIsClear(points[index - 1], points[index], obstacles)) return true;
+  }
+  return false;
+}
+
+function segmentIsClear(start, end, obstacles) {
+  return obstacles.every((obstacle) => !segmentEntersRectangle(start, end, obstacle));
+}
+
+function segmentEntersRectangle(start, end, obstacle) {
+  // Shrinking by epsilon makes touching or following the boundary legal.
+  const left = obstacle.left + GEOMETRY_EPSILON;
+  const right = obstacle.right - GEOMETRY_EPSILON;
+  const top = obstacle.top + GEOMETRY_EPSILON;
+  const bottom = obstacle.bottom - GEOMETRY_EPSILON;
+  if (left >= right || top >= bottom) return false;
+
+  let from = 0;
+  let to = 1;
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  for (const [p, q] of [
+    [-dx, start[0] - left],
+    [dx, right - start[0]],
+    [-dy, start[1] - top],
+    [dy, bottom - start[1]],
+  ]) {
+    if (Math.abs(p) < GEOMETRY_EPSILON) {
+      if (q < 0) return false;
+      continue;
+    }
+    const ratio = q / p;
+    if (p < 0) from = Math.max(from, ratio);
+    else to = Math.min(to, ratio);
+    if (from > to) return false;
+  }
+  return from <= to;
+}
+
+function buildOctilinearCandidates(anchors, obstacles) {
+  const points = [];
+  const seen = new Set();
+  const add = (point) => {
+    if (!Number.isFinite(point[0]) || !Number.isFinite(point[1])) return;
+    if (obstacles.some((obstacle) => pointInsideRectangle(point, obstacle))) return;
+    const key = pointKey(point);
+    if (!seen.has(key)) {
+      seen.add(key);
+      points.push(point);
+    }
+  };
+
+  anchors.forEach(add);
+  for (let first = 0; first < anchors.length; first++) {
+    for (let second = first + 1; second < anchors.length; second++) {
+      for (let firstDirection = 0; firstDirection < 4; firstDirection++) {
+        for (let secondDirection = 0; secondDirection < 4; secondDirection++) {
+          if (firstDirection === secondDirection) continue;
+          add(lineIntersection(
+            anchors[first], firstDirection, anchors[second], secondDirection
+          ));
+        }
+      }
+    }
+  }
+  return points;
+}
+
+function pointInsideRectangle(point, obstacle) {
+  return (
+    point[0] > obstacle.left + GEOMETRY_EPSILON &&
+    point[0] < obstacle.right - GEOMETRY_EPSILON &&
+    point[1] > obstacle.top + GEOMETRY_EPSILON &&
+    point[1] < obstacle.bottom - GEOMETRY_EPSILON
+  );
+}
+
+// Directions: horizontal, vertical, descending diagonal, ascending diagonal.
+function lineIntersection(first, firstDirection, second, secondDirection) {
+  if (firstDirection > secondDirection) {
+    return lineIntersection(second, secondDirection, first, firstDirection);
+  }
+  if (firstDirection === 0 && secondDirection === 1) return [second[0], first[1]];
+  if (firstDirection === 0 && secondDirection === 2) {
+    return [second[0] + second[1] - first[1], first[1]];
+  }
+  if (firstDirection === 0 && secondDirection === 3) {
+    return [first[1] + second[0] - second[1], first[1]];
+  }
+  if (firstDirection === 1 && secondDirection === 2) {
+    return [first[0], second[0] + second[1] - first[0]];
+  }
+  if (firstDirection === 1 && secondDirection === 3) {
+    return [first[0], first[0] - second[0] + second[1]];
+  }
+  const descending = first[0] + first[1];
+  const ascending = second[1] - second[0];
+  return [(descending - ascending) / 2, (descending + ascending) / 2];
+}
+
+function buildVisibilityGraph(points, obstacles) {
+  const graph = points.map(() => []);
+  for (let direction = 0; direction < 4; direction++) {
+    const lines = new Map();
+    points.forEach((point, index) => {
+      const key = lineKey(point, direction);
+      if (!lines.has(key)) lines.set(key, []);
+      lines.get(key).push(index);
+    });
+    for (const indexes of lines.values()) {
+      indexes.sort((a, b) => pointOrder(points[a], direction) - pointOrder(points[b], direction));
+      for (let index = 1; index < indexes.length; index++) {
+        const from = indexes[index - 1];
+        const to = indexes[index];
+        if (!segmentIsClear(points[from], points[to], obstacles)) continue;
+        const distance = Math.hypot(
+          points[to][0] - points[from][0], points[to][1] - points[from][1]
+        );
+        graph[from].push([to, distance]);
+        graph[to].push([from, distance]);
+      }
+    }
+  }
+  return graph;
+}
+
+function lineKey(point, direction) {
+  const value = direction === 0
+    ? point[1]
+    : direction === 1
+      ? point[0]
+      : direction === 2
+        ? point[0] + point[1]
+        : point[1] - point[0];
+  return Math.round(value / GEOMETRY_EPSILON);
+}
+
+function pointOrder(point, direction) {
+  return direction === 0 ? point[0] : point[1];
+}
+
+function pointKey(point) {
+  return `${Math.round(point[0] / GEOMETRY_EPSILON)},${Math.round(point[1] / GEOMETRY_EPSILON)}`;
+}
+
+function findPointIndex(points, target) {
+  const key = pointKey(target);
+  return points.findIndex((point) => pointKey(point) === key);
+}
+
+function shortestPath(graph, start, end) {
+  if (start < 0 || end < 0) return null;
+  const distances = graph.map(() => Infinity);
+  const previous = graph.map(() => -1);
+  const visited = graph.map(() => false);
+  distances[start] = 0;
+
+  for (;;) {
+    let current = -1;
+    for (let index = 0; index < graph.length; index++) {
+      if (!visited[index] && (current < 0 || distances[index] < distances[current])) {
+        current = index;
+      }
+    }
+    if (current < 0 || distances[current] === Infinity) return null;
+    if (current === end) break;
+    visited[current] = true;
+    for (const [next, weight] of graph[current]) {
+      const candidate = distances[current] + weight;
+      if (candidate < distances[next]) {
+        distances[next] = candidate;
+        previous[next] = current;
+      }
+    }
+  }
+
+  const path = [];
+  for (let current = end; current >= 0; current = previous[current]) {
+    path.push(current);
+    if (current === start) return path.reverse();
+  }
+  return null;
+}
+
+function removeCollinearPoints(points) {
+  const cleaned = [];
+  for (const point of points) {
+    while (cleaned.length >= 2) {
+      const first = cleaned[cleaned.length - 2];
+      const second = cleaned[cleaned.length - 1];
+      const cross = (second[0] - first[0]) * (point[1] - second[1]) -
+        (second[1] - first[1]) * (point[0] - second[0]);
+      if (Math.abs(cross) > GEOMETRY_EPSILON) break;
+      cleaned.pop();
+    }
+    cleaned.push(point);
+  }
+  return cleaned;
+}
+
+function polylineLength(points) {
+  let length = 0;
+  for (let index = 1; index < points.length; index++) {
+    length += Math.hypot(
+      points[index][0] - points[index - 1][0],
+      points[index][1] - points[index - 1][1]
+    );
+  }
+  return length;
+}
+
+// ---- crossing detection ---------------------------------------------------
+
+function onSeg(px, py, qx, qy, rx, ry) {
+  return (
+    Math.min(px, qx) - 1e-6 <= rx &&
+    rx <= Math.max(px, qx) + 1e-6 &&
+    Math.min(py, qy) - 1e-6 <= ry &&
+    ry <= Math.max(py, qy) + 1e-6
+  );
+}
+
+function orient(ax, ay, bx, by, cx, cy) {
+  const v = (by - ay) * (cx - bx) - (bx - ax) * (cy - by);
+  if (Math.abs(v) < 1e-9) return 0;
+  return v > 0 ? 1 : 2;
+}
+
+// True proper/segment intersection of segments p1p2 and p3p4.
+function segmentsIntersect(p1, p2, p3, p4) {
+  const o1 = orient(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1]);
+  const o2 = orient(p1[0], p1[1], p2[0], p2[1], p4[0], p4[1]);
+  const o3 = orient(p3[0], p3[1], p4[0], p4[1], p1[0], p1[1]);
+  const o4 = orient(p3[0], p3[1], p4[0], p4[1], p2[0], p2[1]);
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && onSeg(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1])) return true;
+  if (o2 === 0 && onSeg(p1[0], p1[1], p2[0], p2[1], p4[0], p4[1])) return true;
+  if (o3 === 0 && onSeg(p3[0], p3[1], p4[0], p4[1], p1[0], p1[1])) return true;
+  if (o4 === 0 && onSeg(p3[0], p3[1], p4[0], p4[1], p2[0], p2[1])) return true;
+  return false;
+}
+
+// Count crossings between two polylines, ignoring intersections that occur at
+// a shared endpoint (routes that legitimately share a load or tap point).
+function countPolylineCrossings(a, b) {
+  let n = 0;
+  for (let i = 1; i < a.length; i++) {
+    for (let j = 1; j < b.length; j++) {
+      if (segmentsIntersect(a[i - 1], a[i], b[j - 1], b[j])) {
+        // Skip if the only common point is a shared route endpoint.
+        if (sharesEndpoint(a, b)) {
+          if (!interiorCrossing(a[i - 1], a[i], b[j - 1], b[j])) continue;
+        }
+        n++;
+      }
+    }
+  }
+  return n;
+}
+
+function samePoint(p, q) {
+  return Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.5;
+}
+
+function sharesEndpoint(a, b) {
+  const ea = [a[0], a[a.length - 1]];
+  const eb = [b[0], b[b.length - 1]];
+  for (const p of ea) for (const q of eb) if (samePoint(p, q)) return true;
+  return false;
+}
+
+// Does the intersection of two segments fall strictly inside both (not merely
+// touching at a shared endpoint)?
+function interiorCrossing(a1, a2, b1, b2) {
+  const shared =
+    samePoint(a1, b1) || samePoint(a1, b2) || samePoint(a2, b1) || samePoint(a2, b2);
+  return !shared;
+}
+
+// ===== js/store.js =====
+// store.js — the application state and small helpers to mutate it.
+//
+// State is plain JSON so it can be persisted to localStorage and restored.
+
+
+const STORAGE_KEY = 'underground-router-state-v1';
+
+let uid = 1;
+function nextId(prefix) {
+  return `${prefix}${uid++}`;
+}
+
+const state = {
+  mode: 'route', // 'setup' | 'route' | 'foundation'
+  wall: 'RIGHT', // RIGHT | BOTTOM | LEFT | TOP  (where the wall sits)
+  panels: [],
+  loads: [],
+  foundations: [],
+  routes: [], // computed: { loadId, points:[[x,y]...], length, color }
+  view: { scale: 1.32, offsetX: 0, offsetY: 0 },
+  selection: null, // { type:'panel'|'load'|'foundation', id }
+  showRoutes: true,
+  stats: { routes: 0, crossings: 0, blocked: 0, length: 0 },
+};
+
+// Map a wall side to the panel rotation that backs onto it (cables exit the
+// opposite side).
+const WALL_ROTATION = { RIGHT: 0, BOTTOM: 270, LEFT: 180, TOP: 90 };
+const WALL_CYCLE = ['RIGHT', 'BOTTOM', 'LEFT', 'TOP'];
+
+function createPanel({ name, columns, x, y }) {
+  return {
+    id: nextId('P'),
+    name,
+    colWidthIn: COL_WIDTH_IN,
+    columns: columns.map((label, i) => ({ index: i, label: label || `COL ${i + 1}` })),
+    x,
+    y,
+    rotation: WALL_ROTATION[state.wall],
+  };
+}
+
+function createLoad({ tag, panelId, colIndex, x, y }) {
+  return { id: nextId('L'), tag, panelId, colIndex, x, y };
+}
+
+function createFoundation({ x, y, width, height }) {
+  return { id: nextId('F'), x, y, width, height };
+}
+
+function getPanel(id) {
+  return state.panels.find((p) => p.id === id) || null;
+}
+
+function removeLoad(id) {
+  state.loads = state.loads.filter((l) => l.id !== id);
+  state.routes = state.routes.filter((r) => r.loadId !== id);
+  if (state.selection && state.selection.id === id) state.selection = null;
+}
+
+function removeFoundation(id) {
+  state.foundations = state.foundations.filter((foundation) => foundation.id !== id);
+  if (state.selection && state.selection.id === id) state.selection = null;
+}
+
+function removePanel(id) {
+  state.panels = state.panels.filter((p) => p.id !== id);
+  // Orphan any loads that referenced it.
+  state.loads = state.loads.filter((l) => l.panelId !== id);
+  state.routes = state.routes.filter((r) => {
+    const l = state.loads.find((x) => x.id === r.loadId);
+    return l && l.panelId !== id;
+  });
+  if (state.selection && state.selection.id === id) state.selection = null;
+}
+
+function save() {
+  try {
+    const snapshot = {
+      wall: state.wall,
+      panels: state.panels,
+      loads: state.loads,
+      foundations: state.foundations,
+      view: state.view,
+      uid,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  } catch (e) {
+    /* storage may be unavailable; ignore */
+  }
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    state.wall = s.wall || 'RIGHT';
+    state.panels = s.panels || [];
+    state.loads = s.loads || [];
+    state.foundations = s.foundations || [];
+    if (s.view) state.view = s.view;
+    uid = s.uid || uid;
+    return state.panels.length > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+// ===== js/router.js =====
+// router.js — auto-routing of loads to their panel columns.
+//
+// Goals, in priority order (from the spec):
+//   1. minimise the number of crossings between routes,
+//   2. use only 45° bends and straight runs (guaranteed by octRoute),
+//   3. keep each route as short as possible.
+//
+// Every load is wired to the tap point of the single column it was assigned
+// to. Because the assignment is fixed, crossings come purely from geometry:
+// a route that needs to travel "up" the panel while another travels "down"
+// will tend to cross it. We fight that by choosing, per route, how far it
+// runs straight before its diagonal (its "slack"/track offset), then we pick
+// the ordering of those tracks that yields the fewest crossings.
+
+
+// Distinct, print-friendly colours cycled across routes.
+const COLORS = [
+  '#d6482b', '#127a7a', '#2f6fd8', '#8e44ad', '#1f8f4e', '#b8860b',
+  '#c2185b', '#5d6d7e', '#e07b39', '#00838f', '#7b1fa2', '#33691e',
+  '#c62828', '#455a64', '#6d4c41', '#00695c', '#4527a0', '#9e6b00',
+];
+
+const TRACK_GAP_IN = 9; // spacing between adjacent diagonal "tracks"
+const FOUNDATION_CLEARANCE_IN = 12;
+
+// Build every route and store the result + stats on the state.
+function autoRoute() {
+  const routes = [];
+  // Group loads by the panel they feed so each panel gets its own fan of
+  // nested tracks.
+  const byPanel = new Map();
+  for (const load of state.loads) {
+    if (!byPanel.has(load.panelId)) byPanel.set(load.panelId, []);
+    byPanel.get(load.panelId).push(load);
+  }
+
+  let colorIndex = 0;
+  for (const [panelId, loads] of byPanel) {
+    const panel = getPanel(panelId);
+    if (!panel) continue;
+    const front = panelFrontDir(panel);
+
+    // Precompute each load's tap and a signed "need" = how far up/down the
+    // route must travel along the panel front axis, used to order tracks.
+    const items = loads.map((load) => {
+      const tap = columnTapWorld(panel, load.colIndex);
+      return { load, tap, color: COLORS[colorIndex++ % COLORS.length] };
+    });
+
+    const ordered = orderForFewestCrossings(items, front);
+    for (const it of ordered) {
+      routes.push({
+        loadId: it.load.id,
+        panelId,
+        colIndex: it.load.colIndex,
+        points: it.points,
+        length: it.length,
+        blocked: it.blocked,
+        color: it.color,
+      });
+    }
+  }
+
+  state.routes = routes;
+  updateStats();
+  return routes;
+}
+
+// Try a handful of track orderings and keep whichever crosses least. The
+// candidate orderings are cheap sorts that tend to nest routes cleanly.
+function orderForFewestCrossings(items, front) {
+  if (items.length === 0) return [];
+
+  // Perpendicular offset of each load relative to its tap, along the panel
+  // front axis, tells us whether it approaches from "above" or "below".
+  const perp = (it) => {
+    const dx = it.load.x - it.tap[0];
+    const dy = it.load.y - it.tap[1];
+    // component perpendicular to front direction
+    return dx * -front[1] + dy * front[0];
+  };
+  const along = (it) => {
+    const dx = it.load.x - it.tap[0];
+    const dy = it.load.y - it.tap[1];
+    return dx * front[0] + dy * front[1]; // how far out in front the load sits
+  };
+
+  const candidates = [
+    [...items].sort((a, b) => perp(a) - perp(b)),
+    [...items].sort((a, b) => perp(b) - perp(a)),
+    [...items].sort((a, b) => a.tap[1] - b.tap[1] || a.tap[0] - b.tap[0]),
+    [...items].sort((a, b) => along(b) - along(a)),
+  ];
+
+  let best = null;
+  let bestCross = Infinity;
+  for (const order of candidates) {
+    const built = buildTracks(order);
+    const cross = totalCrossings(built);
+    if (cross < bestCross) {
+      bestCross = cross;
+      best = built;
+    }
+  }
+  return best;
+}
+
+// Assign each item an increasing slack so their diagonals sit on parallel,
+// non-overlapping tracks, then compute the octilinear path.
+function buildTracks(order) {
+  return order.map((it, i) => {
+    const slack = i * TRACK_GAP_IN;
+    const front = panelFrontDir(getPanel(it.load.panelId));
+    const direct = octRoute([it.load.x, it.load.y], it.tap, front, slack);
+    const routed = avoidRectangles(
+      direct.points,
+      state.foundations,
+      FOUNDATION_CLEARANCE_IN
+    );
+    return {
+      ...it,
+      points: routed.points,
+      length: routed.length,
+      blocked: routed.blocked,
+    };
+  });
+}
+
+function totalCrossings(built) {
+  let n = 0;
+  for (let i = 0; i < built.length; i++) {
+    for (let j = i + 1; j < built.length; j++) {
+      n += countPolylineCrossings(built[i].points, built[j].points);
+    }
+  }
+  return n;
+}
+
+// Recompute the global stats bar (routes / crossings / total length).
+function updateStats() {
+  const routes = state.routes;
+  let length = 0;
+  for (const r of routes) length += r.length;
+  const blocked = routes.filter((route) => route.blocked).length;
+
+  let crossings = 0;
+  for (let i = 0; i < routes.length; i++) {
+    for (let j = i + 1; j < routes.length; j++) {
+      crossings += countPolylineCrossings(routes[i].points, routes[j].points);
+    }
+  }
+  state.stats = {
+    routes: routes.length,
+    crossings,
+    blocked,
+    length: Math.round(length * 10) / 10,
+  };
+}
+
+// ===== js/render.js =====
+// render.js — draws the whole scene into a single SVG element.
+//
+// Everything is rebuilt from state on each render(). At this scale that is
+// simpler and fast enough, and keeps the drawing a pure function of state.
+
+
+const BASE_PPI = 1.0; // pixels per inch at scale 1
+const SVGNS = 'http://www.w3.org/2000/svg';
+const PANEL_DEPTH_IN = 150; // drawn depth of a panel box (presentation only)
+const NUM_STRIP_IN = 26; // width of the dark numbered strip on the front edge
+
+// Labels that read as structural rows rather than connectable feeders; drawn
+// with a hatch so they stand out (purely cosmetic).
+const HATCH_WORDS = ['METERING', 'TRANSITION', 'CROSS-TIE', 'INCOMER'];
+
+let svg = null;
+
+function initSvg(el) {
+  svg = el;
+}
+
+// ---- coordinate transforms ------------------------------------------------
+
+function worldToScreen(x, y) {
+  const { scale, offsetX, offsetY } = state.view;
+  return [offsetX + x * scale * BASE_PPI, offsetY + y * scale * BASE_PPI];
+}
+
+function screenToWorld(sx, sy) {
+  const { scale, offsetX, offsetY } = state.view;
+  return [
+    (sx - offsetX) / (scale * BASE_PPI),
+    (sy - offsetY) / (scale * BASE_PPI),
+  ];
+}
+
+function el(name, attrs, parent) {
+  const n = document.createElementNS(SVGNS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+
+// ---- top level ------------------------------------------------------------
+
+function render() {
+  if (!svg) return;
+  svg.textContent = '';
+  drawDefs(svg);
+
+  const root = el('g', {}, svg);
+
+  for (const foundation of state.foundations) drawFoundation(root, foundation);
+  for (const panel of state.panels) drawPanel(root, panel);
+  if (state.showRoutes) for (const route of state.routes) drawRoute(root, route);
+  for (const load of state.loads) drawLoad(root, load);
+}
+
+function drawDefs(parent) {
+  const defs = el('defs', {}, parent);
+  const pattern = el(
+    'pattern',
+    {
+      id: 'hatch',
+      width: 6,
+      height: 6,
+      patternUnits: 'userSpaceOnUse',
+      patternTransform: 'rotate(45)',
+    },
+    defs
+  );
+  el(
+    'line',
+    { x1: 0, y1: 0, x2: 0, y2: 6, stroke: '#c9d2dd', 'stroke-width': 1.2 },
+    pattern
+  );
+}
+
+// ---- foundations ---------------------------------------------------------
+
+function drawFoundation(parent, foundation) {
+  const [left, top] = worldToScreen(foundation.x, foundation.y);
+  const [right, bottom] = worldToScreen(
+    foundation.x + foundation.width,
+    foundation.y + foundation.height
+  );
+  const width = Math.abs(right - left);
+  const height = Math.abs(bottom - top);
+  const selected = state.selection && state.selection.id === foundation.id;
+  const group = el(
+    'g',
+    { class: 'foundation', 'data-id': foundation.id },
+    parent
+  );
+
+  el(
+    'rect',
+    {
+      x: Math.min(left, right),
+      y: Math.min(top, bottom),
+      width,
+      height,
+      class: 'foundation-area' + (selected ? ' selected' : ''),
+    },
+    group
+  );
+
+  if (width >= 96 && height >= 42) {
+    const centerX = (left + right) / 2;
+    const centerY = (top + bottom) / 2;
+    const title = el(
+      'text',
+      { x: centerX, y: centerY - 4, class: 'foundation-label', 'text-anchor': 'middle' },
+      group
+    );
+    title.textContent = 'DEEP FOUNDATION';
+    const dimensions = el(
+      'text',
+      { x: centerX, y: centerY + 13, class: 'foundation-size', 'text-anchor': 'middle' },
+      group
+    );
+    dimensions.textContent =
+      `${formatFeet(foundation.width)} × ${formatFeet(foundation.height)}`;
+  }
+}
+
+function formatFeet(inches) {
+  const feet = inches / 12;
+  return `${feet.toFixed(feet >= 10 ? 0 : 1)} ft`;
+}
+
+// ---- panels ---------------------------------------------------------------
+
+function isHatched(label) {
+  const up = (label || '').toUpperCase();
+  return HATCH_WORDS.some((w) => up.includes(w));
+}
+
+function drawPanel(parent, panel) {
+  const g = el('g', { class: 'panel', 'data-id': panel.id }, parent);
+  const n = panel.columns.length;
+  const panelLength = panelLengthIn(panel);
+  const rot = panel.rotation;
+
+  // Corners of the whole panel box, local → screen.
+  const corners = [
+    [0, 0],
+    [PANEL_DEPTH_IN, 0],
+    [PANEL_DEPTH_IN, panelLength],
+    [0, panelLength],
+  ].map(([lx, ly]) => worldToScreen(...panelLocalToWorld(panel, lx, ly)));
+
+  const selected = state.selection && state.selection.id === panel.id;
+
+  // Outer box.
+  el(
+    'polygon',
+    {
+      points: corners.map((c) => c.join(',')).join(' '),
+      class: 'panel-box' + (selected ? ' selected' : ''),
+    },
+    g
+  );
+
+  // END SECTION is structural and non-connectable. It is always present at
+  // both ends of the configured equipment lineup.
+  drawHatch(g, panel, 0, END_SECTION_WIDTH_IN);
+  drawHatch(g, panel, panelLength - END_SECTION_WIDTH_IN, panelLength);
+
+  // Other structural rows first, so the strip and text sit on top.
+  for (let i = 0; i < n; i++) {
+    if (isHatched(panel.columns[i].label)) {
+      const y0 = END_SECTION_WIDTH_IN + i * COL_WIDTH_IN;
+      drawHatch(g, panel, y0, y0 + COL_WIDTH_IN);
+    }
+  }
+
+  // Dark numbered strip along the front edge (where cables land).
+  const strip = [
+    [0, 0],
+    [NUM_STRIP_IN, 0],
+    [NUM_STRIP_IN, panelLength],
+    [0, panelLength],
+  ].map(([lx, ly]) => worldToScreen(...panelLocalToWorld(panel, lx, ly)));
+  el(
+    'polygon',
+    { points: strip.map((c) => c.join(',')).join(' '), class: 'panel-numstrip' },
+    g
+  );
+
+  // Bus line running down the label area toward the wall.
+  const busX = NUM_STRIP_IN + (PANEL_DEPTH_IN - NUM_STRIP_IN) * 0.72;
+  const busA = worldToScreen(...panelLocalToWorld(panel, busX, END_SECTION_WIDTH_IN));
+  const busB = worldToScreen(
+    ...panelLocalToWorld(panel, busX, panelLength - END_SECTION_WIDTH_IN)
+  );
+  el(
+    'line',
+    { x1: busA[0], y1: busA[1], x2: busB[0], y2: busB[1], class: 'panel-bus' },
+    g
+  );
+
+  const labelX = NUM_STRIP_IN + (PANEL_DEPTH_IN - NUM_STRIP_IN) / 2;
+
+  // Separators include the two END SECTION boundaries. The outside edges are
+  // already provided by the panel box.
+  for (let boundary = 0; boundary <= n; boundary++) {
+    const y = END_SECTION_WIDTH_IN + boundary * COL_WIDTH_IN;
+    const s0 = worldToScreen(...panelLocalToWorld(panel, 0, y));
+    const s1 = worldToScreen(...panelLocalToWorld(panel, PANEL_DEPTH_IN, y));
+    el(
+      'line',
+      { x1: s0[0], y1: s0[1], x2: s1[0], y2: s1[1], class: 'panel-sep' },
+      g
+    );
+    const sd = worldToScreen(...panelLocalToWorld(panel, NUM_STRIP_IN, y));
+    el(
+      'line',
+      { x1: s0[0], y1: s0[1], x2: sd[0], y2: sd[1], class: 'panel-numsep' },
+      g
+    );
+  }
+
+  drawPanelText(
+    g,
+    panel,
+    labelX,
+    END_SECTION_WIDTH_IN / 2,
+    'END SECTION',
+    rot,
+    'panel-end-label'
+  );
+  drawPanelText(
+    g,
+    panel,
+    labelX,
+    panelLength - END_SECTION_WIDTH_IN / 2,
+    'END SECTION',
+    rot,
+    'panel-end-label'
+  );
+
+  // Each connectable column: number, label and tap.
+  for (let i = 0; i < n; i++) {
+    const col = panel.columns[i];
+    const y0 = END_SECTION_WIDTH_IN + i * COL_WIDTH_IN;
+    const cy = y0 + COL_WIDTH_IN / 2;
+
+    // Column number inside the dark strip.
+    const numPos = worldToScreen(...panelLocalToWorld(panel, NUM_STRIP_IN / 2, cy));
+    const t = el(
+      'text',
+      {
+        x: numPos[0],
+        y: numPos[1],
+        class: 'panel-num',
+        'text-anchor': 'middle',
+        transform: labelRotation(rot, numPos),
+      },
+      g
+    );
+    t.textContent = String(i + 1);
+
+    // Column label, centred in the white area.
+    drawPanelText(g, panel, labelX, cy - 5, col.label, rot, 'panel-label');
+    drawPanelText(
+      g,
+      panel,
+      labelX,
+      cy + 8,
+      `${COL_WIDTH_IN} in / ${COL_WIDTH_IN / 12} ft`,
+      rot,
+      'panel-size'
+    );
+
+    // Tap tick on the front face.
+    const tap = worldToScreen(...columnTapWorld(panel, i));
+    el('circle', { cx: tap[0], cy: tap[1], r: 2.4, class: 'panel-tap' }, g);
+  }
+
+  // Title above the front-top of the panel (e.g. "BUS A ▲").
+  const titlePos = worldToScreen(
+    ...panelLocalToWorld(panel, PANEL_DEPTH_IN / 2, -10)
+  );
+  const title = el(
+    'text',
+    { x: titlePos[0], y: titlePos[1], class: 'panel-title', 'text-anchor': 'middle' },
+    g
+  );
+  title.textContent = panel.name + ' ▲';
+
+  if (selected) drawRotateHandle(g, panel, corners);
+}
+
+function drawPanelText(g, panel, labelX, centerY, text, rot, className) {
+  const labelPos = worldToScreen(...panelLocalToWorld(panel, labelX, centerY));
+  const label = el(
+    'text',
+    {
+      x: labelPos[0],
+      y: labelPos[1],
+      class: className,
+      'text-anchor': 'middle',
+      transform: labelRotation(rot, labelPos),
+    },
+    g
+  );
+  label.textContent = text;
+}
+
+function labelRotation(rot, pos) {
+  // Keep labels upright-ish; rotate text with panel for the vertical walls.
+  const r = ((rot % 360) + 360) % 360;
+  if (r === 90 || r === 270) return `rotate(${r === 90 ? -90 : 90} ${pos[0]} ${pos[1]})`;
+  return '';
+}
+
+function drawHatch(g, panel, y0, y1) {
+  const p = [
+    worldToScreen(...panelLocalToWorld(panel, 0, y0)),
+    worldToScreen(...panelLocalToWorld(panel, PANEL_DEPTH_IN, y0)),
+    worldToScreen(...panelLocalToWorld(panel, PANEL_DEPTH_IN, y1)),
+    worldToScreen(...panelLocalToWorld(panel, 0, y1)),
+  ];
+  el(
+    'polygon',
+    { points: p.map((c) => c.join(',')).join(' '), class: 'panel-hatch' },
+    g
+  );
+}
+
+function drawRotateHandle(g, panel, corners) {
+  // Place the handle just outside the front-top corner.
+  const pos = worldToScreen(...panelLocalToWorld(panel, -14, -14));
+  const h = el('g', { class: 'rotate-handle', 'data-rotate': panel.id }, g);
+  el('circle', { cx: pos[0], cy: pos[1], r: 9 }, h);
+  const t = el('text', { x: pos[0], y: pos[1] + 4, 'text-anchor': 'middle' }, h);
+  t.textContent = '↻';
+}
+
+// ---- routes ---------------------------------------------------------------
+
+function drawRoute(parent, route) {
+  const pts = route.points.map((p) => worldToScreen(p[0], p[1]));
+  const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ' ' + p[1]).join(' ');
+  el(
+    'path',
+    { d, class: 'route' + (route.blocked ? ' blocked' : ''), stroke: route.color },
+    parent
+  );
+}
+
+// ---- loads ----------------------------------------------------------------
+
+function drawLoad(parent, load) {
+  const [sx, sy] = worldToScreen(load.x, load.y);
+  const route = state.routes.find((r) => r.loadId === load.id);
+  const color = route ? route.color : '#333';
+  const selected = state.selection && state.selection.id === load.id;
+
+  const g = el('g', { class: 'load', 'data-id': load.id }, parent);
+
+  // Invisible, generous hit target so the marker is easy to grab / delete.
+  el(
+    'circle',
+    { cx: sx, cy: sy, r: 14, fill: 'transparent', stroke: 'transparent', 'pointer-events': 'all' },
+    g
+  );
+
+  // Target-style marker: outer ring + inner dot.
+  el('circle', { cx: sx, cy: sy, r: 7, class: 'load-ring', stroke: color }, g);
+  el('circle', { cx: sx, cy: sy, r: 2.6, fill: color }, g);
+  if (selected) el('circle', { cx: sx, cy: sy, r: 11, class: 'load-select' }, g);
+
+  const tag = el(
+    'text',
+    { x: sx, y: sy - 14, class: 'load-tag', 'text-anchor': 'middle', fill: color },
+    g
+  );
+  const busTag = load.panelId ? ` [${panelBusTag(load.panelId)}]` : '';
+  tag.textContent = load.tag + busTag;
+
+  const sub = el(
+    'text',
+    { x: sx, y: sy + 22, class: 'load-sub', 'text-anchor': 'middle' },
+    g
+  );
+  sub.textContent = `← col. ${load.colIndex + 1}`;
+}
+
+function panelBusTag(panelId) {
+  const idx = state.panels.findIndex((p) => p.id === panelId);
+  return String.fromCharCode(65 + Math.max(0, idx)); // A, B, C...
+}
+
+// ---- view fitting ---------------------------------------------------------
+
+// Fit all content into the viewport with a margin.
+function fitToContent(margin = 60) {
+  const b = contentBounds();
+  if (!b) return;
+  const w = svg.clientWidth;
+  const h = svg.clientHeight;
+  const sx = (w - margin * 2) / (b.w * BASE_PPI);
+  const sy = (h - margin * 2) / (b.h * BASE_PPI);
+  const scale = Math.max(0.1, Math.min(sx, sy, 4));
+  state.view.scale = scale;
+  state.view.offsetX = margin - b.x * scale * BASE_PPI + (w - margin * 2 - b.w * scale * BASE_PPI) / 2;
+  state.view.offsetY = margin - b.y * scale * BASE_PPI + (h - margin * 2 - b.h * scale * BASE_PPI) / 2;
+}
+
+function contentBounds() {
+  const xs = [];
+  const ys = [];
+  for (const panel of state.panels) {
+    const panelLength = panelLengthIn(panel);
+    for (const [lx, ly] of [
+      [0, -18],
+      [PANEL_DEPTH_IN, 0],
+      [PANEL_DEPTH_IN, panelLength],
+      [0, panelLength],
+    ]) {
+      const [wx, wy] = panelLocalToWorld(panel, lx, ly);
+      xs.push(wx);
+      ys.push(wy);
+    }
+  }
+  for (const load of state.loads) {
+    xs.push(load.x - 60, load.x + 60);
+    ys.push(load.y - 30, load.y + 30);
+  }
+  for (const foundation of state.foundations) {
+    xs.push(foundation.x, foundation.x + foundation.width);
+    ys.push(foundation.y, foundation.y + foundation.height);
+  }
+  if (!xs.length) return null;
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const maxX = Math.max(...xs);
+  const maxY = Math.max(...ys);
+  return { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
+}
+
+// ===== js/pdf.js =====
+// pdf.js — export the current drawing to PDF.
+//
+// To keep the app fully self-contained on GitHub Pages (no external CDN,
+// works offline) we build a clean standalone SVG of the whole scene and open
+// it in a print window; the browser's "Save as PDF" produces the file.
+
+
+// SVG-only styles inlined into the export document so it renders identically
+// without the app's stylesheet.
+const EXPORT_CSS = `
+  svg { background:#ffffff; }
+  .panel-box { fill:#ffffff; stroke:#1f2733; stroke-width:2; }
+  .panel-box.selected { stroke:#2f6fd8; }
+  .panel-sep { stroke:#c4ccd6; stroke-width:1; }
+  .panel-bus { stroke:#d98a2b; stroke-width:2.5; }
+  .panel-hatch { fill:url(#hatch); stroke:none; }
+  .panel-num { fill:#1f2733; font:600 11px 'Courier New',monospace; }
+  .panel-label { fill:#3b4756; font:600 11px 'Courier New',monospace; letter-spacing:.5px; dominant-baseline:middle; }
+  .panel-size { fill:#6a7686; font:500 7px 'Courier New',monospace; letter-spacing:.25px; dominant-baseline:middle; }
+  .panel-end-label { fill:#3b4756; font:600 6px 'Courier New',monospace; letter-spacing:.25px; dominant-baseline:middle; }
+  .panel-title { fill:#1f2733; font:700 13px 'Courier New',monospace; letter-spacing:1px; }
+  .panel-tap { fill:#1f2733; }
+  .route { fill:none; stroke-width:2.4; stroke-linejoin:round; stroke-linecap:round; }
+  .route.blocked { stroke:#b42318 !important; stroke-width:3.2; stroke-dasharray:8 5; }
+  .foundation-area { fill:rgba(180,57,45,.16); stroke:#a9362b; stroke-width:2; stroke-dasharray:7 4; }
+  .foundation-label { fill:#8f2f27; font:700 11px 'Courier New',monospace; letter-spacing:.5px; }
+  .foundation-size { fill:#8f2f27; font:600 10px 'Courier New',monospace; }
+  .load-ring { fill:#ffffff; stroke-width:2.4; }
+  .load-tag { font:700 12px 'Courier New',monospace; letter-spacing:.5px; }
+  .load-sub { fill:#6a7686; font:500 10px 'Courier New',monospace; }
+`;
+
+const HATCH_DEF = `
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#c9d2dd" stroke-width="1.2"/>
+    </pattern>
+  </defs>`;
+
+function exportPdf() {
+  const svg = document.getElementById('canvas');
+  if (!svg) return;
+
+  // Snapshot the view, fit everything, and re-render so the export shows the
+  // full drawing regardless of current pan/zoom.
+  const savedView = { ...state.view };
+  const savedSel = state.selection;
+  state.selection = null;
+  fitToContent(50);
+  render();
+
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  const w = svg.clientWidth;
+  const h = svg.clientHeight;
+  clone.setAttribute('width', w);
+  clone.setAttribute('height', h);
+  clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+  const stats = state.stats;
+  const header =
+    `ROUTES: ${stats.routes}   CROSSINGS: ${stats.crossings}   ` +
+    `BLOCKED: ${stats.blocked || 0}   FOUNDATIONS: ${state.foundations.length}   ` +
+    `TOTAL LENGTH: ${stats.length} in`;
+
+  const doc = `<!doctype html><html><head><meta charset="utf-8">
+    <title>Underground Route Plan</title>
+    <style>
+      @page { size: landscape; margin: 12mm; }
+      body { margin:0; font-family:'Courier New',monospace; color:#1f2733; }
+      .head { padding:8px 4px; font-size:12px; letter-spacing:1px; border-bottom:1px solid #1f2733; }
+      ${EXPORT_CSS}
+    </style></head>
+    <body>
+      <div class="head">UNDERGROUND ROUTE PLAN &nbsp;·&nbsp; ${header}</div>
+      ${withHatch(clone.outerHTML)}
+      <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
+    </body></html>`;
+
+  const win = window.open('', '_blank');
+  if (win) {
+    win.document.open();
+    win.document.write(doc);
+    win.document.close();
+  }
+
+  // Restore the interactive view.
+  state.view = savedView;
+  state.selection = savedSel;
+  render();
+}
+
+function withHatch(svgHtml) {
+  // Ensure the hatch pattern def exists inside the exported SVG without
+  // duplicating the definition rebuilt by render().
+  if (/\bid=["']hatch["']/.test(svgHtml)) return svgHtml;
+  return svgHtml.replace(/<svg([^>]*)>/, `<svg$1>${HATCH_DEF}`);
+}
+
+// ===== js/main.js =====
+const loadState = load;
+// main.js — UI wiring: modes, modals, pointer interaction, zoom/pan.
+
+
+const DRAG_THRESHOLD = 4; // px of movement before a press counts as a drag
+
+// Default first panel mirrors a typical lineup so a new user can hit "Save"
+// and immediately see a routed drawing.
+const DEFAULT_LABELS = [
+  'CROSS-TIE', 'INCOMER A', 'METERING', 'MCC A', 'BACKUP MCC A', 'RECY',
+  'MAC A', 'N2 A', 'SCR A', 'TRANSITION', 'TIE', 'MCC B', 'BACKUP MCC B',
+  'MAC B', 'MAC C', 'N2 B', 'SCR B', 'METERING', 'CROSS-TIE',
+];
+
+let pendingLoadPoint = null; // world point where a new load will drop
+
+// ---- boot -----------------------------------------------------------------
+
+function boot() {
+  svg = document.getElementById('canvas');
+  initSvg(svg);
+  wireToolbar();
+  wireZoom();
+  wireCanvas();
+  wireModals();
+
+  const restored = loadState();
+  if (restored) {
+    reroute();
+    fitToContent();
+    render();
+    updateChrome();
+  } else {
+    openSetup(true);
+    updateChrome();
+  }
+
+  window.addEventListener('resize', render);
+}
+
+// ---- chrome (statusline / hint / mode buttons) ----------------------------
+
+function updateChrome() {
+  const s = state.stats;
+  document.getElementById('statusline').innerHTML =
+    `ROUTES: <b>${s.routes}</b> &middot; CROSSINGS: <b>${s.crossings}</b> ` +
+    `&middot; BLOCKED: <b>${s.blocked || 0}</b> &middot; ` +
+    `FOUNDATIONS: <b>${state.foundations.length}</b> &middot; ` +
+    `TOTAL LENGTH: <b>${s.length}</b> in`;
+
+  document.getElementById('hint').textContent = state.mode === 'foundation'
+    ? 'drag empty space = draw foundation · drag foundation = move · double-click = delete'
+    : 'drag panel, load or foundation = move & reroute · click panel then ↻ = rotate · ' +
+      'double-click load/foundation = delete · click empty space = add load';
+
+  document.getElementById('btn-route').classList.toggle('active', state.mode === 'route');
+  document.getElementById('btn-setup').classList.toggle('active', state.mode === 'setup');
+  document.getElementById('btn-foundation').classList.toggle(
+    'active', state.mode === 'foundation'
+  );
+  document.getElementById('btn-wall').innerHTML = `&#8635; WALL: ${state.wall}`;
+  document.getElementById('zoom-level').textContent =
+    Math.round(state.view.scale * 100) + '%';
+
+  svg.classList.toggle('foundation-mode', state.mode === 'foundation');
+}
+
+// Recompute routes + stats, redraw, persist.
+function reroute() {
+  if (state.showRoutes) autoRoute();
+  render();
+  updateChrome();
+  save();
+}
+
+// ---- toolbar --------------------------------------------------------------
+
+function wireToolbar() {
+  document.getElementById('btn-setup').onclick = () => openSetup(false);
+  document.getElementById('btn-route').onclick = () => {
+    state.mode = 'route';
+    state.selection = null;
+    state.showRoutes = true;
+    reroute();
+  };
+  document.getElementById('btn-foundation').onclick = () => {
+    state.mode = state.mode === 'foundation' ? 'route' : 'foundation';
+    state.selection = null;
+    render();
+    updateChrome();
+  };
+  document.getElementById('btn-wall').onclick = cycleWall;
+  document.getElementById('btn-clear-routes').onclick = () => {
+    state.showRoutes = false;
+    state.routes = [];
+    state.stats = { routes: 0, crossings: 0, blocked: 0, length: 0 };
+    render();
+    updateChrome();
+  };
+  document.getElementById('btn-clear-loads').onclick = () => {
+    if (!state.loads.length) return;
+    if (!confirm('Remove all loads?')) return;
+    state.loads = [];
+    state.routes = [];
+    state.selection = null;
+    reroute();
+  };
+  document.getElementById('btn-clear-foundations').onclick = () => {
+    if (!state.foundations.length) return;
+    if (!confirm('Remove all foundations?')) return;
+    state.foundations = [];
+    state.selection = null;
+    reroute();
+  };
+  document.getElementById('btn-export').onclick = async () => {
+    exportPdf();
+  };
+}
+
+function cycleWall() {
+  const i = WALL_CYCLE.indexOf(state.wall);
+  state.wall = WALL_CYCLE[(i + 1) % WALL_CYCLE.length];
+  for (const p of state.panels) p.rotation = WALL_ROTATION[state.wall];
+  state.showRoutes = true;
+  reroute();
+}
+
+// ---- zoom / pan -----------------------------------------------------------
+
+function wireZoom() {
+  document.getElementById('zoom-in').onclick = () => zoomAt(1.2);
+  document.getElementById('zoom-out').onclick = () => zoomAt(1 / 1.2);
+  document.getElementById('zoom-fit').onclick = () => {
+    fitToContent();
+    render();
+    updateChrome();
+    save();
+  };
+}
+
+function zoomAt(factor, cx, cy) {
+  const rect = svg.getBoundingClientRect();
+  const px = cx == null ? rect.width / 2 : cx;
+  const py = cy == null ? rect.height / 2 : cy;
+  const [wx, wy] = screenToWorld(px, py);
+  state.view.scale = Math.max(0.15, Math.min(6, state.view.scale * factor));
+  // keep the point under the cursor fixed
+  state.view.offsetX = px - wx * state.view.scale * BASE_PPI;
+  state.view.offsetY = py - wy * state.view.scale * BASE_PPI;
+  render();
+  updateChrome();
+  save();
+}
+
+// ---- canvas pointer interaction -------------------------------------------
+
+let drag = null;
+let lastLoadClick = null; // { id, time } for manual double-click detection
+let lastFoundationClick = null;
+
+function wireCanvas() {
+  svg.addEventListener('pointerdown', onPointerDown);
+  svg.addEventListener('pointermove', onPointerMove);
+  svg.addEventListener('pointerup', onPointerUp);
+  svg.addEventListener('dblclick', onDblClick);
+  svg.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - rect.left, e.clientY - rect.top);
+    },
+    { passive: false }
+  );
+}
+
+function localPoint(e) {
+  const rect = svg.getBoundingClientRect();
+  return [e.clientX - rect.left, e.clientY - rect.top];
+}
+
+function onPointerDown(e) {
+  const [sx, sy] = localPoint(e);
+
+  // Panels and loads are directly manipulable at all times — dragging a panel
+  // repositions it, its rotate handle turns it. (Config lives in the SETUP
+  // dialog.) Gating this behind a "mode" made panels feel locked, so we don't.
+  const rotateEl = e.target.closest('.rotate-handle');
+  if (rotateEl) {
+    const id = rotateEl.getAttribute('data-rotate');
+    const p = getPanel(id);
+    if (p) {
+      p.rotation = (p.rotation + 90) % 360;
+      reroute();
+    }
+    return;
+  }
+
+  // NOTE: we deliberately do NOT render() on pointerdown. Rebuilding the SVG
+  // here would remove the very element the browser needs to synthesise the
+  // following click/dblclick, breaking double-click-to-delete. Selection
+  // highlights are drawn on move or on pointerup instead.
+  const loadEl = e.target.closest('.load');
+  if (loadEl) {
+    const id = loadEl.getAttribute('data-id');
+    // Manual double-click detection: because every interaction rebuilds the
+    // SVG, the browser's native dblclick can't be relied upon here.
+    const now = Date.now();
+    if (lastLoadClick && lastLoadClick.id === id && now - lastLoadClick.time < 350) {
+      lastLoadClick = null;
+      removeLoad(id);
+      reroute();
+      return;
+    }
+    lastLoadClick = { id, time: now };
+    const l = state.loads.find((x) => x.id === id);
+    state.selection = { type: 'load', id };
+    drag = { kind: 'load', id, moved: false, startSX: sx, startSY: sy, startX: l.x, startY: l.y };
+    svg.setPointerCapture(e.pointerId);
+    return;
+  }
+
+  const panelEl = e.target.closest('.panel');
+  if (panelEl) {
+    const id = panelEl.getAttribute('data-id');
+    const p = getPanel(id);
+    state.selection = { type: 'panel', id };
+    drag = { kind: 'panel', id, moved: false, startSX: sx, startSY: sy, startX: p.x, startY: p.y };
+    svg.setPointerCapture(e.pointerId);
+    return;
+  }
+
+  const foundationEl = e.target.closest('.foundation');
+  if (foundationEl) {
+    const id = foundationEl.getAttribute('data-id');
+    const now = Date.now();
+    if (
+      lastFoundationClick &&
+      lastFoundationClick.id === id &&
+      now - lastFoundationClick.time < 350
+    ) {
+      lastFoundationClick = null;
+      removeFoundation(id);
+      reroute();
+      return;
+    }
+    lastFoundationClick = { id, time: now };
+    const foundation = state.foundations.find((item) => item.id === id);
+    state.selection = { type: 'foundation', id };
+    drag = {
+      kind: 'foundation',
+      id,
+      moved: false,
+      startSX: sx,
+      startSY: sy,
+      startX: foundation.x,
+      startY: foundation.y,
+    };
+    svg.setPointerCapture(e.pointerId);
+    return;
+  }
+
+  if (state.mode === 'foundation') {
+    const [x, y] = screenToWorld(sx, sy);
+    const foundation = createFoundation({ x, y, width: 0, height: 0 });
+    state.foundations.push(foundation);
+    state.selection = { type: 'foundation', id: foundation.id };
+    drag = {
+      kind: 'foundation-new',
+      id: foundation.id,
+      moved: false,
+      startSX: sx,
+      startSY: sy,
+      startX: x,
+      startY: y,
+    };
+    svg.setPointerCapture(e.pointerId);
+    svg.classList.add('drawing-foundation');
+    render();
+    return;
+  }
+
+  // Empty space: pan (and a click-without-drag adds a load there).
+  state.selection = null;
+  drag = {
+    kind: 'pan',
+    moved: false,
+    startSX: sx,
+    startSY: sy,
+    startOX: state.view.offsetX,
+    startOY: state.view.offsetY,
+  };
+  svg.setPointerCapture(e.pointerId);
+  svg.classList.add('panning');
+}
+
+function onPointerMove(e) {
+  if (!drag) return;
+  const [sx, sy] = localPoint(e);
+  const dxs = sx - drag.startSX;
+  const dys = sy - drag.startSY;
+  if (Math.hypot(dxs, dys) > DRAG_THRESHOLD) drag.moved = true;
+
+  if (drag.kind === 'pan') {
+    state.view.offsetX = drag.startOX + dxs;
+    state.view.offsetY = drag.startOY + dys;
+    render();
+    return;
+  }
+
+  const dwx = dxs / (state.view.scale * BASE_PPI);
+  const dwy = dys / (state.view.scale * BASE_PPI);
+
+  if (drag.kind === 'load') {
+    const l = state.loads.find((x) => x.id === drag.id);
+    if (l) {
+      l.x = drag.startX + dwx;
+      l.y = drag.startY + dwy;
+      if (state.showRoutes) autoRoute();
+      render();
+      updateChrome();
+    }
+  } else if (drag.kind === 'panel') {
+    const p = getPanel(drag.id);
+    if (p) {
+      p.x = drag.startX + dwx;
+      p.y = drag.startY + dwy;
+      if (state.showRoutes) autoRoute();
+      render();
+      updateChrome();
+    }
+  } else if (drag.kind === 'foundation') {
+    const foundation = state.foundations.find((item) => item.id === drag.id);
+    if (foundation) {
+      foundation.x = drag.startX + dwx;
+      foundation.y = drag.startY + dwy;
+      if (state.showRoutes) autoRoute();
+      render();
+      updateChrome();
+    }
+  } else if (drag.kind === 'foundation-new') {
+    const foundation = state.foundations.find((item) => item.id === drag.id);
+    if (foundation) {
+      const currentX = drag.startX + dwx;
+      const currentY = drag.startY + dwy;
+      foundation.x = Math.min(drag.startX, currentX);
+      foundation.y = Math.min(drag.startY, currentY);
+      foundation.width = Math.abs(currentX - drag.startX);
+      foundation.height = Math.abs(currentY - drag.startY);
+      render();
+    }
+  }
+}
+
+function onPointerUp(e) {
+  if (!drag) return;
+  svg.classList.remove('panning');
+  svg.classList.remove('drawing-foundation');
+  try {
+    svg.releasePointerCapture(e.pointerId);
+  } catch (_) {}
+
+  if (drag.kind === 'foundation-new') {
+    const foundation = state.foundations.find((item) => item.id === drag.id);
+    const tooSmall = !foundation ||
+      foundation.width * state.view.scale * BASE_PPI < DRAG_THRESHOLD ||
+      foundation.height * state.view.scale * BASE_PPI < DRAG_THRESHOLD;
+    if (tooSmall) {
+      removeFoundation(drag.id);
+      render();
+      updateChrome();
+    } else {
+      reroute();
+    }
+  } else if (drag.kind === 'pan' && !drag.moved) {
+    // A plain click on empty space adds a load there.
+    const [sx, sy] = localPoint(e);
+    pendingLoadPoint = screenToWorld(sx, sy);
+    render();
+    openLoadModal();
+  } else if (
+    drag.moved &&
+    (drag.kind === 'load' || drag.kind === 'panel' || drag.kind === 'foundation')
+  ) {
+    save();
+    render();
+  } else {
+    // A plain selection click: reflect the new selection now.
+    render();
+  }
+  drag = null;
+}
+
+function onDblClick(e) {
+  const loadEl = e.target.closest('.load');
+  if (loadEl) {
+    const id = loadEl.getAttribute('data-id');
+    removeLoad(id);
+    reroute();
+    return;
+  }
+  const foundationEl = e.target.closest('.foundation');
+  if (foundationEl) {
+    removeFoundation(foundationEl.getAttribute('data-id'));
+    reroute();
+  }
+}
+
+// ---- setup modal ----------------------------------------------------------
+
+let setupDraft = [];
+
+function wireModals() {
+  document.getElementById('setup-close').onclick = closeSetup;
+  document.getElementById('setup-cancel').onclick = closeSetup;
+  document.getElementById('add-panel').onclick = () => {
+    setupDraft.push(makeDraft());
+    renderPanelList();
+  };
+  document.getElementById('setup-save').onclick = saveSetup;
+
+  document.getElementById('load-close').onclick = closeLoadModal;
+  document.getElementById('load-cancel').onclick = closeLoadModal;
+  document.getElementById('load-save').onclick = saveLoad;
+  document.getElementById('load-panel').onchange = fillColumnSelect;
+
+  document.addEventListener('keydown', (e) => {
+    const loadOpen = !document.getElementById('modal-load').hidden;
+    const setupOpen = !document.getElementById('modal-setup').hidden;
+    if (e.key === 'Escape') {
+      if (loadOpen) closeLoadModal();
+      else if (setupOpen) closeSetup();
+    } else if (e.key === 'Enter' && loadOpen && e.target.id === 'load-tag') {
+      e.preventDefault();
+      saveLoad();
+    }
+  });
+}
+
+function makeDraft(seed) {
+  if (seed) {
+    return {
+      id: seed.id,
+      name: seed.name,
+      count: seed.columns.length,
+      labels: seed.columns.map((c) => c.label),
+    };
+  }
+  const letter = String.fromCharCode(65 + setupDraft.length);
+  return { id: null, name: `BUS ${letter}`, count: 6, labels: [] };
+}
+
+function openSetup(initial) {
+  state.mode = 'setup';
+  if (state.panels.length) {
+    setupDraft = state.panels.map((p) => makeDraft(p));
+  } else if (initial) {
+    setupDraft = [
+      { id: null, name: 'BUS A', count: DEFAULT_LABELS.length, labels: [...DEFAULT_LABELS] },
+    ];
+  } else {
+    setupDraft = [makeDraft()];
+  }
+  renderPanelList();
+  document.getElementById('modal-setup').hidden = false;
+  updateChrome();
+}
+
+function closeSetup() {
+  document.getElementById('modal-setup').hidden = true;
+  state.mode = 'route';
+  updateChrome();
+}
+
+function renderPanelList() {
+  const list = document.getElementById('panel-list');
+  list.textContent = '';
+  setupDraft.forEach((d, idx) => {
+    const row = document.createElement('div');
+    row.className = 'panel-row';
+
+    const top = document.createElement('div');
+    top.className = 'row-top';
+
+    const nameL = document.createElement('label');
+    nameL.className = 'grow';
+    nameL.innerHTML = '<span>Panel name</span>';
+    const nameI = document.createElement('input');
+    nameI.type = 'text';
+    nameI.value = d.name;
+    nameI.oninput = () => (d.name = nameI.value);
+    nameL.appendChild(nameI);
+
+    const countL = document.createElement('label');
+    countL.innerHTML = '<span>Columns (3 ft each)</span>';
+    const countI = document.createElement('input');
+    countI.type = 'number';
+    countI.min = '1';
+    countI.max = '60';
+    countI.value = d.count;
+    countI.style.width = '90px';
+    countI.oninput = () => {
+      d.count = Math.max(1, Math.min(60, parseInt(countI.value || '1', 10)));
+      syncLabels(d);
+      labels.value = d.labels.join('\n');
+      widthNote.textContent = widthText(d.count);
+    };
+    countL.appendChild(countI);
+
+    top.appendChild(nameL);
+    top.appendChild(countL);
+    row.appendChild(top);
+
+    const widthNote = document.createElement('div');
+    widthNote.style.cssText = 'font-size:11px;color:var(--ink-soft);margin-top:8px;';
+    widthNote.textContent = widthText(d.count);
+    row.appendChild(widthNote);
+
+    const labels = document.createElement('textarea');
+    syncLabels(d);
+    labels.value = d.labels.join('\n');
+    labels.placeholder = 'One label per line (optional)';
+    labels.hidden = true;
+    labels.oninput = () => {
+      d.labels = labels.value.split('\n');
+    };
+    row.appendChild(labels);
+
+    const actions = document.createElement('div');
+    actions.className = 'row-actions';
+    const toggle = document.createElement('button');
+    toggle.className = 'toggle-cols';
+    toggle.textContent = 'Edit column labels ▾';
+    toggle.onclick = () => {
+      labels.hidden = !labels.hidden;
+      toggle.textContent = labels.hidden ? 'Edit column labels ▾' : 'Hide column labels ▴';
+    };
+    const remove = document.createElement('button');
+    remove.className = 'link-btn';
+    remove.textContent = 'Remove panel';
+    remove.onclick = () => {
+      setupDraft.splice(idx, 1);
+      renderPanelList();
+    };
+    actions.appendChild(toggle);
+    actions.appendChild(remove);
+    row.appendChild(actions);
+
+    list.appendChild(row);
+  });
+}
+
+function widthText(count) {
+  const totalIn = count * COL_WIDTH_IN;
+  const totalFt = totalIn / IN_PER_FT;
+  return `Column size: ${COL_WIDTH_IN} in (${COL_WIDTH_IN / IN_PER_FT} ft) - ` +
+    `${count} columns: ${totalIn} in (${totalFt} ft), excluding end sections`;
+}
+
+function syncLabels(d) {
+  const out = [];
+  for (let i = 0; i < d.count; i++) out.push(d.labels[i] || `COL ${i + 1}`);
+  d.labels = out;
+}
+
+function saveSetup() {
+  if (!setupDraft.length) {
+    alert('Add at least one panel.');
+    return;
+  }
+  const kept = [];
+  let placeX = 460;
+  setupDraft.forEach((d) => {
+    syncLabels(d);
+    const existing = d.id ? getPanel(d.id) : null;
+    if (existing) {
+      existing.name = d.name;
+      existing.columns = d.labels.map((label, i) => ({ index: i, label }));
+      kept.push(existing);
+    } else {
+      const p = createPanel({ name: d.name, columns: d.labels, x: placeX, y: 30 });
+      placeX += 260;
+      kept.push(p);
+    }
+  });
+  state.panels = kept;
+  // Drop loads whose panel disappeared or whose column no longer exists.
+  state.loads = state.loads.filter((l) => {
+    const p = getPanel(l.panelId);
+    return p && l.colIndex < p.columns.length;
+  });
+
+  document.getElementById('modal-setup').hidden = true;
+  state.mode = 'route';
+  state.showRoutes = true;
+  reroute();
+  fitToContent();
+  render();
+  updateChrome();
+}
+
+// ---- load modal -----------------------------------------------------------
+
+function openLoadModal() {
+  const panelSel = document.getElementById('load-panel');
+  panelSel.textContent = '';
+  if (!state.panels.length) {
+    alert('Create a panel first (SETUP).');
+    return;
+  }
+  for (const p of state.panels) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    panelSel.appendChild(opt);
+  }
+  fillColumnSelect();
+  document.getElementById('load-tag').value = '';
+  document.getElementById('modal-load').hidden = false;
+  setTimeout(() => document.getElementById('load-tag').focus(), 0);
+}
+
+function fillColumnSelect() {
+  const panelId = document.getElementById('load-panel').value;
+  const p = getPanel(panelId);
+  const colSel = document.getElementById('load-col');
+  colSel.textContent = '';
+  if (!p) return;
+  p.columns.forEach((c) => {
+    const opt = document.createElement('option');
+    opt.value = c.index;
+    opt.textContent = `${c.index + 1} — ${c.label}`;
+    colSel.appendChild(opt);
+  });
+}
+
+function closeLoadModal() {
+  document.getElementById('modal-load').hidden = true;
+  pendingLoadPoint = null;
+}
+
+function saveLoad() {
+  const tag = document.getElementById('load-tag').value.trim();
+  const panelId = document.getElementById('load-panel').value;
+  const colIndex = parseInt(document.getElementById('load-col').value, 10);
+  if (!tag) {
+    alert('Enter a tag for the load.');
+    return;
+  }
+  const pt = pendingLoadPoint || screenToWorld(svg.clientWidth / 3, svg.clientHeight / 2);
+  const l = createLoad({ tag, panelId, colIndex, x: pt[0], y: pt[1] });
+  state.loads.push(l);
+  state.selection = { type: 'load', id: l.id };
+  closeLoadModal();
+  state.showRoutes = true;
+  reroute();
+}
+
+boot();
+
+</script>
+  </body>
+</html>

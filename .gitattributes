@@ -1,0 +1,12 @@
+# Normalise line endings in the repository, check out native on Windows.
+* text=auto
+
+# The engineering database is binary — never diff, merge or convert it.
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Keep shell scripts and lockfiles LF so they work on CI runners.
+*.sh text eol=lf
+*.mjs text eol=lf
+package-lock.json text eol=lf

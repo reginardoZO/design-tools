@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Underground Route Planner</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <meta
+      name="description"
+      content="Plan the shortest 45° underground cable routes between feeder panels and loads while minimising crossings."
+    />
+    <link rel="stylesheet" href="../../shared/theme.css" />
+    <link rel="stylesheet" href="css/styles.css?v=20260729" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="toolbar-buttons">
+        <a class="tbtn hub" href="../../index.html">&#8592; HUB</a>
+        <button id="btn-setup" class="tbtn">&larr; SETUP</button>
+        <button id="btn-route" class="tbtn active">ROUTE LOADS</button>
+        <button id="btn-foundation" class="tbtn">DRAW FOUNDATION</button>
+        <button id="btn-wall" class="tbtn">&#8635; WALL: RIGHT</button>
+        <button id="btn-clear-routes" class="tbtn">CLEAR ROUTES</button>
+        <button id="btn-clear-loads" class="tbtn">CLEAR LOADS</button>
+        <button id="btn-clear-foundations" class="tbtn">CLEAR FOUNDATIONS</button>
+        <button id="btn-export" class="tbtn">EXPORT PDF</button>
+      </div>
+      <div class="statusline" id="statusline"></div>
+    </header>
+
+    <main class="stage">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern
+            id="hatch"
+            width="6"
+            height="6"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#c9d2dd" stroke-width="1.2" />
+          </pattern>
+        </defs>
+      </svg>
+
+      <div class="zoom-controls">
+        <button id="zoom-in" title="Zoom in">+</button>
+        <button id="zoom-out" title="Zoom out">&minus;</button>
+        <button id="zoom-fit" title="Fit to content">&#8599;</button>
+        <div class="zoom-level" id="zoom-level">132%</div>
+      </div>
+
+      <div class="hint" id="hint"></div>
+    </main>
+
+    <!-- Setup modal: configure panels -->
+    <div class="modal-backdrop" id="modal-setup" hidden>
+      <div class="modal">
+        <div class="modal-head">
+          <h2>Panel setup</h2>
+          <button class="icon-btn" id="setup-close">&times;</button>
+        </div>
+        <p class="modal-note">
+          Each column is always 3&nbsp;ft (36&nbsp;in) wide. Define one or more
+          panels, their number of columns and — optionally — a label per column.
+          An END SECTION is added automatically at each end.
+        </p>
+        <div id="panel-list" class="panel-list"></div>
+        <button class="ghost-btn" id="add-panel">+ Add panel</button>
+        <div class="modal-actions">
+          <button class="tbtn" id="setup-cancel">Cancel</button>
+          <button class="tbtn primary" id="setup-save">Save panels</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load modal: add / edit a load -->
+    <div class="modal-backdrop" id="modal-load" hidden>
+      <div class="modal small">
+        <div class="modal-head">
+          <h2 id="load-title">Add load</h2>
+          <button class="icon-btn" id="load-close">&times;</button>
+        </div>
+        <label class="field">
+          <span>Tag</span>
+          <input type="text" id="load-tag" placeholder="e.g. MCC A" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Panel</span>
+          <select id="load-panel"></select>
+        </label>
+        <label class="field">
+          <span>Column</span>
+          <select id="load-col"></select>
+        </label>
+        <div class="modal-actions">
+          <button class="tbtn" id="load-cancel">Cancel</button>
+          <button class="tbtn primary" id="load-save">Add load</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="js/main.js?v=20260723-2"></script>
+  </body>
+</html>

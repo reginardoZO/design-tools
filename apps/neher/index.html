@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neher-McGrath Duct Bank Ampacity</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="stylesheet" href="../../shared/theme.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="eh-header">
+    <div>
+      <h1>Neher-McGrath Duct Bank Ampacity</h1>
+      <div class="eh-sub">Steady state &middot; LF = 100% &middot; three touching 1/C cables per duct</div>
+    </div>
+    <a class="eh-back" href="../../index.html">&larr; Hub</a>
+  </header>
+
+  <div class="grid">
+
+    <!-- ======================= CURRENT CALC ======================= -->
+    <section class="eh-card" id="panel-current">
+      <h2>Current Calc.</h2>
+
+      <div class="row">
+        <div>
+          <label for="txtVoltageMain">Voltage (V)</label>
+          <input id="txtVoltageMain" type="number" value="480" step="any">
+        </div>
+        <div>
+          <label for="cmbLoadTypeMain">Load type</label>
+          <select id="cmbLoadTypeMain">
+            <option value="">&mdash;</option>
+            <option>MOTOR</option>
+            <option>XFRM</option>
+            <option>HEATER</option>
+            <option>FEEDER</option>
+            <option>GENERATOR</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" id="rowAuxPower" hidden>
+        <div style="grid-column: 1 / -1">
+          <label for="cmbAuxPower">Motor rating (HP) &mdash; NEC 430.250</label>
+          <select id="cmbAuxPower"></select>
+        </div>
+      </div>
+
+      <div class="row" id="rowPower">
+        <div>
+          <label for="txtPowerMain">Power</label>
+          <input id="txtPowerMain" type="number" value="200" step="any" disabled>
+        </div>
+        <div>
+          <label for="cmbUnitsMain">Unit</label>
+          <select id="cmbUnitsMain" disabled></select>
+        </div>
+      </div>
+
+      <div class="row" id="rowPfEff">
+        <div>
+          <label for="txtPowerFactorMain">Power factor</label>
+          <input id="txtPowerFactorMain" type="number" value="0.9" step="any" disabled>
+        </div>
+        <div>
+          <label for="txtEfficiencyMain">Efficiency &#547;</label>
+          <input id="txtEfficiencyMain" type="number" value="0.9" step="any" disabled>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="cmbCurrentFactor">Factor</label>
+          <select id="cmbCurrentFactor">
+            <option>0.85</option>
+            <option selected>1.00</option>
+            <option>1.25</option>
+            <option>1.50</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:flex-end">
+          <button id="btnCurrentMain" class="eh-btn eh-btn-primary" style="width:100%">Calculate I</button>
+        </div>
+      </div>
+
+      <div class="out-row">
+        <div>
+          <label for="txtCurrentMain">I &mdash; total (A)</label>
+          <input id="txtCurrentMain" type="number" step="any">
+        </div>
+        <div>
+          <label for="txtCurrentLinha">I&prime; &mdash; per cable set (A)</label>
+          <input id="txtCurrentLinha" type="number" step="any">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="btnCablePhase" class="eh-btn">3-1/C</button>
+        <button id="btnClearMain" class="eh-btn">Clear</button>
+      </div>
+
+      <p class="hint">
+        Press <b>3-1/C</b> to split I across more cables per phase. The Neher-McGrath
+        calculation uses I&prime; when it is filled in, otherwise I.
+      </p>
+    </section>
+
+    <!-- ====================== NEHER-McGRATH ======================= -->
+    <section id="panel-neher">
+
+      <div class="eh-plate" id="plate">
+        <span class="eh-screw" style="top:9px;left:9px"></span>
+        <span class="eh-screw" style="top:9px;right:9px"></span>
+        <span class="eh-screw" style="bottom:9px;left:9px"></span>
+        <span class="eh-screw" style="bottom:9px;right:9px"></span>
+
+        <div class="plate-head">
+          <div>
+            <div class="tagline">Thermal result</div>
+            <div class="plate-name">Neher-McGrath</div>
+          </div>
+          <span id="txtNeherResultStatus" class="eh-status eh-status-idle">Not calculated</span>
+        </div>
+
+        <div class="plate-main">
+          <div>
+            <div class="tagline">Hottest conductor</div>
+            <div class="big" id="txtWorstTempNeher">&mdash;</div>
+          </div>
+          <div>
+            <div class="tagline">Allowable current</div>
+            <div class="big" id="txtCurrMinNeher">&mdash;</div>
+          </div>
+        </div>
+
+        <table>
+          <tr><td>Design current used</td><td id="txtDesignCurrentNeher">&mdash;</td></tr>
+          <tr><td>Temperature margin</td><td id="txtTemperatureMarginNeher">&mdash;</td></tr>
+          <tr><td>Hottest duct</td><td id="txtLimitingCellNeher">&mdash;</td></tr>
+        </table>
+
+        <div class="plate-note" id="txtNeherStatus">
+          Fill in the thermal inputs and the duct layout, then press Calculate.
+        </div>
+      </div>
+
+      <div class="eh-card neher-body">
+        <div class="neher-cols">
+
+          <div>
+            <h2>Thermal inputs</h2>
+            <label for="cmbVoltageNeher">Voltage</label>
+            <select id="cmbVoltageNeher">
+              <option value="">&mdash;</option>
+              <option>13.8kV</option>
+              <option>4.16kV</option>
+              <option>480V</option>
+            </select>
+
+            <label for="cmbCables">Cable size</label>
+            <select id="cmbCables"></select>
+
+            <label for="cmbTemp">Conductor limit (&deg;C)</label>
+            <select id="cmbTemp"></select>
+
+            <div class="row">
+              <div>
+                <label for="txtSoilTemp">Soil temp (&deg;C)</label>
+                <input id="txtSoilTemp" type="number" value="35" step="any">
+              </div>
+              <div>
+                <label for="txtRhoSoil">Soil &rho;</label>
+                <input id="txtRhoSoil" type="number" value="110" step="any">
+              </div>
+            </div>
+
+            <div class="row">
+              <div>
+                <label for="txtH" title="Depth from grade to top of upper duct">Top cover (in)</label>
+                <input id="txtH" type="number" value="24" step="any">
+              </div>
+              <div>
+                <label for="txtRhoDuct">Duct &rho;</label>
+                <input id="txtRhoDuct" type="number" value="650" step="any">
+              </div>
+            </div>
+
+            <div class="row">
+              <div>
+                <label for="txtDuctSpacingNeher" title="Clear distance between adjacent duct surfaces">Clear spacing (in)</label>
+                <input id="txtDuctSpacingNeher" type="number" value="3" step="any">
+              </div>
+              <div>
+                <label for="txtLF">Load factor (%)</label>
+                <input id="txtLF" type="number" value="100" readonly>
+              </div>
+            </div>
+
+            <div class="unit-note">&rho; in &deg;C&middot;cm/W</div>
+
+            <div class="btn-row" style="margin-top:14px">
+              <button id="btnCalculate" class="eh-btn eh-btn-primary" style="flex:1">Calculate</button>
+              <button id="btnAutoSize" class="eh-btn" style="flex:1">Auto-size</button>
+            </div>
+          </div>
+
+          <div>
+            <h2>Duct layout</h2>
+            <label for="cmbDuctFill">Conduit trade size to place</label>
+            <select id="cmbDuctFill"></select>
+
+            <div id="InputGrid" class="duct-grid"></div>
+
+            <div class="grid-legend">
+              <span><i class="sw sw-fill"></i>duct</span>
+              <span><i class="sw sw-lim"></i>lowest ampacity</span>
+              <span><i class="sw sw-hot"></i>hottest</span>
+            </div>
+
+            <div class="btn-row">
+              <button id="btnClearLayout" class="eh-btn" style="width:100%">Clear layout</button>
+            </div>
+
+            <p class="hint">
+              Row 1 is the shallowest row. Click a cell to place the selected conduit size,
+              or type a size directly. Hover a calculated duct for its temperature and
+              allowable current.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="eh-foot">
+    Steady-state model &mdash; cyclic loads require a different thermal model. Medium voltage results are
+    preliminary: dielectric and shield losses are not included.<br>
+    Support tool only &mdash; final sizing must be verified by the responsible engineer.
+  </div>
+
+</div>
+
+<div id="snackbar" class="snackbar" role="status" aria-live="polite"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+.vs/
+
+# SQLite side files — the database itself (data/elec.db) IS tracked.
+*.db-journal
+*.db-wal
+*.db-shm

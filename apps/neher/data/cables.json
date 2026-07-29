@@ -1,0 +1,495 @@
+{
+  "low_voltage": [
+    {
+      "size": "12",
+      "rdc_25": 1.662,
+      "rac_75": 2.002,
+      "reactance": 0.054,
+      "dim_bare": null,
+      "insul": null,
+      "jacket": null,
+      "OD": 0.469
+    },
+    {
+      "size": "10",
+      "rdc_25": 1.04,
+      "rac_75": 1.253,
+      "reactance": 0.05,
+      "dim_bare": null,
+      "insul": null,
+      "jacket": null,
+      "OD": 0.56
+    },
+    {
+      "size": "8",
+      "rdc_25": 0.653,
+      "rac_75": 0.788,
+      "reactance": 0.052,
+      "dim_bare": 0.141,
+      "insul": 45,
+      "jacket": 15,
+      "OD": 0.278
+    },
+    {
+      "size": "6",
+      "rdc_25": 0.411,
+      "rac_75": 0.495,
+      "reactance": 0.051,
+      "dim_bare": 0.177,
+      "insul": 45,
+      "jacket": 30,
+      "OD": 0.342
+    },
+    {
+      "size": "4",
+      "rdc_25": 0.258,
+      "rac_75": 0.31,
+      "reactance": 0.048,
+      "dim_bare": 0.225,
+      "insul": 45,
+      "jacket": 30,
+      "OD": 0.39
+    },
+    {
+      "size": "2",
+      "rdc_25": 0.162,
+      "rac_75": 0.195,
+      "reactance": 0.045,
+      "dim_bare": 0.282,
+      "insul": 45,
+      "jacket": 30,
+      "OD": 0.455
+    },
+    {
+      "size": "1",
+      "rdc_25": 0.128,
+      "rac_75": 0.154,
+      "reactance": 0.046,
+      "dim_bare": 0.322,
+      "insul": 55,
+      "jacket": 45,
+      "OD": 0.536
+    },
+    {
+      "size": "1/0",
+      "rdc_25": 0.102,
+      "rac_75": 0.122,
+      "reactance": 0.044,
+      "dim_bare": 0.361,
+      "insul": 55,
+      "jacket": 45,
+      "OD": 0.578
+    },
+    {
+      "size": "2/0",
+      "rdc_25": 0.081,
+      "rac_75": 0.097,
+      "reactance": 0.043,
+      "dim_bare": 0.405,
+      "insul": 55,
+      "jacket": 45,
+      "OD": 0.622
+    },
+    {
+      "size": "3/0",
+      "rdc_25": 0.064,
+      "rac_75": 0.078,
+      "reactance": 0.042,
+      "dim_bare": 0.456,
+      "insul": 55,
+      "jacket": 45,
+      "OD": 0.663
+    },
+    {
+      "size": "4/0",
+      "rdc_25": 0.051,
+      "rac_75": 0.062,
+      "reactance": 0.041,
+      "dim_bare": 0.512,
+      "insul": 55,
+      "jacket": 45,
+      "OD": 0.728
+    },
+    {
+      "size": "250",
+      "rdc_25": 0.043,
+      "rac_75": 0.053,
+      "reactance": 0.041,
+      "dim_bare": 0.558,
+      "insul": 65,
+      "jacket": 65,
+      "OD": 0.836
+    },
+    {
+      "size": "350",
+      "rdc_25": 0.031,
+      "rac_75": 0.039,
+      "reactance": 0.04,
+      "dim_bare": 0.661,
+      "insul": 65,
+      "jacket": 65,
+      "OD": 0.939
+    },
+    {
+      "size": "500",
+      "rdc_25": 0.022,
+      "rac_75": 0.029,
+      "reactance": 0.039,
+      "dim_bare": 0.789,
+      "insul": 65,
+      "jacket": 65,
+      "OD": 1.062
+    },
+    {
+      "size": "600",
+      "rdc_25": 0.018,
+      "rac_75": 0.024,
+      "reactance": 0.039,
+      "dim_bare": 0.865,
+      "insul": 80,
+      "jacket": 65,
+      "OD": 1.203
+    },
+    {
+      "size": "750",
+      "rdc_25": 0.014,
+      "rac_75": 0.022,
+      "reactance": 0.038,
+      "dim_bare": 0.968,
+      "insul": 80,
+      "jacket": 65,
+      "OD": 1.278
+    },
+    {
+      "size": "1000",
+      "rdc_25": 0.011,
+      "rac_75": 0.018,
+      "reactance": 0.037,
+      "dim_bare": 1.117,
+      "insul": 80,
+      "jacket": 65,
+      "OD": 1.443
+    }
+  ],
+  "medium_voltage": [
+    {
+      "size": "2",
+      "rdc_25": 0.162,
+      "rac_90": 0.204,
+      "dim_bare": 0.268,
+      "dim_over_insul": 0.746,
+      "Diameter Over Shield inch": 0.806,
+      "jacket": 80,
+      "OD": 0.986
+    },
+    {
+      "size": "1",
+      "rdc_25": 0.128,
+      "rac_90": 0.162,
+      "dim_bare": 0.298,
+      "dim_over_insul": 0.776,
+      "Diameter Over Shield inch": 0.836,
+      "jacket": 80,
+      "OD": 1.016
+    },
+    {
+      "size": "1/0",
+      "rdc_25": 0.102,
+      "rac_90": 0.128,
+      "dim_bare": 0.336,
+      "dim_over_insul": 0.814,
+      "Diameter Over Shield inch": 0.874,
+      "jacket": 80,
+      "OD": 1.054
+    },
+    {
+      "size": "2/0",
+      "rdc_25": 0.081,
+      "rac_90": 0.102,
+      "dim_bare": 0.376,
+      "dim_over_insul": 0.854,
+      "Diameter Over Shield inch": 0.914,
+      "jacket": 80,
+      "OD": 1.094
+    },
+    {
+      "size": "3/0",
+      "rdc_25": 0.064,
+      "rac_90": 0.081,
+      "dim_bare": 0.422,
+      "dim_over_insul": 0.9,
+      "Diameter Over Shield inch": 0.96,
+      "jacket": 80,
+      "OD": 1.14
+    },
+    {
+      "size": "4/0",
+      "rdc_25": 0.051,
+      "rac_90": 0.065,
+      "dim_bare": 0.474,
+      "dim_over_insul": 0.953,
+      "Diameter Over Shield inch": 1.013,
+      "jacket": 80,
+      "OD": 1.193
+    },
+    {
+      "size": "250",
+      "rdc_25": 0.043,
+      "rac_90": 0.056,
+      "dim_bare": 0.52,
+      "dim_over_insul": 1.006,
+      "Diameter Over Shield inch": 1.066,
+      "jacket": 80,
+      "OD": 1.246
+    },
+    {
+      "size": "350",
+      "rdc_25": 0.031,
+      "rac_90": 0.041,
+      "dim_bare": 0.615,
+      "dim_over_insul": 1.102,
+      "Diameter Over Shield inch": 1.162,
+      "jacket": 80,
+      "OD": 1.342
+    },
+    {
+      "size": "500",
+      "rdc_25": 0.022,
+      "rac_90": 0.03,
+      "dim_bare": 0.735,
+      "dim_over_insul": 1.23,
+      "Diameter Over Shield inch": 1.29,
+      "jacket": 80,
+      "OD": 1.47
+    },
+    {
+      "size": "600",
+      "rdc_25": 0.018,
+      "rac_90": 0.026,
+      "dim_bare": 0.812,
+      "dim_over_insul": 1.308,
+      "Diameter Over Shield inch": 1.368,
+      "jacket": 80,
+      "OD": 1.548
+    },
+    {
+      "size": "750",
+      "rdc_25": 0.014,
+      "rac_90": 0.023,
+      "dim_bare": 0.908,
+      "dim_over_insul": 1.404,
+      "Diameter Over Shield inch": 1.465,
+      "jacket": 80,
+      "OD": 1.735
+    },
+    {
+      "size": "1000",
+      "rdc_25": 0.011,
+      "rac_90": 0.019,
+      "dim_bare": 1.06,
+      "dim_over_insul": 1.556,
+      "Diameter Over Shield inch": 1.616,
+      "jacket": 110,
+      "OD": 1.856
+    }
+  ],
+  "conduitsNeher": [
+    {
+      "Size": "1/2",
+      "Average_OD_in": 0.84,
+      "SCH40_Minimum_wall": 0.109
+    },
+    {
+      "Size": "3/4",
+      "Average_OD_in": 1.05,
+      "SCH40_Minimum_wall": 0.113
+    },
+    {
+      "Size": "1",
+      "Average_OD_in": 1.315,
+      "SCH40_Minimum_wall": 0.133
+    },
+    {
+      "Size": "1 1/4",
+      "Average_OD_in": 1.66,
+      "SCH40_Minimum_wall": 0.14
+    },
+    {
+      "Size": "1 1/2",
+      "Average_OD_in": 1.9,
+      "SCH40_Minimum_wall": 0.145
+    },
+    {
+      "Size": "2",
+      "Average_OD_in": 2.375,
+      "SCH40_Minimum_wall": 0.154
+    },
+    {
+      "Size": "2 1/2",
+      "Average_OD_in": 2.875,
+      "SCH40_Minimum_wall": 0.203
+    },
+    {
+      "Size": "3",
+      "Average_OD_in": 3.5,
+      "SCH40_Minimum_wall": 0.216
+    },
+    {
+      "Size": "3 1/2",
+      "Average_OD_in": 4,
+      "SCH40_Minimum_wall": 0.226
+    },
+    {
+      "Size": "4",
+      "Average_OD_in": 4.5,
+      "SCH40_Minimum_wall": 0.237
+    },
+    {
+      "Size": "5",
+      "Average_OD_in": 5.563,
+      "SCH40_Minimum_wall": 0.258
+    },
+    {
+      "Size": "6",
+      "Average_OD_in": 6.625,
+      "SCH40_Minimum_wall": 0.28
+    }
+  ],
+  "nec_430_250": [
+    {
+      "Horsepower": "0.5",
+      "460 V": 1.1,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "0.75",
+      "460 V": 1.6,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "1",
+      "460 V": 2.1,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "1.5",
+      "460 V": 3,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "2",
+      "460 V": 3.4,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "3",
+      "460 V": 4.8,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "5",
+      "460 V": 7.6,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "7.5",
+      "460 V": 11,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "10",
+      "460 V": 14,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "15",
+      "460 V": 21,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "20",
+      "460 V": 27,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "25",
+      "460 V": 34,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "30",
+      "460 V": 40,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "40",
+      "460 V": 52,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "50",
+      "460 V": 65,
+      "2300 V": null
+    },
+    {
+      "Horsepower": "60",
+      "460 V": 77,
+      "2300 V": 16
+    },
+    {
+      "Horsepower": "75",
+      "460 V": 96,
+      "2300 V": 20
+    },
+    {
+      "Horsepower": "100",
+      "460 V": 124,
+      "2300 V": 26
+    },
+    {
+      "Horsepower": "125",
+      "460 V": 156,
+      "2300 V": 31
+    },
+    {
+      "Horsepower": "150",
+      "460 V": 180,
+      "2300 V": 37
+    },
+    {
+      "Horsepower": "200",
+      "460 V": 240,
+      "2300 V": 49
+    },
+    {
+      "Horsepower": "250",
+      "460 V": 302,
+      "2300 V": 60
+    },
+    {
+      "Horsepower": "300",
+      "460 V": 361,
+      "2300 V": 72
+    },
+    {
+      "Horsepower": "350",
+      "460 V": 414,
+      "2300 V": 83
+    },
+    {
+      "Horsepower": "400",
+      "460 V": 477,
+      "2300 V": 95
+    },
+    {
+      "Horsepower": "450",
+      "460 V": 515,
+      "2300 V": 103
+    },
+    {
+      "Horsepower": "500",
+      "460 V": 590,
+      "2300 V": 118
+    }
+  ]
+}

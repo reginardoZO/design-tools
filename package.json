@@ -1,0 +1,12 @@
+{
+  "name": "engineering-tools-hub",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Static hub bundling the electrical engineering web tools into a single GitHub Pages site.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "preview": "npx --yes http-server dist -p 8080 -c-1 -o",
+    "test": "node --test \"tests/**/*.test.js\""
+  }
+}

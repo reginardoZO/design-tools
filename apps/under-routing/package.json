@@ -1,0 +1,8 @@
+{
+  "name": "underground-route-planner",
+  "version": "1.0.0",
+  "description": "Plan the shortest 45-degree underground cable routes between feeder panels and their loads, minimising crossings.",
+  "scripts": {
+    "start": "npx --yes http-server -p 8099 -c-1 -o"
+  }
+}
