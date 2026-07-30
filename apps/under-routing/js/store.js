@@ -2,7 +2,7 @@
 //
 // State is plain JSON so it can be persisted to localStorage and restored.
 
-import { COL_WIDTH_IN } from './geometry.js?v=20260730-1';
+import { COL_WIDTH_IN } from './geometry.js?v=20260730-2';
 
 const STORAGE_KEY = 'underground-router-state-v1';
 

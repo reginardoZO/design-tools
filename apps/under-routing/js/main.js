@@ -15,16 +15,17 @@ import {
   load as loadState,
   WALL_ROTATION,
   WALL_CYCLE,
-} from './store.js?v=20260730-1';
+} from './store.js?v=20260730-2';
 import {
   render,
   initSvg,
   screenToWorld,
   fitToContent,
   BASE_PPI,
-} from './render.js?v=20260730-1';
-import { autoRoute } from './router.js?v=20260730-1';
-import { COL_WIDTH_IN, IN_PER_FT } from './geometry.js?v=20260730-1';
+} from './render.js?v=20260730-2';
+import { autoRoute } from './router.js?v=20260730-2';
+import { COL_WIDTH_IN, IN_PER_FT } from './geometry.js?v=20260730-2';
+import { resizeRectangle } from './resize.js?v=20260730-2';
 
 const DRAG_THRESHOLD = 4; // px of movement before a press counts as a drag
 
@@ -71,19 +72,19 @@ function updateChrome() {
     `ROUTES: <b>${s.routes}</b> &middot; CROSSINGS: <b>${s.crossings}</b> ` +
     `&middot; BLOCKED: <b>${s.blocked || 0}</b> &middot; ` +
     `FOUNDATIONS: <b>${state.foundations.length}</b> &middot; ` +
-    `TAGS: <b>${state.tags.length}</b> &middot; ` +
+    `RECS: <b>${state.tags.length}</b> &middot; ` +
     `TOTAL LENGTH: <b>${s.length}</b> in`;
 
   const hints = {
     foundation:
-      'drag empty space = draw foundation · drag foundation = move · ' +
+      'drag empty space = draw foundation · drag foundation = move · drag corner = resize · ' +
       'select + Del or double-click = delete',
     tag:
-      'drag empty space = draw tag rectangle · drag tag = move · ' +
+      'drag empty space = draw rectangle · drag rectangle = move · drag corner = resize · ' +
       'select + Del or double-click = delete',
     route:
-      'drag panel, load, foundation or tag = move & reroute · click panel then ↻ = rotate · ' +
-      'select foundation/tag + Del = delete · double-click = delete · click empty space = add load',
+      'drag blocks = move · select rectangle/foundation then drag a corner = resize · ' +
+      'click panel then ↻ = rotate · select + Del or double-click = delete · click empty space = add load',
   };
   document.getElementById('hint').textContent = hints[state.mode] || hints.route;
 
@@ -155,7 +156,7 @@ function wireToolbar() {
     reroute();
   };
   document.getElementById('btn-export').onclick = async () => {
-    const { exportPdf } = await import('./pdf.js?v=20260730-1');
+    const { exportPdf } = await import('./pdf.js?v=20260730-2');
     exportPdf();
   };
 }
@@ -225,6 +226,36 @@ function localPoint(e) {
 
 function onPointerDown(e) {
   const [sx, sy] = localPoint(e);
+
+  const resizeEl = e.target.closest('.resize-handle');
+  if (resizeEl) {
+    const type = resizeEl.getAttribute('data-resize-type');
+    const id = resizeEl.getAttribute('data-resize-id');
+    const corner = resizeEl.getAttribute('data-corner');
+    const rectangle = type === 'foundation'
+      ? state.foundations.find((item) => item.id === id)
+      : state.tags.find((item) => item.id === id);
+    if (!rectangle) return;
+
+    lastFoundationClick = null;
+    lastTagClick = null;
+    state.selection = { type, id };
+    drag = {
+      kind: 'resize',
+      type,
+      id,
+      corner,
+      moved: false,
+      startSX: sx,
+      startSY: sy,
+      startX: rectangle.x,
+      startY: rectangle.y,
+      startWidth: rectangle.width,
+      startHeight: rectangle.height,
+    };
+    svg.setPointerCapture(e.pointerId);
+    return;
+  }
 
   // Panels and loads are directly manipulable at all times — dragging a panel
   // repositions it, its rotate handle turns it. (Config lives in the SETUP
@@ -458,6 +489,17 @@ function onPointerMove(e) {
       tag.height = Math.abs(currentY - drag.startY);
       render();
     }
+  } else if (drag.kind === 'resize') {
+    const rectangle = drag.type === 'foundation'
+      ? state.foundations.find((item) => item.id === drag.id)
+      : state.tags.find((item) => item.id === drag.id);
+    if (rectangle) {
+      const minimum = DRAG_THRESHOLD / (state.view.scale * BASE_PPI);
+      resizeRectangle(rectangle, drag, dwx, dwy, minimum);
+      if (drag.type === 'foundation' && state.showRoutes) autoRoute();
+      render();
+      updateChrome();
+    }
   }
 }
 
@@ -503,7 +545,7 @@ function onPointerUp(e) {
   } else if (
     drag.moved &&
     (drag.kind === 'load' || drag.kind === 'panel' || drag.kind === 'foundation' ||
-      drag.kind === 'tag')
+      drag.kind === 'tag' || drag.kind === 'resize')
   ) {
     save();
     render();
@@ -515,6 +557,7 @@ function onPointerUp(e) {
 }
 
 function onDblClick(e) {
+  if (e.target.closest('.resize-handle')) return;
   const loadEl = e.target.closest('.load');
   if (loadEl) {
     const id = loadEl.getAttribute('data-id');
@@ -834,7 +877,7 @@ function closeTagModal(cancelled) {
 function saveTag() {
   const label = document.getElementById('tag-tag').value.trim();
   if (!label) {
-    alert('Enter a tag for the rectangle.');
+    alert('Enter a label for the rectangle.');
     return;
   }
   const tag = state.tags.find((item) => item.id === pendingTagId);

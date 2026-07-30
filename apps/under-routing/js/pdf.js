@@ -4,8 +4,8 @@
 // works offline) we build a clean standalone SVG of the whole scene and open
 // it in a print window; the browser's "Save as PDF" produces the file.
 
-import { state } from './store.js?v=20260730-1';
-import { render, fitToContent } from './render.js?v=20260730-1';
+import { state } from './store.js?v=20260730-2';
+import { render, fitToContent } from './render.js?v=20260730-2';
 
 // SVG-only styles inlined into the export document so it renders identically
 // without the app's stylesheet.
@@ -64,7 +64,7 @@ export function exportPdf() {
   const header =
     `ROUTES: ${stats.routes}   CROSSINGS: ${stats.crossings}   ` +
     `BLOCKED: ${stats.blocked || 0}   FOUNDATIONS: ${state.foundations.length}   ` +
-    `TAGS: ${state.tags.length}   TOTAL LENGTH: ${stats.length} in`;
+    `RECS: ${state.tags.length}   TOTAL LENGTH: ${stats.length} in`;
 
   const doc = `<!doctype html><html><head><meta charset="utf-8">
     <title>Underground Route Plan</title>

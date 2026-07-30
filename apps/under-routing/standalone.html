@@ -493,6 +493,20 @@ body {
   font: 600 10px var(--mono);
   pointer-events: none;
 }
+.resize-handle {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.resize-handle[data-corner='nw'],
+.resize-handle[data-corner='se'] {
+  cursor: nwse-resize;
+}
+.resize-handle[data-corner='ne'],
+.resize-handle[data-corner='sw'] {
+  cursor: nesw-resize;
+}
 .tag {
   cursor: move;
 }
@@ -516,6 +530,15 @@ body {
   font: 700 11px var(--mono);
   letter-spacing: 0.5px;
   dominant-baseline: middle;
+  pointer-events: none;
+}
+.tag-size {
+  fill: var(--ink-soft);
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-opacity: 0.65;
+  paint-order: stroke fill;
+  font: 600 10px var(--mono);
   pointer-events: none;
 }
 .load {
@@ -800,7 +823,7 @@ body {
         <button id="btn-setup" class="tbtn">&larr; SETUP</button>
         <button id="btn-route" class="tbtn active">ROUTE LOADS</button>
         <button id="btn-foundation" class="tbtn">DRAW FOUNDATION</button>
-        <button id="btn-tag" class="tbtn">DRAW TAG</button>
+        <button id="btn-tag" class="tbtn">DRAW REC</button>
         <button id="btn-wall" class="tbtn">&#8635; WALL: RIGHT</button>
         <button id="btn-clear-routes" class="tbtn">CLEAR ROUTES</button>
         <button id="btn-clear-loads" class="tbtn">CLEAR LOADS</button>
@@ -882,20 +905,20 @@ body {
       </div>
     </div>
 
-    <!-- Tag modal: label a tag rectangle -->
+    <!-- Rectangle modal: label a drawing rectangle -->
     <div class="modal-backdrop" id="modal-tag" hidden>
       <div class="modal small">
         <div class="modal-head">
-          <h2>Tag rectangle</h2>
+          <h2>Rectangle label</h2>
           <button class="icon-btn" id="tag-close">&times;</button>
         </div>
         <label class="field">
-          <span>Tag</span>
+          <span>Label</span>
           <input type="text" id="tag-tag" placeholder="e.g. TRANSFORMER T1" autocomplete="off" />
         </label>
         <div class="modal-actions">
           <button class="tbtn" id="tag-cancel">Cancel</button>
-          <button class="tbtn primary" id="tag-save">Save tag</button>
+          <button class="tbtn primary" id="tag-save">Save rectangle</button>
         </div>
       </div>
     </div>
@@ -1638,6 +1661,7 @@ const BASE_PPI = 1.0; // pixels per inch at scale 1
 const SVGNS = 'http://www.w3.org/2000/svg';
 const PANEL_DEPTH_IN = 150; // drawn depth of a panel box (presentation only)
 const NUM_STRIP_IN = 26; // width of the dark numbered strip on the front edge
+const RESIZE_HANDLE_RADIUS = 6;
 
 // Labels that read as structural rows rather than connectable feeders; drawn
 // with a hatch so they stand out (purely cosmetic).
@@ -1753,6 +1777,8 @@ function drawFoundation(parent, foundation) {
     dimensions.textContent =
       `${formatFeet(foundation.width)} × ${formatFeet(foundation.height)}`;
   }
+
+  if (selected) drawResizeHandles(group, foundation, 'foundation');
 }
 
 function formatFeet(inches) {
@@ -2020,6 +2046,8 @@ function panelBusTag(panelId) {
 function drawTag(parent, tag) {
   const [left, top] = worldToScreen(tag.x, tag.y);
   const [right, bottom] = worldToScreen(tag.x + tag.width, tag.y + tag.height);
+  const width = Math.abs(right - left);
+  const height = Math.abs(bottom - top);
   const selected = state.selection && state.selection.id === tag.id;
   const group = el('g', { class: 'tag', 'data-id': tag.id }, parent);
 
@@ -2028,8 +2056,8 @@ function drawTag(parent, tag) {
     {
       x: Math.min(left, right),
       y: Math.min(top, bottom),
-      width: Math.abs(right - left),
-      height: Math.abs(bottom - top),
+      width,
+      height,
       class: 'tag-box' + (selected ? ' selected' : ''),
     },
     group
@@ -2046,6 +2074,52 @@ function drawTag(parent, tag) {
     group
   );
   label.textContent = tag.tag;
+
+  if (width >= 80 && height >= 38) {
+    const dimensions = el(
+      'text',
+      {
+        x: (left + right) / 2,
+        y: (top + bottom) / 2 + 16,
+        class: 'tag-size',
+        'text-anchor': 'middle',
+      },
+      group
+    );
+    dimensions.textContent = `${formatFeet(tag.width)} × ${formatFeet(tag.height)}`;
+  }
+
+  if (selected) drawResizeHandles(group, tag, 'tag');
+}
+
+function drawResizeHandles(parent, rectangle, type) {
+  const [left, top] = worldToScreen(rectangle.x, rectangle.y);
+  const [right, bottom] = worldToScreen(
+    rectangle.x + rectangle.width,
+    rectangle.y + rectangle.height
+  );
+  const corners = [
+    ['nw', left, top],
+    ['ne', right, top],
+    ['se', right, bottom],
+    ['sw', left, bottom],
+  ];
+
+  for (const [corner, x, y] of corners) {
+    el(
+      'circle',
+      {
+        cx: x,
+        cy: y,
+        r: RESIZE_HANDLE_RADIUS,
+        class: 'resize-handle',
+        'data-resize-type': type,
+        'data-resize-id': rectangle.id,
+        'data-corner': corner,
+      },
+      parent
+    );
+  }
 }
 
 // ---- view fitting ---------------------------------------------------------
@@ -2167,7 +2241,7 @@ function exportPdf() {
   const header =
     `ROUTES: ${stats.routes}   CROSSINGS: ${stats.crossings}   ` +
     `BLOCKED: ${stats.blocked || 0}   FOUNDATIONS: ${state.foundations.length}   ` +
-    `TAGS: ${state.tags.length}   TOTAL LENGTH: ${stats.length} in`;
+    `RECS: ${state.tags.length}   TOTAL LENGTH: ${stats.length} in`;
 
   const doc = `<!doctype html><html><head><meta charset="utf-8">
     <title>Underground Route Plan</title>
@@ -2256,19 +2330,19 @@ function updateChrome() {
     `ROUTES: <b>${s.routes}</b> &middot; CROSSINGS: <b>${s.crossings}</b> ` +
     `&middot; BLOCKED: <b>${s.blocked || 0}</b> &middot; ` +
     `FOUNDATIONS: <b>${state.foundations.length}</b> &middot; ` +
-    `TAGS: <b>${state.tags.length}</b> &middot; ` +
+    `RECS: <b>${state.tags.length}</b> &middot; ` +
     `TOTAL LENGTH: <b>${s.length}</b> in`;
 
   const hints = {
     foundation:
-      'drag empty space = draw foundation · drag foundation = move · ' +
+      'drag empty space = draw foundation · drag foundation = move · drag corner = resize · ' +
       'select + Del or double-click = delete',
     tag:
-      'drag empty space = draw tag rectangle · drag tag = move · ' +
+      'drag empty space = draw rectangle · drag rectangle = move · drag corner = resize · ' +
       'select + Del or double-click = delete',
     route:
-      'drag panel, load, foundation or tag = move & reroute · click panel then ↻ = rotate · ' +
-      'select foundation/tag + Del = delete · double-click = delete · click empty space = add load',
+      'drag blocks = move · select rectangle/foundation then drag a corner = resize · ' +
+      'click panel then ↻ = rotate · select + Del or double-click = delete · click empty space = add load',
   };
   document.getElementById('hint').textContent = hints[state.mode] || hints.route;
 
@@ -2409,6 +2483,36 @@ function localPoint(e) {
 
 function onPointerDown(e) {
   const [sx, sy] = localPoint(e);
+
+  const resizeEl = e.target.closest('.resize-handle');
+  if (resizeEl) {
+    const type = resizeEl.getAttribute('data-resize-type');
+    const id = resizeEl.getAttribute('data-resize-id');
+    const corner = resizeEl.getAttribute('data-corner');
+    const rectangle = type === 'foundation'
+      ? state.foundations.find((item) => item.id === id)
+      : state.tags.find((item) => item.id === id);
+    if (!rectangle) return;
+
+    lastFoundationClick = null;
+    lastTagClick = null;
+    state.selection = { type, id };
+    drag = {
+      kind: 'resize',
+      type,
+      id,
+      corner,
+      moved: false,
+      startSX: sx,
+      startSY: sy,
+      startX: rectangle.x,
+      startY: rectangle.y,
+      startWidth: rectangle.width,
+      startHeight: rectangle.height,
+    };
+    svg.setPointerCapture(e.pointerId);
+    return;
+  }
 
   // Panels and loads are directly manipulable at all times — dragging a panel
   // repositions it, its rotate handle turns it. (Config lives in the SETUP
@@ -2642,7 +2746,45 @@ function onPointerMove(e) {
       tag.height = Math.abs(currentY - drag.startY);
       render();
     }
+  } else if (drag.kind === 'resize') {
+    const rectangle = drag.type === 'foundation'
+      ? state.foundations.find((item) => item.id === drag.id)
+      : state.tags.find((item) => item.id === drag.id);
+    if (rectangle) {
+      const minimum = DRAG_THRESHOLD / (state.view.scale * BASE_PPI);
+      resizeRectangle(rectangle, drag, dwx, dwy, minimum);
+      if (drag.type === 'foundation' && state.showRoutes) autoRoute();
+      render();
+      updateChrome();
+    }
   }
+}
+
+function resizeRectangle(rectangle, resizeDrag, dwx, dwy, minimum = 0) {
+  const left = resizeDrag.startX;
+  const top = resizeDrag.startY;
+  const right = left + resizeDrag.startWidth;
+  const bottom = top + resizeDrag.startHeight;
+  const fromWest = resizeDrag.corner.includes('w');
+  const fromNorth = resizeDrag.corner.includes('n');
+  const fixedX = fromWest ? right : left;
+  const fixedY = fromNorth ? bottom : top;
+  const handleX = (fromWest ? left : right) + dwx;
+  const handleY = (fromNorth ? top : bottom) + dwy;
+  const adjustedX = keepMinimumDistance(handleX, fixedX, minimum, fromWest ? -1 : 1);
+  const adjustedY = keepMinimumDistance(handleY, fixedY, minimum, fromNorth ? -1 : 1);
+
+  rectangle.x = Math.min(fixedX, adjustedX);
+  rectangle.y = Math.min(fixedY, adjustedY);
+  rectangle.width = Math.abs(adjustedX - fixedX);
+  rectangle.height = Math.abs(adjustedY - fixedY);
+  return rectangle;
+}
+
+function keepMinimumDistance(value, fixed, minimum, fallbackDirection) {
+  const delta = value - fixed;
+  const direction = delta === 0 ? fallbackDirection : Math.sign(delta);
+  return fixed + direction * Math.max(Math.abs(delta), minimum);
 }
 
 function onPointerUp(e) {
@@ -2687,7 +2829,7 @@ function onPointerUp(e) {
   } else if (
     drag.moved &&
     (drag.kind === 'load' || drag.kind === 'panel' || drag.kind === 'foundation' ||
-      drag.kind === 'tag')
+      drag.kind === 'tag' || drag.kind === 'resize')
   ) {
     save();
     render();
@@ -2699,6 +2841,7 @@ function onPointerUp(e) {
 }
 
 function onDblClick(e) {
+  if (e.target.closest('.resize-handle')) return;
   const loadEl = e.target.closest('.load');
   if (loadEl) {
     const id = loadEl.getAttribute('data-id');
@@ -3018,7 +3161,7 @@ function closeTagModal(cancelled) {
 function saveTag() {
   const label = document.getElementById('tag-tag').value.trim();
   if (!label) {
-    alert('Enter a tag for the rectangle.');
+    alert('Enter a label for the rectangle.');
     return;
   }
   const tag = state.tags.find((item) => item.id === pendingTagId);

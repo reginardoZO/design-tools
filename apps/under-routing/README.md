@@ -28,11 +28,12 @@ server) and is designed to be hosted on **GitHub Pages**.
    foundation with a **12 in clearance**. Drag a foundation to move it; press
    **Del** (with it selected) or **double-click** it to delete it.
 
-5. **Mark tag rectangles.** Select **DRAW TAG**, then drag over the plan to
+5. **Mark drawing rectangles.** Select **DRAW REC**, then drag over the plan to
    draw a labelled rectangle — a pure drawing marker for things like loads or
-   panel areas. Tag rectangles never affect the routes. You are asked for the
-   **tag** as soon as the rectangle is drawn; the label stays centred in the
-   rectangle. Drag to move; press **Del** (with it selected) or
+   panel areas. Drawing rectangles never affect the routes. You are asked for the
+   **label** as soon as the rectangle is drawn; the label stays centred in the
+   rectangle. Drag to move, or select it and drag a corner handle to change its
+   width and length. Press **Del** (with it selected) or
    **double-click** to delete.
 
 6. **Auto-route.** Routes are computed automatically (and re-computed as you
@@ -55,8 +56,8 @@ server) and is designed to be hosted on **GitHub Pages**.
 | --- | --- |
 | **← SETUP** | Configure panels (add/remove, rename, set columns & labels). |
 | **ROUTE LOADS** | Working mode: add / move / delete loads and route them. |
-| **DRAW FOUNDATION** | Draw rectangular deep-foundation areas that routes must avoid. |
-| **DRAW TAG** | Draw labelled rectangles that mark loads/panel areas without affecting routes. |
+| **DRAW FOUNDATION** | Draw deep-foundation areas; select one and drag a corner to resize it. |
+| **DRAW REC** | Draw labelled rectangles; select one and drag a corner to resize it. |
 | **↻ WALL: …** | Rotate all panels to back onto the next wall (RIGHT → BOTTOM → LEFT → TOP). |
 | **CLEAR ROUTES** | Hide the current routes (they return on the next change). |
 | **CLEAR LOADS** | Remove every load. |

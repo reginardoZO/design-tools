@@ -45,10 +45,13 @@ Great for a quick look; for development, prefer options 1–3.
    already routed. Drag to move it; **double-click** deletes it.
 4. Click **DRAW FOUNDATION** and drag on the plan to draw a rectangular deep
    foundation. Routes now go around it with **12 in of clearance**.
-   Drag the foundation to move it; **double-click** to delete it.
-5. Routes use only **45° bends** + straight runs, seek the **shortest
+   Drag the foundation to move it; select it and drag a corner to resize it;
+   **double-click** to delete it.
+5. Click **DRAW REC** and drag to add a labelled drawing rectangle. Select it
+   and drag a corner to change its width and length.
+6. Routes use only **45° bends** + straight runs, seek the **shortest
    path**, and the app tries several orderings to **reduce crossings**.
    The status bar shows routes / crossings / blocked routes / foundations
    / total length. A connection inside a foundation is shown dashed in
    red and counted as **BLOCKED**.
-6. **EXPORT PDF** opens a print-ready version (Save as PDF).
+7. **EXPORT PDF** opens a print-ready version (Save as PDF).

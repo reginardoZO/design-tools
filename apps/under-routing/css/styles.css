@@ -236,6 +236,20 @@ body {
   font: 600 10px var(--mono);
   pointer-events: none;
 }
+.resize-handle {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.resize-handle[data-corner='nw'],
+.resize-handle[data-corner='se'] {
+  cursor: nwse-resize;
+}
+.resize-handle[data-corner='ne'],
+.resize-handle[data-corner='sw'] {
+  cursor: nesw-resize;
+}
 .tag {
   cursor: move;
 }
@@ -259,6 +273,15 @@ body {
   font: 700 11px var(--mono);
   letter-spacing: 0.5px;
   dominant-baseline: middle;
+  pointer-events: none;
+}
+.tag-size {
+  fill: var(--ink-soft);
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-opacity: 0.65;
+  paint-order: stroke fill;
+  font: 600 10px var(--mono);
   pointer-events: none;
 }
 .load {

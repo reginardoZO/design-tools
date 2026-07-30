@@ -9,13 +9,14 @@ import {
   panelLocalToWorld,
   columnTapWorld,
   panelLengthIn,
-} from './geometry.js?v=20260730-1';
-import { state } from './store.js?v=20260730-1';
+} from './geometry.js?v=20260730-2';
+import { state } from './store.js?v=20260730-2';
 
 export const BASE_PPI = 1.0; // pixels per inch at scale 1
 const SVGNS = 'http://www.w3.org/2000/svg';
 const PANEL_DEPTH_IN = 150; // drawn depth of a panel box (presentation only)
 const NUM_STRIP_IN = 26; // width of the dark numbered strip on the front edge
+const RESIZE_HANDLE_RADIUS = 6;
 
 // Labels that read as structural rows rather than connectable feeders; drawn
 // with a hatch so they stand out (purely cosmetic).
@@ -131,6 +132,8 @@ function drawFoundation(parent, foundation) {
     dimensions.textContent =
       `${formatFeet(foundation.width)} × ${formatFeet(foundation.height)}`;
   }
+
+  if (selected) drawResizeHandles(group, foundation, 'foundation');
 }
 
 function formatFeet(inches) {
@@ -398,6 +401,8 @@ function panelBusTag(panelId) {
 function drawTag(parent, tag) {
   const [left, top] = worldToScreen(tag.x, tag.y);
   const [right, bottom] = worldToScreen(tag.x + tag.width, tag.y + tag.height);
+  const width = Math.abs(right - left);
+  const height = Math.abs(bottom - top);
   const selected = state.selection && state.selection.id === tag.id;
   const group = el('g', { class: 'tag', 'data-id': tag.id }, parent);
 
@@ -406,8 +411,8 @@ function drawTag(parent, tag) {
     {
       x: Math.min(left, right),
       y: Math.min(top, bottom),
-      width: Math.abs(right - left),
-      height: Math.abs(bottom - top),
+      width,
+      height,
       class: 'tag-box' + (selected ? ' selected' : ''),
     },
     group
@@ -424,6 +429,52 @@ function drawTag(parent, tag) {
     group
   );
   label.textContent = tag.tag;
+
+  if (width >= 80 && height >= 38) {
+    const dimensions = el(
+      'text',
+      {
+        x: (left + right) / 2,
+        y: (top + bottom) / 2 + 16,
+        class: 'tag-size',
+        'text-anchor': 'middle',
+      },
+      group
+    );
+    dimensions.textContent = `${formatFeet(tag.width)} × ${formatFeet(tag.height)}`;
+  }
+
+  if (selected) drawResizeHandles(group, tag, 'tag');
+}
+
+function drawResizeHandles(parent, rectangle, type) {
+  const [left, top] = worldToScreen(rectangle.x, rectangle.y);
+  const [right, bottom] = worldToScreen(
+    rectangle.x + rectangle.width,
+    rectangle.y + rectangle.height
+  );
+  const corners = [
+    ['nw', left, top],
+    ['ne', right, top],
+    ['se', right, bottom],
+    ['sw', left, bottom],
+  ];
+
+  for (const [corner, x, y] of corners) {
+    el(
+      'circle',
+      {
+        cx: x,
+        cy: y,
+        r: RESIZE_HANDLE_RADIUS,
+        class: 'resize-handle',
+        'data-resize-type': type,
+        'data-resize-id': rectangle.id,
+        'data-corner': corner,
+      },
+      parent
+    );
+  }
 }
 
 // ---- view fitting ---------------------------------------------------------
