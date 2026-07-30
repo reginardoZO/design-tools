@@ -79,6 +79,32 @@ test('LV multiconductor touching in an uncovered tray uses Table 310.16 unmodifi
   assert.equal(result.recommended.governing, 'ampacity');
 });
 
+test('NEC 110.14(C) termination cap is applied by default and can be explicitly overridden', () => {
+  const cfg = {
+    designI: 650, ambient: 45, insTemp: 90, termTemp: 75, vClass: 'lv',
+    construction: 'single', arrangement: 'trefoil215', covered: false,
+    ccc: 3, maxSets: 1, maxSize: '700', ambMethod: 'table', vd: { on: false },
+  };
+
+  const applied = computeSizing(cfg);
+  const appliedExplicitly = computeSizing({ ...cfg, applyNec11014TerminationLimit: true });
+  const overridden = computeSizing({ ...cfg, applyNec11014TerminationLimit: false });
+  const appliedRow = applied.rows.find((r) => r.size === '700');
+  const overriddenRow = overridden.rows.find((r) => r.size === '700');
+
+  near(appliedRow.base, 714); // Table 310.20, 90 C column
+  near(appliedRow.derated, 678.3);
+  near(appliedRow.termAmp, 460); // Table 310.16, 75 C termination value
+  near(appliedRow.allowed, 460);
+  near(appliedExplicitly.rows.find((r) => r.size === '700').allowed, 460);
+  assert.equal(applied.recommended, null);
+
+  near(overriddenRow.termAmp, 460); // retained for information
+  near(overriddenRow.allowed, 678.3);
+  assert.equal(overridden.recommended.n, 1);
+  assert.equal(overridden.recommended.row.size, '700');
+});
+
 test('covered tray applies the 95% factor and a solid cover blocks nothing else', () => {
   const cfg = {
     designI: 100, ambient: 30, insTemp: 90, termTemp: 90, vClass: 'lv',
@@ -111,6 +137,7 @@ test('MV 15 kV 3-conductor cable is capped on the 90 C column per 110.40', () =>
     designI: 300, ambient: 40, insTemp: 105, termTemp: 90, vClass: 'mv15',
     construction: 'multi', arrangement: 'touching', covered: false,
     ccc: 3, maxSets: 1, maxSize: '1000', ambMethod: 'table', vd: { on: false },
+    applyNec11014TerminationLimit: false, // the LV-only override must not bypass 110.40
   });
 
   assert.equal(result.method.baseTableName, 'Table 315.60(C)(5) (3-conductor cable in air)');

@@ -128,11 +128,17 @@ function SegBtns({ value, onChange, options }) {
   );
 }
 
-function FactorNode({ label, value, refText }) {
+function FactorNode({ label, value, refText, muted = false }) {
   return (
     <div
       className="flex flex-col items-center px-2 py-2 min-w-0"
-      style={{ background: C.field, border: `1px solid ${C.lineSoft}`, borderRadius: 4, flex: "1 1 92px" }}
+      style={{
+        background: C.field,
+        border: `1px ${muted ? "dashed" : "solid"} ${C.lineSoft}`,
+        borderRadius: 4,
+        flex: "1 1 92px",
+        opacity: muted ? 0.62 : 1,
+      }}
     >
       <div className="text-center mb-1" style={{ fontSize: 10.5, color: C.faint, textTransform: "uppercase", letterSpacing: ".5px" }}>{label}</div>
       <div style={{ ...mono, fontSize: 14, fontWeight: 600, color: C.text }}>{value}</div>
@@ -165,6 +171,7 @@ export default function App() {
   const [construction, setConstruction] = useState("multi");
   const [insTemp, setInsTemp] = useState(90);
   const [termTemp, setTermTemp] = useState(75);
+  const [applyNec11014TerminationLimit, setApplyNec11014TerminationLimit] = useState(true);
   const [ccc, setCcc] = useState("3");
 
   // Installation / environment
@@ -225,6 +232,7 @@ export default function App() {
       ambient: parseFloat(ambient) || 0,
       insTemp: effInsTemp,
       termTemp,
+      applyNec11014TerminationLimit,
       vClass,
       construction,
       arrangement: effArrangement,
@@ -235,7 +243,7 @@ export default function App() {
       ambMethod,
       vd: vdCfg,
     });
-  }, [load.design, ambient, effInsTemp, termTemp, vClass, construction, effArrangement, covered, ccc, maxSets, effMaxSize, ambMethod, vdCfg]);
+  }, [load.design, ambient, effInsTemp, termTemp, applyNec11014TerminationLimit, vClass, construction, effArrangement, covered, ccc, maxSets, effMaxSize, ambMethod, vdCfg]);
 
   const warnings = [...load.warnings];
   if (covered && arrangement !== "touching")
@@ -258,6 +266,7 @@ export default function App() {
   }
 
   const rec = result?.recommended;
+  const terminationOverrideActive = vClass === "lv" && !applyNec11014TerminationLimit;
   const fmt = (x, d = 1) => (x == null ? "—" : Number(x).toFixed(d));
 
   const egc = useMemo(() => {
@@ -484,9 +493,37 @@ export default function App() {
                 />
               </Field>
               {vClass === "lv" && (
-                <Field label="Termination rating (110.14(C))">
-                  <SegBtns value={termTemp} onChange={(v) => setTermTemp(Number(v))} options={[[60, "60°C"], [75, "75°C"], [90, "90°C"]]} />
-                </Field>
+                <>
+                  <Field label="Termination rating (110.14(C))">
+                    <SegBtns value={termTemp} onChange={(v) => setTermTemp(Number(v))} options={[[60, "60°C"], [75, "75°C"], [90, "90°C"]]} />
+                  </Field>
+                  <div style={{ margin: "-2px 0 14px" }}>
+                    <label
+                      className="flex items-start gap-2"
+                      title="Engineering override — sizes conductors using installation ampacity without applying the standard equipment termination limit."
+                      style={{ cursor: "pointer", color: C.mut }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={terminationOverrideActive}
+                        onChange={(e) => setApplyNec11014TerminationLimit(!e.target.checked)}
+                        aria-describedby="termination-override-help"
+                        style={{ width: 14, height: 14, marginTop: 2, accentColor: C.accent }}
+                      />
+                      <span style={{ fontSize: 12.5, lineHeight: 1.4 }}>
+                        Ignore NEC 110.14(C) termination limit
+                      </span>
+                    </label>
+                    <div id="termination-override-help" style={{ fontSize: 11, color: C.faint, lineHeight: 1.45, margin: "4px 0 0 22px" }}>
+                      Engineering override — sizes conductors using installation ampacity without applying the standard equipment termination limit.
+                    </div>
+                    {terminationOverrideActive && (
+                      <div style={{ fontSize: 11.5, color: "#9a6b00", background: C.warnWash, borderLeft: `3px solid ${C.warn}`, borderRadius: "0 4px 4px 0", lineHeight: 1.5, margin: "8px 0 0 22px", padding: "6px 9px" }}>
+                        NEC 110.14(C) termination ampacity limitation is not being applied. Verify equipment and terminal suitability with the manufacturer and AHJ.
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
               {vClass === "lv" && construction === "multi" && (
                 <Field label="Current-carrying conductors in the cable (310.15(C)(1))">
@@ -654,6 +691,11 @@ export default function App() {
                       governing: <span style={{ color: C.accent, fontWeight: 600 }}>{rec.governing}</span>
                       {rec.vdPct != null && <> · VD = {fmt(rec.vdPct, 2)}%</>}
                     </div>
+                    {terminationOverrideActive && (
+                      <div style={{ fontSize: 11.5, color: "#9a6b00", marginTop: 5 }}>
+                        Engineering override active
+                      </div>
+                    )}
                   </div>
                 </div>
               </Section>
@@ -682,13 +724,16 @@ export default function App() {
                       <FactorNode
                         label={vClass === "lv" ? `Termination ${termTemp}°C` : "Termination (90°C col)"}
                         value={`${rec.row.termAmp} A`}
-                        refText={vClass === "lv" ? "110.14(C) · T.310.16" : "110.40"}
+                        refText={terminationOverrideActive ? "Not applied — engineering override enabled" : vClass === "lv" ? "110.14(C) · T.310.16" : "110.40"}
+                        muted={terminationOverrideActive}
                       />
                     </>
                   )}
                 </div>
                 <div style={{ fontSize: 12.5, marginTop: 12, color: C.mut, lineHeight: 1.6 }}>
-                  Allowable ampacity per conductor = min(derated ampacity{vClass === "lv" ? ", termination limit" : ""}) ={" "}
+                  {terminationOverrideActive
+                    ? "Allowable ampacity per conductor = derated installation ampacity. NEC 110.14(C) termination limitation excluded by user selection"
+                    : `Allowable ampacity per conductor = min(derated ampacity${vClass === "lv" ? ", termination limit" : ""})`} ={" "}
                   <span style={{ ...mono, color: C.accent, fontWeight: 600 }}>{fmt(rec.row.allowed)} A</span>
                   {" "}· Ambient correction = √((Tc − Ta)/(Tc − {result.method.tableBaseAmbient})) with Tc = {effInsTemp}°C, Ta = {ambient}°C.
                 </div>
@@ -858,7 +903,14 @@ export default function App() {
                   {result.method.adjApplies && (
                     <div><span style={{ color: C.faint }}>Adjustment: </span>310.15(C)(1) applied to the number of current-carrying conductors within each multiconductor cable, per 392.80(A)(1)(a).</div>
                   )}
-                  <div><span style={{ color: C.faint }}>Terminations: </span>{vClass === "lv" ? `limited per 110.14(C) using Table 310.16 at ${termTemp}°C (underated).` : "limited per 110.40 using the underated 90°C column of the MV base table (unless equipment is identified for higher rating)."}</div>
+                  <div>
+                    <span style={{ color: C.faint }}>{vClass === "lv" ? "NEC 110.14(C) termination limit: " : "Terminations: "}</span>
+                    {vClass === "lv"
+                      ? terminationOverrideActive
+                        ? "Not applied — engineering override."
+                        : `Applied — Table 310.16 at ${termTemp}°C (underated).`
+                      : "limited per 110.40 using the underated 90°C column of the MV base table (unless equipment is identified for higher rating)."}
+                  </div>
                 </div>
               </Section>
             )}

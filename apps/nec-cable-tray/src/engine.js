@@ -454,6 +454,7 @@ function resolveMethod(cfg) {
 export function computeSizing(cfg) {
   const method = resolveMethod(cfg);
   const { designI, ambient, insTemp, termTemp, vClass, ccc, maxSets } = cfg;
+  const applyNec11014TerminationLimit = cfg.applyNec11014TerminationLimit !== false;
 
   // LV: user-selectable method (NEC band tables exist for both 30°C and 40°C
   // bases — 310.15(B)(1)(1)/(2)). MV: 315.60(D)(4) prescribes the equation.
@@ -472,7 +473,9 @@ export function computeSizing(cfg) {
       if (vClass === "lv") {
         const tCol = termTemp === 60 ? 0 : termTemp === 75 ? 1 : 2;
         termAmp = T310_16[s]?.[tCol] ?? null;
-        if (termAmp != null) allowed = Math.min(derated, termAmp);
+        if (termAmp != null && applyNec11014TerminationLimit) {
+          allowed = Math.min(derated, termAmp);
+        }
       } else if (method.base90) {
         // 110.40: unless identified otherwise, MV terminations are evaluated
         // on the 90°C column (underated table value) of the same base table.
