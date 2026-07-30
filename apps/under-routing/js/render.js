@@ -8,10 +8,9 @@ import {
   END_SECTION_WIDTH_IN,
   panelLocalToWorld,
   columnTapWorld,
-  panelFrontDir,
   panelLengthIn,
-} from './geometry.js?v=20260723-2';
-import { state } from './store.js?v=20260723-2';
+} from './geometry.js?v=20260730-1';
+import { state } from './store.js?v=20260730-1';
 
 export const BASE_PPI = 1.0; // pixels per inch at scale 1
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -63,6 +62,7 @@ export function render() {
   for (const panel of state.panels) drawPanel(root, panel);
   if (state.showRoutes) for (const route of state.routes) drawRoute(root, route);
   for (const load of state.loads) drawLoad(root, load);
+  for (const tag of state.tags) drawTag(root, tag);
 }
 
 function drawDefs(parent) {
@@ -194,18 +194,6 @@ function drawPanel(parent, panel) {
   el(
     'polygon',
     { points: strip.map((c) => c.join(',')).join(' '), class: 'panel-numstrip' },
-    g
-  );
-
-  // Bus line running down the label area toward the wall.
-  const busX = NUM_STRIP_IN + (PANEL_DEPTH_IN - NUM_STRIP_IN) * 0.72;
-  const busA = worldToScreen(...panelLocalToWorld(panel, busX, END_SECTION_WIDTH_IN));
-  const busB = worldToScreen(
-    ...panelLocalToWorld(panel, busX, panelLength - END_SECTION_WIDTH_IN)
-  );
-  el(
-    'line',
-    { x1: busA[0], y1: busA[1], x2: busB[0], y2: busB[1], class: 'panel-bus' },
     g
   );
 
@@ -402,6 +390,42 @@ function panelBusTag(panelId) {
   return String.fromCharCode(65 + Math.max(0, idx)); // A, B, C...
 }
 
+// ---- tag rectangles -------------------------------------------------------
+//
+// Pure drawing markers (e.g. "future load", "panel area"): they never take
+// part in routing, they only carry a centred label.
+
+function drawTag(parent, tag) {
+  const [left, top] = worldToScreen(tag.x, tag.y);
+  const [right, bottom] = worldToScreen(tag.x + tag.width, tag.y + tag.height);
+  const selected = state.selection && state.selection.id === tag.id;
+  const group = el('g', { class: 'tag', 'data-id': tag.id }, parent);
+
+  el(
+    'rect',
+    {
+      x: Math.min(left, right),
+      y: Math.min(top, bottom),
+      width: Math.abs(right - left),
+      height: Math.abs(bottom - top),
+      class: 'tag-box' + (selected ? ' selected' : ''),
+    },
+    group
+  );
+
+  const label = el(
+    'text',
+    {
+      x: (left + right) / 2,
+      y: (top + bottom) / 2,
+      class: 'tag-label',
+      'text-anchor': 'middle',
+    },
+    group
+  );
+  label.textContent = tag.tag;
+}
+
 // ---- view fitting ---------------------------------------------------------
 
 // Fit all content into the viewport with a margin.
@@ -441,6 +465,10 @@ function contentBounds() {
   for (const foundation of state.foundations) {
     xs.push(foundation.x, foundation.x + foundation.width);
     ys.push(foundation.y, foundation.y + foundation.height);
+  }
+  for (const tag of state.tags) {
+    xs.push(tag.x, tag.x + tag.width);
+    ys.push(tag.y, tag.y + tag.height);
   }
   if (!xs.length) return null;
   const minX = Math.min(...xs);

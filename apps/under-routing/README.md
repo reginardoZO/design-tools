@@ -25,10 +25,17 @@ server) and is designed to be hosted on **GitHub Pages**.
 
 4. **Mark deep foundations.** Select **DRAW FOUNDATION**, then drag over the
    plan to draw a rectangular restricted area. Routes automatically avoid the
-   foundation with a **12 in clearance**. Drag a foundation to move it or
-   double-click it to delete it.
+   foundation with a **12 in clearance**. Drag a foundation to move it; press
+   **Del** (with it selected) or **double-click** it to delete it.
 
-5. **Auto-route.** Routes are computed automatically (and re-computed as you
+5. **Mark tag rectangles.** Select **DRAW TAG**, then drag over the plan to
+   draw a labelled rectangle — a pure drawing marker for things like loads or
+   panel areas. Tag rectangles never affect the routes. You are asked for the
+   **tag** as soon as the rectangle is drawn; the label stays centred in the
+   rectangle. Drag to move; press **Del** (with it selected) or
+   **double-click** to delete.
+
+6. **Auto-route.** Routes are computed automatically (and re-computed as you
    drag). Each load is wired to its column following three rules, in order:
    - **minimise the number of crossings** between routes,
    - use only **45° bends and straight runs** (octilinear),
@@ -39,7 +46,7 @@ server) and is designed to be hosted on **GitHub Pages**.
    foundation, the affected route is shown as a dashed red line and counted as
    **BLOCKED**.
 
-6. **Export.** **EXPORT PDF** opens a clean, print-ready view of the full
+7. **Export.** **EXPORT PDF** opens a clean, print-ready view of the full
    drawing — use your browser's *Save as PDF*.
 
 ### Toolbar
@@ -49,6 +56,7 @@ server) and is designed to be hosted on **GitHub Pages**.
 | **← SETUP** | Configure panels (add/remove, rename, set columns & labels). |
 | **ROUTE LOADS** | Working mode: add / move / delete loads and route them. |
 | **DRAW FOUNDATION** | Draw rectangular deep-foundation areas that routes must avoid. |
+| **DRAW TAG** | Draw labelled rectangles that mark loads/panel areas without affecting routes. |
 | **↻ WALL: …** | Rotate all panels to back onto the next wall (RIGHT → BOTTOM → LEFT → TOP). |
 | **CLEAR ROUTES** | Hide the current routes (they return on the next change). |
 | **CLEAR LOADS** | Remove every load. |

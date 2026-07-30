@@ -13,15 +13,256 @@
       content="Plan the shortest 45° underground cable routes between feeder panels and loads while minimising crossings."
     />
     <style>
+/* ===========================================================================
+   Engineering Tools Hub — shared design system.
+
+   Single source of truth for the palette and typography used across every
+   application. The tokens are the ones established by the LV Cable Voltage
+   Drop tool: a light, technical, instrument-panel look — no gradients, no
+   decorative colour.
+
+   Fonts come from Google Fonts. If the network is unavailable the stack falls
+   back to system sans / system monospace and the layout is unaffected.
+   ======================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 :root {
-  --ink: #1f2733;
-  --ink-soft: #6a7686;
-  --line: #c4ccd6;
-  --bg: #f7f8fa;
+  --bg: #eceff2;
+  --panel: #ffffff;
+  --ink: #1d2530;
+  --muted: #5c6875;
+  --steel: #c6cdd4;
+  --accent: #0e5da8;
+  --accent-dark: #0b4c8a;
+  --accent-wash: #eef4fb;
+  --ok: #1e7d46;
+  --bad: #b3261e;
+  --warn: #d99a00;
+  --warn-wash: #fdf6e3;
+  --plate: #2a323c;
+  --plate-edge: #3d4854;
+  --plate-ink: #e8edf2;
+  --plate-mut: #9fb0c0;
+  --field: #fbfcfd;
+
+  --ui: 'Saira Semi Condensed', system-ui, -apple-system, Segoe UI, sans-serif;
+  --data: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--ui);
+}
+
+/* ------------------------------- header -------------------------------- */
+
+.eh-header {
+  border-bottom: 3px solid var(--ink);
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.eh-header h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.eh-sub {
+  font-family: var(--data);
+  font-size: 12px;
+  color: var(--muted);
+}
+.eh-back {
+  font-family: var(--data);
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--steel);
+  background: var(--panel);
+  border-radius: 4px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+.eh-back:hover { background: var(--accent-wash); border-color: var(--accent); }
+
+/* -------------------------------- cards -------------------------------- */
+
+.eh-card {
+  background: var(--panel);
+  border: 1px solid var(--steel);
+  border-radius: 6px;
+  padding: 18px;
+}
+.eh-card > h2 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* -------------------------------- fields ------------------------------- */
+
+.eh-label,
+.eh-card label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.eh-card input,
+.eh-card select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--steel);
+  border-radius: 4px;
+  font-family: var(--data);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--field);
+}
+.eh-card input:focus,
+.eh-card select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.eh-card input:disabled,
+.eh-card input[readonly],
+.eh-card select:disabled { background: #eef1f4; color: #7d8894; }
+
+/* ------------------------------- buttons ------------------------------- */
+
+.eh-btn {
+  border: 1px solid var(--steel);
+  background: var(--field);
+  color: var(--ink);
+  padding: 9px 14px;
+  border-radius: 4px;
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+.eh-btn:hover { background: var(--accent-wash); border-color: var(--accent); }
+.eh-btn-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.eh-btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+
+.eh-seg { display: flex; border: 1px solid var(--steel); border-radius: 4px; overflow: hidden; }
+.eh-seg button {
+  flex: 1;
+  padding: 8px 4px;
+  border: 0;
+  background: var(--field);
+  cursor: pointer;
+  font-family: var(--data);
+  font-size: 13px;
+  color: var(--muted);
+}
+.eh-seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* ------------------------------ nameplate ------------------------------ */
+
+.eh-plate {
+  background: linear-gradient(160deg, var(--plate-edge), var(--plate) 40%);
+  border-radius: 8px;
+  padding: 20px 22px;
+  color: var(--plate-ink);
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 4px 14px rgba(0, 0, 0, 0.25);
+  border: 1px solid #171c22;
+}
+.eh-screw {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #cfd6dd, #6b747d 70%);
+}
+.eh-screw::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: 4px;
+  height: 1.5px;
+  background: #3a4149;
+}
+.eh-plate .tagline {
+  font-family: var(--data);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--plate-mut);
+  text-transform: uppercase;
+}
+.eh-plate table { width: 100%; border-collapse: collapse; font-family: var(--data); font-size: 13px; }
+.eh-plate td { padding: 5px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.eh-plate td:last-child { text-align: right; font-weight: 600; }
+
+.eh-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.eh-status-ok { background: var(--ok); color: #fff; }
+.eh-status-bad { background: var(--bad); color: #fff; }
+.eh-status-warn { background: var(--warn); color: #3a2a00; }
+.eh-status-idle { background: #55606c; color: #d6dde4; }
+
+/* ------------------------------- notices ------------------------------- */
+
+.eh-warn {
+  padding: 8px 12px;
+  border-left: 4px solid var(--warn);
+  background: var(--warn-wash);
+  font-size: 13px;
+  border-radius: 0 4px 4px 0;
+}
+.eh-note {
+  border: 1px dashed var(--accent);
+  background: var(--accent-wash);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+.eh-foot {
+  margin-top: 20px;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: var(--data);
+  line-height: 1.6;
+}
+
+.eh-mono { font-family: var(--data); }
+
+:root {
+  --ink: #1d2530;
+  --ink-soft: #5c6875;
+  --line: #c6cdd4;
+  --bg: #eceff2;
   --panel-bg: #ffffff;
-  --accent: #2f6fd8;
-  --orange: #d98a2b;
-  --mono: 'Courier New', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --accent: #0e5da8;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 * {
@@ -70,7 +311,7 @@ body {
 }
 
 .tbtn:hover {
-  background: #eef1f5;
+  background: #eef4fb;
 }
 
 .tbtn.active {
@@ -123,6 +364,7 @@ body {
 }
 
 #canvas.foundation-mode,
+#canvas.tag-mode,
 #canvas.drawing-foundation {
   cursor: crosshair;
 }
@@ -142,16 +384,12 @@ body {
   stroke-width: 1;
 }
 .panel-numstrip {
-  fill: #1f2733;
+  fill: #1d2530;
   stroke: none;
 }
 .panel-numsep {
-  stroke: #4a5666;
+  stroke: #5c6875;
   stroke-width: 1;
-}
-.panel-bus {
-  stroke: var(--orange);
-  stroke-width: 2.5;
 }
 .panel-hatch {
   fill: url(#hatch);
@@ -159,35 +397,55 @@ body {
 }
 .panel-num {
   fill: #fff;
+  stroke: #1d2530;
+  stroke-width: 2.5;
+  stroke-opacity: 0.8;
+  paint-order: stroke fill;
   font: 600 11px var(--mono);
   dominant-baseline: middle;
 }
 .panel-label {
-  fill: #3b4756;
+  fill: #1d2530;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  stroke-opacity: 0.7;
+  paint-order: stroke fill;
   font: 600 11px var(--mono);
   letter-spacing: 0.5px;
   dominant-baseline: middle;
 }
 .panel-size {
-  fill: #6a7686;
+  fill: #5c6875;
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-opacity: 0.7;
+  paint-order: stroke fill;
   font: 500 7px var(--mono);
   letter-spacing: 0.25px;
   dominant-baseline: middle;
 }
 .panel-end-label {
-  fill: #3b4756;
+  fill: #1d2530;
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-opacity: 0.7;
+  paint-order: stroke fill;
   font: 600 6px var(--mono);
   letter-spacing: 0.25px;
   dominant-baseline: middle;
 }
 .panel-title {
-  fill: var(--ink);
+  fill: #ffffff;
+  stroke: #1d2530;
+  stroke-width: 3;
+  stroke-opacity: 0.65;
+  paint-order: stroke fill;
   font: 700 13px var(--mono);
   letter-spacing: 1px;
 }
 .panel-tap {
   fill: #ffffff;
-  stroke: #1f2733;
+  stroke: #1d2530;
   stroke-width: 0.6;
 }
 .route {
@@ -198,7 +456,7 @@ body {
   pointer-events: none;
 }
 .route.blocked {
-  stroke: #b42318 !important;
+  stroke: #b3261e !important;
   stroke-width: 3.2;
   stroke-dasharray: 8 5;
 }
@@ -207,7 +465,7 @@ body {
 }
 .foundation-area {
   fill: rgba(180, 57, 45, 0.16);
-  stroke: #a9362b;
+  stroke: #8f1e18;
   stroke-width: 2;
   stroke-dasharray: 7 4;
 }
@@ -217,14 +475,47 @@ body {
   stroke-width: 2.5;
 }
 .foundation-label {
-  fill: #8f2f27;
+  fill: #b3261e;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  stroke-opacity: 0.65;
+  paint-order: stroke fill;
   font: 700 11px var(--mono);
   letter-spacing: 0.5px;
   pointer-events: none;
 }
 .foundation-size {
-  fill: #8f2f27;
+  fill: #b3261e;
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-opacity: 0.65;
+  paint-order: stroke fill;
   font: 600 10px var(--mono);
+  pointer-events: none;
+}
+.tag {
+  cursor: move;
+}
+.tag-box {
+  fill: rgba(47, 111, 216, 0.08);
+  stroke: #5c6875;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.tag-box.selected {
+  fill: rgba(47, 111, 216, 0.14);
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.tag-label {
+  fill: #1d2530;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  stroke-opacity: 0.65;
+  paint-order: stroke fill;
+  font: 700 11px var(--mono);
+  letter-spacing: 0.5px;
+  dominant-baseline: middle;
   pointer-events: none;
 }
 .load {
@@ -241,11 +532,12 @@ body {
   stroke-dasharray: 3 2;
 }
 .load-tag {
+  fill: #1d2530;
   font: 700 12px var(--mono);
   letter-spacing: 0.5px;
 }
 .load-sub {
-  fill: var(--ink-soft);
+  fill: #1d2530;
   font: 500 10px var(--mono);
 }
 .rotate-handle {
@@ -285,7 +577,7 @@ body {
 }
 
 .zoom-controls button:hover {
-  background: #eef1f5;
+  background: #eef4fb;
 }
 
 .zoom-level {
@@ -377,7 +669,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 12px;
-  background: #fafbfc;
+  background: #fbfcfd;
 }
 
 .panel-row .row-top {
@@ -448,7 +740,7 @@ body {
 .link-btn {
   border: none;
   background: none;
-  color: #c0392b;
+  color: #b3261e;
   cursor: pointer;
   font-family: var(--mono);
   font-size: 12px;
@@ -490,6 +782,16 @@ body {
   padding: 0;
 }
 
+/* Hub back-link rendered as a toolbar button. */
+.tbtn.hub {
+  display: inline-block;
+  text-decoration: none;
+  line-height: normal;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.tbtn.hub:hover { background: #eef4fb; }
+
 </style>
   </head>
   <body>
@@ -498,6 +800,7 @@ body {
         <button id="btn-setup" class="tbtn">&larr; SETUP</button>
         <button id="btn-route" class="tbtn active">ROUTE LOADS</button>
         <button id="btn-foundation" class="tbtn">DRAW FOUNDATION</button>
+        <button id="btn-tag" class="tbtn">DRAW TAG</button>
         <button id="btn-wall" class="tbtn">&#8635; WALL: RIGHT</button>
         <button id="btn-clear-routes" class="tbtn">CLEAR ROUTES</button>
         <button id="btn-clear-loads" class="tbtn">CLEAR LOADS</button>
@@ -575,6 +878,24 @@ body {
         <div class="modal-actions">
           <button class="tbtn" id="load-cancel">Cancel</button>
           <button class="tbtn primary" id="load-save">Add load</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag modal: label a tag rectangle -->
+    <div class="modal-backdrop" id="modal-tag" hidden>
+      <div class="modal small">
+        <div class="modal-head">
+          <h2>Tag rectangle</h2>
+          <button class="icon-btn" id="tag-close">&times;</button>
+        </div>
+        <label class="field">
+          <span>Tag</span>
+          <input type="text" id="tag-tag" placeholder="e.g. TRANSFORMER T1" autocomplete="off" />
+        </label>
+        <div class="modal-actions">
+          <button class="tbtn" id="tag-cancel">Cancel</button>
+          <button class="tbtn primary" id="tag-save">Save tag</button>
         </div>
       </div>
     </div>
@@ -1025,6 +1346,7 @@ function interiorCrossing(a1, a2, b1, b2) {
 // State is plain JSON so it can be persisted to localStorage and restored.
 
 
+
 const STORAGE_KEY = 'underground-router-state-v1';
 
 let uid = 1;
@@ -1033,14 +1355,15 @@ function nextId(prefix) {
 }
 
 const state = {
-  mode: 'route', // 'setup' | 'route' | 'foundation'
+  mode: 'route', // 'setup' | 'route' | 'foundation' | 'tag'
   wall: 'RIGHT', // RIGHT | BOTTOM | LEFT | TOP  (where the wall sits)
   panels: [],
   loads: [],
   foundations: [],
+  tags: [], // labelled rectangles; drawing markers only, never routed around
   routes: [], // computed: { loadId, points:[[x,y]...], length, color }
   view: { scale: 1.32, offsetX: 0, offsetY: 0 },
-  selection: null, // { type:'panel'|'load'|'foundation', id }
+  selection: null, // { type:'panel'|'load'|'foundation'|'tag', id }
   showRoutes: true,
   stats: { routes: 0, crossings: 0, blocked: 0, length: 0 },
 };
@@ -1070,6 +1393,10 @@ function createFoundation({ x, y, width, height }) {
   return { id: nextId('F'), x, y, width, height };
 }
 
+function createTag({ x, y, width, height, tag = '' }) {
+  return { id: nextId('T'), x, y, width, height, tag };
+}
+
 function getPanel(id) {
   return state.panels.find((p) => p.id === id) || null;
 }
@@ -1082,6 +1409,11 @@ function removeLoad(id) {
 
 function removeFoundation(id) {
   state.foundations = state.foundations.filter((foundation) => foundation.id !== id);
+  if (state.selection && state.selection.id === id) state.selection = null;
+}
+
+function removeTag(id) {
+  state.tags = state.tags.filter((tag) => tag.id !== id);
   if (state.selection && state.selection.id === id) state.selection = null;
 }
 
@@ -1103,6 +1435,7 @@ function save() {
       panels: state.panels,
       loads: state.loads,
       foundations: state.foundations,
+      tags: state.tags,
       view: state.view,
       uid,
     };
@@ -1121,6 +1454,7 @@ function load() {
     state.panels = s.panels || [];
     state.loads = s.loads || [];
     state.foundations = s.foundations || [];
+    state.tags = s.tags || [];
     if (s.view) state.view = s.view;
     uid = s.uid || uid;
     return state.panels.length > 0;
@@ -1143,6 +1477,8 @@ function load() {
 // will tend to cross it. We fight that by choosing, per route, how far it
 // runs straight before its diagonal (its "slack"/track offset), then we pick
 // the ordering of those tracks that yields the fewest crossings.
+
+
 
 
 // Distinct, print-friendly colours cycled across routes.
@@ -1296,6 +1632,8 @@ function updateStats() {
 // simpler and fast enough, and keeps the drawing a pure function of state.
 
 
+
+
 const BASE_PPI = 1.0; // pixels per inch at scale 1
 const SVGNS = 'http://www.w3.org/2000/svg';
 const PANEL_DEPTH_IN = 150; // drawn depth of a panel box (presentation only)
@@ -1346,6 +1684,7 @@ function render() {
   for (const panel of state.panels) drawPanel(root, panel);
   if (state.showRoutes) for (const route of state.routes) drawRoute(root, route);
   for (const load of state.loads) drawLoad(root, load);
+  for (const tag of state.tags) drawTag(root, tag);
 }
 
 function drawDefs(parent) {
@@ -1477,18 +1816,6 @@ function drawPanel(parent, panel) {
   el(
     'polygon',
     { points: strip.map((c) => c.join(',')).join(' '), class: 'panel-numstrip' },
-    g
-  );
-
-  // Bus line running down the label area toward the wall.
-  const busX = NUM_STRIP_IN + (PANEL_DEPTH_IN - NUM_STRIP_IN) * 0.72;
-  const busA = worldToScreen(...panelLocalToWorld(panel, busX, END_SECTION_WIDTH_IN));
-  const busB = worldToScreen(
-    ...panelLocalToWorld(panel, busX, panelLength - END_SECTION_WIDTH_IN)
-  );
-  el(
-    'line',
-    { x1: busA[0], y1: busA[1], x2: busB[0], y2: busB[1], class: 'panel-bus' },
     g
   );
 
@@ -1666,7 +1993,7 @@ function drawLoad(parent, load) {
 
   const tag = el(
     'text',
-    { x: sx, y: sy - 14, class: 'load-tag', 'text-anchor': 'middle', fill: color },
+    { x: sx, y: sy - 14, class: 'load-tag', 'text-anchor': 'middle' },
     g
   );
   const busTag = load.panelId ? ` [${panelBusTag(load.panelId)}]` : '';
@@ -1683,6 +2010,42 @@ function drawLoad(parent, load) {
 function panelBusTag(panelId) {
   const idx = state.panels.findIndex((p) => p.id === panelId);
   return String.fromCharCode(65 + Math.max(0, idx)); // A, B, C...
+}
+
+// ---- tag rectangles -------------------------------------------------------
+//
+// Pure drawing markers (e.g. "future load", "panel area"): they never take
+// part in routing, they only carry a centred label.
+
+function drawTag(parent, tag) {
+  const [left, top] = worldToScreen(tag.x, tag.y);
+  const [right, bottom] = worldToScreen(tag.x + tag.width, tag.y + tag.height);
+  const selected = state.selection && state.selection.id === tag.id;
+  const group = el('g', { class: 'tag', 'data-id': tag.id }, parent);
+
+  el(
+    'rect',
+    {
+      x: Math.min(left, right),
+      y: Math.min(top, bottom),
+      width: Math.abs(right - left),
+      height: Math.abs(bottom - top),
+      class: 'tag-box' + (selected ? ' selected' : ''),
+    },
+    group
+  );
+
+  const label = el(
+    'text',
+    {
+      x: (left + right) / 2,
+      y: (top + bottom) / 2,
+      class: 'tag-label',
+      'text-anchor': 'middle',
+    },
+    group
+  );
+  label.textContent = tag.tag;
 }
 
 // ---- view fitting ---------------------------------------------------------
@@ -1725,6 +2088,10 @@ function contentBounds() {
     xs.push(foundation.x, foundation.x + foundation.width);
     ys.push(foundation.y, foundation.y + foundation.height);
   }
+  for (const tag of state.tags) {
+    xs.push(tag.x, tag.x + tag.width);
+    ys.push(tag.y, tag.y + tag.height);
+  }
   if (!xs.length) return null;
   const minX = Math.min(...xs);
   const minY = Math.min(...ys);
@@ -1741,6 +2108,8 @@ function contentBounds() {
 // it in a print window; the browser's "Save as PDF" produces the file.
 
 
+
+
 // SVG-only styles inlined into the export document so it renders identically
 // without the app's stylesheet.
 const EXPORT_CSS = `
@@ -1748,7 +2117,6 @@ const EXPORT_CSS = `
   .panel-box { fill:#ffffff; stroke:#1f2733; stroke-width:2; }
   .panel-box.selected { stroke:#2f6fd8; }
   .panel-sep { stroke:#c4ccd6; stroke-width:1; }
-  .panel-bus { stroke:#d98a2b; stroke-width:2.5; }
   .panel-hatch { fill:url(#hatch); stroke:none; }
   .panel-num { fill:#1f2733; font:600 11px 'Courier New',monospace; }
   .panel-label { fill:#3b4756; font:600 11px 'Courier New',monospace; letter-spacing:.5px; dominant-baseline:middle; }
@@ -1764,6 +2132,8 @@ const EXPORT_CSS = `
   .load-ring { fill:#ffffff; stroke-width:2.4; }
   .load-tag { font:700 12px 'Courier New',monospace; letter-spacing:.5px; }
   .load-sub { fill:#6a7686; font:500 10px 'Courier New',monospace; }
+  .tag-box { fill:rgba(47,111,216,.08); stroke:#5c6875; stroke-width:1.5; stroke-dasharray:4 3; }
+  .tag-label { fill:#1f2733; font:700 11px 'Courier New',monospace; letter-spacing:.5px; dominant-baseline:middle; }
 `;
 
 const HATCH_DEF = `
@@ -1797,7 +2167,7 @@ function exportPdf() {
   const header =
     `ROUTES: ${stats.routes}   CROSSINGS: ${stats.crossings}   ` +
     `BLOCKED: ${stats.blocked || 0}   FOUNDATIONS: ${state.foundations.length}   ` +
-    `TOTAL LENGTH: ${stats.length} in`;
+    `TAGS: ${state.tags.length}   TOTAL LENGTH: ${stats.length} in`;
 
   const doc = `<!doctype html><html><head><meta charset="utf-8">
     <title>Underground Route Plan</title>
@@ -1836,6 +2206,10 @@ function withHatch(svgHtml) {
 // ===== js/main.js =====
 const loadState = load;
 // main.js — UI wiring: modes, modals, pointer interaction, zoom/pan.
+
+
+
+
 
 
 const DRAG_THRESHOLD = 4; // px of movement before a press counts as a drag
@@ -1882,23 +2256,34 @@ function updateChrome() {
     `ROUTES: <b>${s.routes}</b> &middot; CROSSINGS: <b>${s.crossings}</b> ` +
     `&middot; BLOCKED: <b>${s.blocked || 0}</b> &middot; ` +
     `FOUNDATIONS: <b>${state.foundations.length}</b> &middot; ` +
+    `TAGS: <b>${state.tags.length}</b> &middot; ` +
     `TOTAL LENGTH: <b>${s.length}</b> in`;
 
-  document.getElementById('hint').textContent = state.mode === 'foundation'
-    ? 'drag empty space = draw foundation · drag foundation = move · double-click = delete'
-    : 'drag panel, load or foundation = move & reroute · click panel then ↻ = rotate · ' +
-      'double-click load/foundation = delete · click empty space = add load';
+  const hints = {
+    foundation:
+      'drag empty space = draw foundation · drag foundation = move · ' +
+      'select + Del or double-click = delete',
+    tag:
+      'drag empty space = draw tag rectangle · drag tag = move · ' +
+      'select + Del or double-click = delete',
+    route:
+      'drag panel, load, foundation or tag = move & reroute · click panel then ↻ = rotate · ' +
+      'select foundation/tag + Del = delete · double-click = delete · click empty space = add load',
+  };
+  document.getElementById('hint').textContent = hints[state.mode] || hints.route;
 
   document.getElementById('btn-route').classList.toggle('active', state.mode === 'route');
   document.getElementById('btn-setup').classList.toggle('active', state.mode === 'setup');
   document.getElementById('btn-foundation').classList.toggle(
     'active', state.mode === 'foundation'
   );
+  document.getElementById('btn-tag').classList.toggle('active', state.mode === 'tag');
   document.getElementById('btn-wall').innerHTML = `&#8635; WALL: ${state.wall}`;
   document.getElementById('zoom-level').textContent =
     Math.round(state.view.scale * 100) + '%';
 
   svg.classList.toggle('foundation-mode', state.mode === 'foundation');
+  svg.classList.toggle('tag-mode', state.mode === 'tag');
 }
 
 // Recompute routes + stats, redraw, persist.
@@ -1921,6 +2306,12 @@ function wireToolbar() {
   };
   document.getElementById('btn-foundation').onclick = () => {
     state.mode = state.mode === 'foundation' ? 'route' : 'foundation';
+    state.selection = null;
+    render();
+    updateChrome();
+  };
+  document.getElementById('btn-tag').onclick = () => {
+    state.mode = state.mode === 'tag' ? 'route' : 'tag';
     state.selection = null;
     render();
     updateChrome();
@@ -1993,6 +2384,7 @@ function zoomAt(factor, cx, cy) {
 let drag = null;
 let lastLoadClick = null; // { id, time } for manual double-click detection
 let lastFoundationClick = null;
+let lastTagClick = null;
 
 function wireCanvas() {
   svg.addEventListener('pointerdown', onPointerDown);
@@ -2096,6 +2488,32 @@ function onPointerDown(e) {
     return;
   }
 
+  const tagEl = e.target.closest('.tag');
+  if (tagEl) {
+    const id = tagEl.getAttribute('data-id');
+    const now = Date.now();
+    if (lastTagClick && lastTagClick.id === id && now - lastTagClick.time < 350) {
+      lastTagClick = null;
+      removeTag(id);
+      reroute();
+      return;
+    }
+    lastTagClick = { id, time: now };
+    const tag = state.tags.find((item) => item.id === id);
+    state.selection = { type: 'tag', id };
+    drag = {
+      kind: 'tag',
+      id,
+      moved: false,
+      startSX: sx,
+      startSY: sy,
+      startX: tag.x,
+      startY: tag.y,
+    };
+    svg.setPointerCapture(e.pointerId);
+    return;
+  }
+
   if (state.mode === 'foundation') {
     const [x, y] = screenToWorld(sx, sy);
     const foundation = createFoundation({ x, y, width: 0, height: 0 });
@@ -2104,6 +2522,26 @@ function onPointerDown(e) {
     drag = {
       kind: 'foundation-new',
       id: foundation.id,
+      moved: false,
+      startSX: sx,
+      startSY: sy,
+      startX: x,
+      startY: y,
+    };
+    svg.setPointerCapture(e.pointerId);
+    svg.classList.add('drawing-foundation');
+    render();
+    return;
+  }
+
+  if (state.mode === 'tag') {
+    const [x, y] = screenToWorld(sx, sy);
+    const tag = createTag({ x, y, width: 0, height: 0 });
+    state.tags.push(tag);
+    state.selection = { type: 'tag', id: tag.id };
+    drag = {
+      kind: 'tag-new',
+      id: tag.id,
       moved: false,
       startSX: sx,
       startSY: sy,
@@ -2185,6 +2623,25 @@ function onPointerMove(e) {
       foundation.height = Math.abs(currentY - drag.startY);
       render();
     }
+  } else if (drag.kind === 'tag') {
+    // Tags are drawing markers only: moving them never triggers a reroute.
+    const tag = state.tags.find((item) => item.id === drag.id);
+    if (tag) {
+      tag.x = drag.startX + dwx;
+      tag.y = drag.startY + dwy;
+      render();
+    }
+  } else if (drag.kind === 'tag-new') {
+    const tag = state.tags.find((item) => item.id === drag.id);
+    if (tag) {
+      const currentX = drag.startX + dwx;
+      const currentY = drag.startY + dwy;
+      tag.x = Math.min(drag.startX, currentX);
+      tag.y = Math.min(drag.startY, currentY);
+      tag.width = Math.abs(currentX - drag.startX);
+      tag.height = Math.abs(currentY - drag.startY);
+      render();
+    }
   }
 }
 
@@ -2208,6 +2665,19 @@ function onPointerUp(e) {
     } else {
       reroute();
     }
+  } else if (drag.kind === 'tag-new') {
+    const tag = state.tags.find((item) => item.id === drag.id);
+    const tooSmall = !tag ||
+      tag.width * state.view.scale * BASE_PPI < DRAG_THRESHOLD ||
+      tag.height * state.view.scale * BASE_PPI < DRAG_THRESHOLD;
+    if (tooSmall) {
+      removeTag(drag.id);
+      render();
+      updateChrome();
+    } else {
+      // A new tag rectangle always gets asked for its label on drop.
+      openTagModal(drag.id);
+    }
   } else if (drag.kind === 'pan' && !drag.moved) {
     // A plain click on empty space adds a load there.
     const [sx, sy] = localPoint(e);
@@ -2216,7 +2686,8 @@ function onPointerUp(e) {
     openLoadModal();
   } else if (
     drag.moved &&
-    (drag.kind === 'load' || drag.kind === 'panel' || drag.kind === 'foundation')
+    (drag.kind === 'load' || drag.kind === 'panel' || drag.kind === 'foundation' ||
+      drag.kind === 'tag')
   ) {
     save();
     render();
@@ -2239,6 +2710,12 @@ function onDblClick(e) {
   if (foundationEl) {
     removeFoundation(foundationEl.getAttribute('data-id'));
     reroute();
+    return;
+  }
+  const tagEl = e.target.closest('.tag');
+  if (tagEl) {
+    removeTag(tagEl.getAttribute('data-id'));
+    reroute();
   }
 }
 
@@ -2260,15 +2737,41 @@ function wireModals() {
   document.getElementById('load-save').onclick = saveLoad;
   document.getElementById('load-panel').onchange = fillColumnSelect;
 
+  document.getElementById('tag-close').onclick = () => closeTagModal(true);
+  document.getElementById('tag-cancel').onclick = () => closeTagModal(true);
+  document.getElementById('tag-save').onclick = saveTag;
+
   document.addEventListener('keydown', (e) => {
     const loadOpen = !document.getElementById('modal-load').hidden;
     const setupOpen = !document.getElementById('modal-setup').hidden;
+    const tagOpen = !document.getElementById('modal-tag').hidden;
     if (e.key === 'Escape') {
       if (loadOpen) closeLoadModal();
       else if (setupOpen) closeSetup();
+      else if (tagOpen) closeTagModal(true);
     } else if (e.key === 'Enter' && loadOpen && e.target.id === 'load-tag') {
       e.preventDefault();
       saveLoad();
+    } else if (e.key === 'Enter' && tagOpen && e.target.id === 'tag-tag') {
+      e.preventDefault();
+      saveTag();
+    } else if (
+      (e.key === 'Delete' || e.key === 'Backspace') &&
+      !loadOpen && !setupOpen && !tagOpen
+    ) {
+      // Del removes the selected foundation or tag rectangle.
+      if (e.target.closest('input, textarea, select')) return;
+      const sel = state.selection;
+      if (!sel) return;
+      if (sel.type === 'foundation') {
+        e.preventDefault();
+        removeFoundation(sel.id);
+        reroute();
+      } else if (sel.type === 'tag') {
+        e.preventDefault();
+        removeTag(sel.id);
+        reroute();
+      }
     }
   });
 }
@@ -2389,7 +2892,7 @@ function renderPanelList() {
 function widthText(count) {
   const totalIn = count * COL_WIDTH_IN;
   const totalFt = totalIn / IN_PER_FT;
-  return `Column size: ${COL_WIDTH_IN} in (${COL_WIDTH_IN / IN_PER_FT} ft) - ` +
+  return `Column size: ${COL_WIDTH_IN} in (${COL_WIDTH_IN / IN_PER_FT} ft) · ` +
     `${count} columns: ${totalIn} in (${totalFt} ft), excluding end sections`;
 }
 
@@ -2492,8 +2995,42 @@ function saveLoad() {
   reroute();
 }
 
-boot();
+// ---- tag modal ------------------------------------------------------------
 
-</script>
+let pendingTagId = null; // id of the freshly drawn rectangle awaiting a label
+
+function openTagModal(id) {
+  pendingTagId = id;
+  document.getElementById('tag-tag').value = '';
+  document.getElementById('modal-tag').hidden = false;
+  setTimeout(() => document.getElementById('tag-tag').focus(), 0);
+}
+
+// Cancelling the modal for a just-drawn rectangle drops the rectangle too.
+function closeTagModal(cancelled) {
+  document.getElementById('modal-tag').hidden = true;
+  if (cancelled && pendingTagId) removeTag(pendingTagId);
+  pendingTagId = null;
+  render();
+  updateChrome();
+}
+
+function saveTag() {
+  const label = document.getElementById('tag-tag').value.trim();
+  if (!label) {
+    alert('Enter a tag for the rectangle.');
+    return;
+  }
+  const tag = state.tags.find((item) => item.id === pendingTagId);
+  if (tag) tag.tag = label;
+  pendingTagId = null;
+  document.getElementById('modal-tag').hidden = true;
+  save();
+  render();
+  updateChrome();
+}
+
+boot();
+    </script>
   </body>
 </html>

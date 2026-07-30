@@ -2,7 +2,7 @@
 //
 // State is plain JSON so it can be persisted to localStorage and restored.
 
-import { COL_WIDTH_IN } from './geometry.js?v=20260723-2';
+import { COL_WIDTH_IN } from './geometry.js?v=20260730-1';
 
 const STORAGE_KEY = 'underground-router-state-v1';
 
@@ -12,14 +12,15 @@ export function nextId(prefix) {
 }
 
 export const state = {
-  mode: 'route', // 'setup' | 'route' | 'foundation'
+  mode: 'route', // 'setup' | 'route' | 'foundation' | 'tag'
   wall: 'RIGHT', // RIGHT | BOTTOM | LEFT | TOP  (where the wall sits)
   panels: [],
   loads: [],
   foundations: [],
+  tags: [], // labelled rectangles; drawing markers only, never routed around
   routes: [], // computed: { loadId, points:[[x,y]...], length, color }
   view: { scale: 1.32, offsetX: 0, offsetY: 0 },
-  selection: null, // { type:'panel'|'load'|'foundation', id }
+  selection: null, // { type:'panel'|'load'|'foundation'|'tag', id }
   showRoutes: true,
   stats: { routes: 0, crossings: 0, blocked: 0, length: 0 },
 };
@@ -49,6 +50,10 @@ export function createFoundation({ x, y, width, height }) {
   return { id: nextId('F'), x, y, width, height };
 }
 
+export function createTag({ x, y, width, height, tag = '' }) {
+  return { id: nextId('T'), x, y, width, height, tag };
+}
+
 export function getPanel(id) {
   return state.panels.find((p) => p.id === id) || null;
 }
@@ -61,6 +66,11 @@ export function removeLoad(id) {
 
 export function removeFoundation(id) {
   state.foundations = state.foundations.filter((foundation) => foundation.id !== id);
+  if (state.selection && state.selection.id === id) state.selection = null;
+}
+
+export function removeTag(id) {
+  state.tags = state.tags.filter((tag) => tag.id !== id);
   if (state.selection && state.selection.id === id) state.selection = null;
 }
 
@@ -82,6 +92,7 @@ export function save() {
       panels: state.panels,
       loads: state.loads,
       foundations: state.foundations,
+      tags: state.tags,
       view: state.view,
       uid,
     };
@@ -100,6 +111,7 @@ export function load() {
     state.panels = s.panels || [];
     state.loads = s.loads || [];
     state.foundations = s.foundations || [];
+    state.tags = s.tags || [];
     if (s.view) state.view = s.view;
     uid = s.uid || uid;
     return state.panels.length > 0;

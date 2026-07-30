@@ -4,8 +4,8 @@
 // works offline) we build a clean standalone SVG of the whole scene and open
 // it in a print window; the browser's "Save as PDF" produces the file.
 
-import { state } from './store.js?v=20260723-2';
-import { render, fitToContent } from './render.js?v=20260723-2';
+import { state } from './store.js?v=20260730-1';
+import { render, fitToContent } from './render.js?v=20260730-1';
 
 // SVG-only styles inlined into the export document so it renders identically
 // without the app's stylesheet.
@@ -14,7 +14,6 @@ const EXPORT_CSS = `
   .panel-box { fill:#ffffff; stroke:#1f2733; stroke-width:2; }
   .panel-box.selected { stroke:#2f6fd8; }
   .panel-sep { stroke:#c4ccd6; stroke-width:1; }
-  .panel-bus { stroke:#d98a2b; stroke-width:2.5; }
   .panel-hatch { fill:url(#hatch); stroke:none; }
   .panel-num { fill:#1f2733; font:600 11px 'Courier New',monospace; }
   .panel-label { fill:#3b4756; font:600 11px 'Courier New',monospace; letter-spacing:.5px; dominant-baseline:middle; }
@@ -30,6 +29,8 @@ const EXPORT_CSS = `
   .load-ring { fill:#ffffff; stroke-width:2.4; }
   .load-tag { font:700 12px 'Courier New',monospace; letter-spacing:.5px; }
   .load-sub { fill:#6a7686; font:500 10px 'Courier New',monospace; }
+  .tag-box { fill:rgba(47,111,216,.08); stroke:#5c6875; stroke-width:1.5; stroke-dasharray:4 3; }
+  .tag-label { fill:#1f2733; font:700 11px 'Courier New',monospace; letter-spacing:.5px; dominant-baseline:middle; }
 `;
 
 const HATCH_DEF = `
@@ -63,7 +64,7 @@ export function exportPdf() {
   const header =
     `ROUTES: ${stats.routes}   CROSSINGS: ${stats.crossings}   ` +
     `BLOCKED: ${stats.blocked || 0}   FOUNDATIONS: ${state.foundations.length}   ` +
-    `TOTAL LENGTH: ${stats.length} in`;
+    `TAGS: ${state.tags.length}   TOTAL LENGTH: ${stats.length} in`;
 
   const doc = `<!doctype html><html><head><meta charset="utf-8">
     <title>Underground Route Plan</title>

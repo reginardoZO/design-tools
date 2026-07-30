@@ -18,8 +18,8 @@ import {
   columnTapWorld,
   countPolylineCrossings,
   avoidRectangles,
-} from './geometry.js?v=20260723-2';
-import { state, getPanel } from './store.js?v=20260723-2';
+} from './geometry.js?v=20260730-1';
+import { state, getPanel } from './store.js?v=20260730-1';
 
 // Distinct, print-friendly colours cycled across routes.
 const COLORS = [

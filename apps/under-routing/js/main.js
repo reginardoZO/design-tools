@@ -5,24 +5,26 @@ import {
   createPanel,
   createLoad,
   createFoundation,
+  createTag,
   getPanel,
   removeLoad,
   removeFoundation,
+  removeTag,
   removePanel,
   save,
   load as loadState,
   WALL_ROTATION,
   WALL_CYCLE,
-} from './store.js?v=20260723-2';
+} from './store.js?v=20260730-1';
 import {
   render,
   initSvg,
   screenToWorld,
   fitToContent,
   BASE_PPI,
-} from './render.js?v=20260723-2';
-import { autoRoute } from './router.js?v=20260723-2';
-import { COL_WIDTH_IN, IN_PER_FT } from './geometry.js?v=20260723-2';
+} from './render.js?v=20260730-1';
+import { autoRoute } from './router.js?v=20260730-1';
+import { COL_WIDTH_IN, IN_PER_FT } from './geometry.js?v=20260730-1';
 
 const DRAG_THRESHOLD = 4; // px of movement before a press counts as a drag
 
@@ -69,23 +71,34 @@ function updateChrome() {
     `ROUTES: <b>${s.routes}</b> &middot; CROSSINGS: <b>${s.crossings}</b> ` +
     `&middot; BLOCKED: <b>${s.blocked || 0}</b> &middot; ` +
     `FOUNDATIONS: <b>${state.foundations.length}</b> &middot; ` +
+    `TAGS: <b>${state.tags.length}</b> &middot; ` +
     `TOTAL LENGTH: <b>${s.length}</b> in`;
 
-  document.getElementById('hint').textContent = state.mode === 'foundation'
-    ? 'drag empty space = draw foundation · drag foundation = move · double-click = delete'
-    : 'drag panel, load or foundation = move & reroute · click panel then ↻ = rotate · ' +
-      'double-click load/foundation = delete · click empty space = add load';
+  const hints = {
+    foundation:
+      'drag empty space = draw foundation · drag foundation = move · ' +
+      'select + Del or double-click = delete',
+    tag:
+      'drag empty space = draw tag rectangle · drag tag = move · ' +
+      'select + Del or double-click = delete',
+    route:
+      'drag panel, load, foundation or tag = move & reroute · click panel then ↻ = rotate · ' +
+      'select foundation/tag + Del = delete · double-click = delete · click empty space = add load',
+  };
+  document.getElementById('hint').textContent = hints[state.mode] || hints.route;
 
   document.getElementById('btn-route').classList.toggle('active', state.mode === 'route');
   document.getElementById('btn-setup').classList.toggle('active', state.mode === 'setup');
   document.getElementById('btn-foundation').classList.toggle(
     'active', state.mode === 'foundation'
   );
+  document.getElementById('btn-tag').classList.toggle('active', state.mode === 'tag');
   document.getElementById('btn-wall').innerHTML = `&#8635; WALL: ${state.wall}`;
   document.getElementById('zoom-level').textContent =
     Math.round(state.view.scale * 100) + '%';
 
   svg.classList.toggle('foundation-mode', state.mode === 'foundation');
+  svg.classList.toggle('tag-mode', state.mode === 'tag');
 }
 
 // Recompute routes + stats, redraw, persist.
@@ -108,6 +121,12 @@ function wireToolbar() {
   };
   document.getElementById('btn-foundation').onclick = () => {
     state.mode = state.mode === 'foundation' ? 'route' : 'foundation';
+    state.selection = null;
+    render();
+    updateChrome();
+  };
+  document.getElementById('btn-tag').onclick = () => {
+    state.mode = state.mode === 'tag' ? 'route' : 'tag';
     state.selection = null;
     render();
     updateChrome();
@@ -136,7 +155,7 @@ function wireToolbar() {
     reroute();
   };
   document.getElementById('btn-export').onclick = async () => {
-    const { exportPdf } = await import('./pdf.js?v=20260723-2');
+    const { exportPdf } = await import('./pdf.js?v=20260730-1');
     exportPdf();
   };
 }
@@ -181,6 +200,7 @@ function zoomAt(factor, cx, cy) {
 let drag = null;
 let lastLoadClick = null; // { id, time } for manual double-click detection
 let lastFoundationClick = null;
+let lastTagClick = null;
 
 function wireCanvas() {
   svg.addEventListener('pointerdown', onPointerDown);
@@ -284,6 +304,32 @@ function onPointerDown(e) {
     return;
   }
 
+  const tagEl = e.target.closest('.tag');
+  if (tagEl) {
+    const id = tagEl.getAttribute('data-id');
+    const now = Date.now();
+    if (lastTagClick && lastTagClick.id === id && now - lastTagClick.time < 350) {
+      lastTagClick = null;
+      removeTag(id);
+      reroute();
+      return;
+    }
+    lastTagClick = { id, time: now };
+    const tag = state.tags.find((item) => item.id === id);
+    state.selection = { type: 'tag', id };
+    drag = {
+      kind: 'tag',
+      id,
+      moved: false,
+      startSX: sx,
+      startSY: sy,
+      startX: tag.x,
+      startY: tag.y,
+    };
+    svg.setPointerCapture(e.pointerId);
+    return;
+  }
+
   if (state.mode === 'foundation') {
     const [x, y] = screenToWorld(sx, sy);
     const foundation = createFoundation({ x, y, width: 0, height: 0 });
@@ -292,6 +338,26 @@ function onPointerDown(e) {
     drag = {
       kind: 'foundation-new',
       id: foundation.id,
+      moved: false,
+      startSX: sx,
+      startSY: sy,
+      startX: x,
+      startY: y,
+    };
+    svg.setPointerCapture(e.pointerId);
+    svg.classList.add('drawing-foundation');
+    render();
+    return;
+  }
+
+  if (state.mode === 'tag') {
+    const [x, y] = screenToWorld(sx, sy);
+    const tag = createTag({ x, y, width: 0, height: 0 });
+    state.tags.push(tag);
+    state.selection = { type: 'tag', id: tag.id };
+    drag = {
+      kind: 'tag-new',
+      id: tag.id,
       moved: false,
       startSX: sx,
       startSY: sy,
@@ -373,6 +439,25 @@ function onPointerMove(e) {
       foundation.height = Math.abs(currentY - drag.startY);
       render();
     }
+  } else if (drag.kind === 'tag') {
+    // Tags are drawing markers only: moving them never triggers a reroute.
+    const tag = state.tags.find((item) => item.id === drag.id);
+    if (tag) {
+      tag.x = drag.startX + dwx;
+      tag.y = drag.startY + dwy;
+      render();
+    }
+  } else if (drag.kind === 'tag-new') {
+    const tag = state.tags.find((item) => item.id === drag.id);
+    if (tag) {
+      const currentX = drag.startX + dwx;
+      const currentY = drag.startY + dwy;
+      tag.x = Math.min(drag.startX, currentX);
+      tag.y = Math.min(drag.startY, currentY);
+      tag.width = Math.abs(currentX - drag.startX);
+      tag.height = Math.abs(currentY - drag.startY);
+      render();
+    }
   }
 }
 
@@ -396,6 +481,19 @@ function onPointerUp(e) {
     } else {
       reroute();
     }
+  } else if (drag.kind === 'tag-new') {
+    const tag = state.tags.find((item) => item.id === drag.id);
+    const tooSmall = !tag ||
+      tag.width * state.view.scale * BASE_PPI < DRAG_THRESHOLD ||
+      tag.height * state.view.scale * BASE_PPI < DRAG_THRESHOLD;
+    if (tooSmall) {
+      removeTag(drag.id);
+      render();
+      updateChrome();
+    } else {
+      // A new tag rectangle always gets asked for its label on drop.
+      openTagModal(drag.id);
+    }
   } else if (drag.kind === 'pan' && !drag.moved) {
     // A plain click on empty space adds a load there.
     const [sx, sy] = localPoint(e);
@@ -404,7 +502,8 @@ function onPointerUp(e) {
     openLoadModal();
   } else if (
     drag.moved &&
-    (drag.kind === 'load' || drag.kind === 'panel' || drag.kind === 'foundation')
+    (drag.kind === 'load' || drag.kind === 'panel' || drag.kind === 'foundation' ||
+      drag.kind === 'tag')
   ) {
     save();
     render();
@@ -427,6 +526,12 @@ function onDblClick(e) {
   if (foundationEl) {
     removeFoundation(foundationEl.getAttribute('data-id'));
     reroute();
+    return;
+  }
+  const tagEl = e.target.closest('.tag');
+  if (tagEl) {
+    removeTag(tagEl.getAttribute('data-id'));
+    reroute();
   }
 }
 
@@ -448,15 +553,41 @@ function wireModals() {
   document.getElementById('load-save').onclick = saveLoad;
   document.getElementById('load-panel').onchange = fillColumnSelect;
 
+  document.getElementById('tag-close').onclick = () => closeTagModal(true);
+  document.getElementById('tag-cancel').onclick = () => closeTagModal(true);
+  document.getElementById('tag-save').onclick = saveTag;
+
   document.addEventListener('keydown', (e) => {
     const loadOpen = !document.getElementById('modal-load').hidden;
     const setupOpen = !document.getElementById('modal-setup').hidden;
+    const tagOpen = !document.getElementById('modal-tag').hidden;
     if (e.key === 'Escape') {
       if (loadOpen) closeLoadModal();
       else if (setupOpen) closeSetup();
+      else if (tagOpen) closeTagModal(true);
     } else if (e.key === 'Enter' && loadOpen && e.target.id === 'load-tag') {
       e.preventDefault();
       saveLoad();
+    } else if (e.key === 'Enter' && tagOpen && e.target.id === 'tag-tag') {
+      e.preventDefault();
+      saveTag();
+    } else if (
+      (e.key === 'Delete' || e.key === 'Backspace') &&
+      !loadOpen && !setupOpen && !tagOpen
+    ) {
+      // Del removes the selected foundation or tag rectangle.
+      if (e.target.closest('input, textarea, select')) return;
+      const sel = state.selection;
+      if (!sel) return;
+      if (sel.type === 'foundation') {
+        e.preventDefault();
+        removeFoundation(sel.id);
+        reroute();
+      } else if (sel.type === 'tag') {
+        e.preventDefault();
+        removeTag(sel.id);
+        reroute();
+      }
     }
   });
 }
@@ -678,6 +809,41 @@ function saveLoad() {
   closeLoadModal();
   state.showRoutes = true;
   reroute();
+}
+
+// ---- tag modal ------------------------------------------------------------
+
+let pendingTagId = null; // id of the freshly drawn rectangle awaiting a label
+
+function openTagModal(id) {
+  pendingTagId = id;
+  document.getElementById('tag-tag').value = '';
+  document.getElementById('modal-tag').hidden = false;
+  setTimeout(() => document.getElementById('tag-tag').focus(), 0);
+}
+
+// Cancelling the modal for a just-drawn rectangle drops the rectangle too.
+function closeTagModal(cancelled) {
+  document.getElementById('modal-tag').hidden = true;
+  if (cancelled && pendingTagId) removeTag(pendingTagId);
+  pendingTagId = null;
+  render();
+  updateChrome();
+}
+
+function saveTag() {
+  const label = document.getElementById('tag-tag').value.trim();
+  if (!label) {
+    alert('Enter a tag for the rectangle.');
+    return;
+  }
+  const tag = state.tags.find((item) => item.id === pendingTagId);
+  if (tag) tag.tag = label;
+  pendingTagId = null;
+  document.getElementById('modal-tag').hidden = true;
+  save();
+  render();
+  updateChrome();
 }
 
 boot();
