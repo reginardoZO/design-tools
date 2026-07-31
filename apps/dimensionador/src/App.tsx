@@ -2,6 +2,7 @@ import { startTransition, useEffect, useRef, useState, type CSSProperties } from
 import {
   CircuitBoard,
   FileDown,
+  FolderOpen,
   Layers3,
   Link2,
   LockKeyhole,
@@ -22,6 +23,7 @@ import {
   PANEL_SPACE_COUNT,
   SPACE_HEIGHT_IN,
   STANDARD_COLUMN_WIDTH_IN,
+  type PanelLayoutOptions,
   type LoadTypeId,
   type PanelColumn,
   type PanelLoad,
@@ -49,10 +51,15 @@ interface SavedPanel {
   loads: PanelLoad[]
   panelTag: string
   savedAt: string
+  automaticSpares?: boolean
+  retainedLoadColumns?: number
 }
 
 function isManualDrawer(load: PanelLoad) {
-  return !FIXED_LOAD_TYPES.includes(load.typeId)
+  return !load.parentLoadId
+    && load.typeId !== 'spare'
+    && !load.isAutomaticSpare
+    && !FIXED_LOAD_TYPES.includes(load.typeId)
 }
 
 function readSavedPanel(): SavedPanel | null {
@@ -85,6 +92,10 @@ function readSavedPanel(): SavedPanel | null {
       loads,
       panelTag: typeof parsed.panelTag === 'string' ? parsed.panelTag : '',
       savedAt: typeof parsed.savedAt === 'string' ? parsed.savedAt : '',
+      automaticSpares: parsed.automaticSpares !== false,
+      retainedLoadColumns: typeof parsed.retainedLoadColumns === 'number'
+        ? Math.max(0, Math.floor(parsed.retainedLoadColumns))
+        : 0,
     }
   } catch {
     return null
@@ -102,7 +113,8 @@ function PanelColumnView({
 }) {
   return (
     <div
-      className={`panel-column column-${column.role}`}
+      className={`panel-column column-${column.role}${column.emptyLoadWarning ? ' column-empty-warning' : ''}`}
+      data-column-kind={column.kind}
       style={{ width: `${column.widthIn * 5}px` }}
     >
       <div className="equipment-zone">
@@ -110,6 +122,12 @@ function PanelColumnView({
           <div className="tie-bus-transition-label">
             <span>TIE BUS</span>
             <strong>TRANSITION</strong>
+          </div>
+        )}
+        {column.emptyLoadWarning && (
+          <div className="empty-column-warning">
+            <strong>EMPTY LOAD COLUMN</strong>
+            <span>Retained after recalculation</span>
           </div>
         )}
         {column.loads.map((load) => {
@@ -126,7 +144,9 @@ function PanelColumnView({
               data-manual={Boolean(load.manualColumn)}
               key={load.id}
               style={{ height: `${(option.spaces / PANEL_SPACE_COUNT) * 100}%` }}
-              title={isManualDrawer(load)
+              title={load.isAutomaticSpare
+                ? `SPARE · Equipped reserve · ${formatOption(option)}`
+                : isManualDrawer(load)
                 ? `${type.label} · ${formatOption(option)} · Click to choose a column`
                 : `${type.label} · ${formatOption(option)} · Fixed by the panel rules`}
               onClick={() => onLoadClick(load)}
@@ -140,7 +160,10 @@ function PanelColumnView({
         })}
       </div>
       <div className="column-label">
-        <span>{label}</span>
+        <div className="column-identity">
+          <span>{label}</span>
+          <small>{column.kind}</small>
+        </div>
         <div className="column-dimension">
           <strong>{inchesFormatter.format(column.widthIn)} in</strong>
           <small>{feetFormatter.format(column.widthIn / 12)} ft</small>
@@ -170,13 +193,33 @@ function App() {
     getLoadType('fvnr').options[0].id,
   )
   const [quantity, setQuantity] = useState(1)
-  const layout = buildPanelLayout(loads)
+  const [automaticSpares, setAutomaticSpares] = useState(initialPanel?.automaticSpares ?? true)
+  const [retainedLoadColumns, setRetainedLoadColumns] = useState(
+    initialPanel?.retainedLoadColumns ?? 0,
+  )
+  const layoutOptions: PanelLayoutOptions = {
+    automaticSpares,
+    minimumLoadColumns: retainedLoadColumns,
+  }
+  const layout = buildPanelLayout(loads, layoutOptions)
   const selectedType = getLoadType(selectedTypeId)
   const powerCount = loads.filter((load) => load.typeId === 'power-in').length
   const meterCount = loads.filter((load) => load.typeId === 'metering').length
   const availableMeterSlots = powerCount - meterCount
-  const canAdd = selectedTypeId !== 'metering' || quantity <= availableMeterSlots
+  const canAdd = (selectedTypeId !== 'metering' || quantity <= availableMeterSlots)
+    && !(automaticSpares && selectedTypeId === 'spare')
   const widthFeet = feetFormatter.format(layout.widthIn / 12)
+  const spareBuckets = layout.columns
+    .flatMap((column) => column.loads)
+    .filter((load) => load.typeId === 'spare')
+  const spareBom = [...spareBuckets.reduce((groups, load) => {
+    const size = getLoadOption(load).spaces
+    groups.set(size, (groups.get(size) ?? 0) + 1)
+    return groups
+  }, new Map<number, number>())]
+    .sort(([first], [second]) => second - first)
+    .map(([size, count]) => `${count}×${size} SP`)
+    .join(' + ')
 
   let standardSectionCount = 0
   let transitionCount = 0
@@ -198,12 +241,19 @@ function App() {
   const [saveStatus, setSaveStatus] = useState(
     initialPanel?.savedAt ? `Restored ${new Date(initialPanel.savedAt).toLocaleString()}` : '',
   )
+  const [hasSavedPanel, setHasSavedPanel] = useState(Boolean(initialPanel))
   const [manualLoadId, setManualLoadId] = useState<string | null>(null)
   const [manualColumnInput, setManualColumnInput] = useState('0')
   const [pendingPrint, setPendingPrint] = useState(false)
   const [printScale, setPrintScale] = useState(1)
   const stageRef = useRef<HTMLDivElement>(null)
   const printingRef = useRef(false)
+
+  useEffect(() => {
+    if (layout.loadColumnCount > retainedLoadColumns) {
+      setRetainedLoadColumns(layout.loadColumnCount)
+    }
+  }, [layout.loadColumnCount, retainedLoadColumns])
 
   const manualLoad = loads.find((load) => load.id === manualLoadId) ?? null
 
@@ -231,7 +281,13 @@ function App() {
     const occupiedSpaces = loads
       .filter((load) => load.id !== manualLoad.id && load.manualColumn === targetColumn)
       .reduce((total, load) => total + getLoadOption(load).spaces, 0)
-    if (targetColumn > 0 && occupiedSpaces + getLoadOption(manualLoad).spaces > PANEL_SPACE_COUNT) {
+    if (
+      targetColumn > 0
+      && (
+        layout.columns[targetColumn - 1]?.kind !== 'CARGA'
+        || occupiedSpaces + getLoadOption(manualLoad).spaces > PANEL_SPACE_COUNT
+      )
+    ) {
       return
     }
 
@@ -251,13 +307,37 @@ function App() {
 
   const savePanel = () => {
     const savedAt = new Date().toISOString()
-    const snapshot: SavedPanel = { version: 1, loads, panelTag, savedAt }
+    const snapshot: SavedPanel = {
+      version: 1,
+      loads,
+      panelTag,
+      savedAt,
+      automaticSpares,
+      retainedLoadColumns: layout.loadColumnCount,
+    }
     try {
       window.localStorage.setItem(PANEL_STORAGE_KEY, JSON.stringify(snapshot))
+      setHasSavedPanel(true)
       setSaveStatus(`Saved ${new Date(savedAt).toLocaleString()}`)
     } catch {
       setSaveStatus('The panel could not be saved in this browser')
     }
+  }
+
+  const openSavedPanel = () => {
+    const savedPanel = readSavedPanel()
+    if (!savedPanel) {
+      setHasSavedPanel(false)
+      setSaveStatus('No saved panel was found in this browser')
+      return
+    }
+    startTransition(() => {
+      setLoads(savedPanel.loads)
+      setPanelTag(savedPanel.panelTag)
+      setAutomaticSpares(savedPanel.automaticSpares ?? true)
+      setRetainedLoadColumns(savedPanel.retainedLoadColumns ?? 0)
+    })
+    setSaveStatus(`Opened panel saved ${new Date(savedPanel.savedAt).toLocaleString()}`)
   }
 
   const openExportDialog = () => {
@@ -327,8 +407,16 @@ function App() {
           parentLoadId: parentLoad.id,
         }),
       )
+      const automaticMeterLoads: PanelLoad[] = selectedTypeId === 'power-in'
+        ? [{
+            id: crypto.randomUUID(),
+            typeId: 'metering',
+            optionId: 'voltmeter-switch',
+            parentLoadId: parentLoad.id,
+          }]
+        : []
 
-      return [parentLoad, ...automaticRlyLoads]
+      return [parentLoad, ...automaticMeterLoads, ...automaticRlyLoads]
     })
     startTransition(() => setLoads((current) => [...current, ...nextLoads]))
     setSaveStatus('Unsaved changes')
@@ -339,7 +427,10 @@ function App() {
       return
     }
 
-    const locksMeter = load.typeId === 'power-in' && powerCount <= meterCount
+    const remainingMeterCount = loads.filter((item) =>
+      item.typeId === 'metering' && item.parentLoadId !== load.id,
+    ).length
+    const locksMeter = load.typeId === 'power-in' && remainingMeterCount > powerCount - 1
     if (locksMeter) {
       return
     }
@@ -357,7 +448,10 @@ function App() {
       + getLoadOption(manualLoad).spaces
     : 0
   const manualSelectionFits = selectedManualColumn === 0
-    || selectedManualColumnSpaces <= PANEL_SPACE_COUNT
+    || (
+      layout.columns[selectedManualColumn - 1]?.kind === 'CARGA'
+      && selectedManualColumnSpaces <= PANEL_SPACE_COUNT
+    )
 
   return (
     <div className="app-shell">
@@ -394,7 +488,7 @@ function App() {
                   value={selectedTypeId}
                   onChange={(event) => changeType(event.target.value as LoadTypeId)}
                 >
-                  {LOAD_TYPES.map((type) => (
+                  {LOAD_TYPES.filter((type) => type.id !== 'metering').map((type) => (
                     <option key={type.id} value={type.id}>
                       {type.label}
                     </option>
@@ -450,6 +544,31 @@ function App() {
                 </span>
               </div>
             )}
+            {selectedTypeId === 'spare' && automaticSpares && (
+              <div className="constraint-status status-blocked">
+                <LockKeyhole size={16} aria-hidden="true" />
+                <span>Spare buckets are being calculated automatically</span>
+              </div>
+            )}
+
+            <label className="spare-toggle">
+              <input
+                type="checkbox"
+                checked={automaticSpares}
+                onChange={(event) => {
+                  const enabled = event.target.checked
+                  setAutomaticSpares(enabled)
+                  if (enabled) {
+                    setLoads((current) => current.filter((load) => load.typeId !== 'spare'))
+                  }
+                  setSaveStatus('Unsaved changes')
+                }}
+              />
+              <span>
+                <strong>Automatic spare buckets</strong>
+                <small>20% of real load modules, including a dominant-size reserve</small>
+              </span>
+            </label>
           </section>
 
           <section className="config-section load-list-section">
@@ -468,11 +587,14 @@ function App() {
                 loads.map((load, index) => {
                   const type = getLoadType(load.typeId)
                   const option = getLoadOption(load)
-                  const isAutomaticRly = Boolean(load.parentLoadId)
-                  const removalLocked = isAutomaticRly
-                    || (load.typeId === 'power-in' && powerCount <= meterCount)
-                  const lockedTitle = isAutomaticRly
-                    ? 'RLY PNL added automatically; remove the linked equipment'
+                  const isAutomaticChild = Boolean(load.parentLoadId)
+                  const remainingMeterCount = loads.filter((item) =>
+                    item.typeId === 'metering' && item.parentLoadId !== load.id
+                  ).length
+                  const removalLocked = isAutomaticChild
+                    || (load.typeId === 'power-in' && remainingMeterCount > powerCount - 1)
+                  const lockedTitle = isAutomaticChild
+                    ? `${type.label} added automatically; remove the linked equipment`
                     : 'Remove the Metering first'
 
                   return (
@@ -483,7 +605,7 @@ function App() {
                         <strong>{type.label}</strong>
                         <span>
                           {formatOption(option)}
-                          {isAutomaticRly && ' · Automatic'}
+                          {isAutomaticChild && ' · Automatic'}
                           {load.manualColumn && ` · Column ${load.manualColumn} (manual)`}
                         </span>
                       </div>
@@ -509,6 +631,7 @@ function App() {
                 type="button"
                 onClick={() => {
                   setLoads([])
+                  setRetainedLoadColumns(0)
                   setSaveStatus('Unsaved changes')
                 }}
               >
@@ -533,6 +656,10 @@ function App() {
                 Columns {layout.columns.length} · Sections {layout.columns.length + 2}
                 {' '}· Utilization {Math.round(layout.utilization * 100)}%
               </span>
+              <span>
+                Load base {layout.baseLoadSpaces} modules · Equipped spare {layout.spareSpaces} modules
+              </span>
+              <span>BOM · Equipped SPARE {spareBom || 'none'}</span>
               <span>Issued on {new Date().toLocaleDateString('en-US')}</span>
             </div>
           </div>
@@ -557,6 +684,13 @@ function App() {
               <CircuitBoard size={18} aria-hidden="true" />
               <div><span>Utilization</span><strong>{Math.round(layout.utilization * 100)}%</strong></div>
             </div>
+            <div className="metric reserve-metric">
+              <Layers3 size={18} aria-hidden="true" />
+              <div>
+                <span>Equipped spare</span>
+                <strong>{layout.spareSpaces} SP</strong>
+              </div>
+            </div>
           </div>
 
           <div className="drawing-header">
@@ -565,6 +699,16 @@ function App() {
               <h2>Front elevation</h2>
             </div>
             <div className="drawing-actions">
+              <button
+                className="save-button"
+                type="button"
+                onClick={openSavedPanel}
+                disabled={!hasSavedPanel}
+                title="Open the last panel saved in this browser"
+              >
+                <FolderOpen size={15} aria-hidden="true" />
+                Open saved
+              </button>
               <div className="save-action">
                 <button
                   className="save-button"
@@ -640,8 +784,16 @@ function App() {
               <div className="utilization-track" aria-hidden="true">
                 <span style={{ width: `${layout.utilization * 100}%` }} />
               </div>
+              {layout.emptyLoadColumnCount > 0 && (
+                <span className="empty-column-notice">
+                  {layout.emptyLoadColumnCount} empty load {layout.emptyLoadColumnCount === 1 ? 'column retained' : 'columns retained'}
+                </span>
+              )}
             </div>
             <div className="legend" aria-label="Load legend">
+              {spareBuckets.length > 0 && (
+                <span className="spare-bom"><strong>BOM</strong> Equipped SPARE: {spareBom}</span>
+              )}
               {LOAD_TYPES.filter((type) => type.id !== 'spare').map((type) => (
                 <span key={type.id}><i className={`swatch-${type.id}`} />{type.shortLabel}</span>
               ))}
@@ -677,15 +829,17 @@ function App() {
                 autoFocus
               >
                 <option value="0">Automatic placement</option>
-                {layout.columns.map((_, index) => {
+                {layout.columns.map((column, index) => {
                   const columnNumber = index + 1
                   const occupiedSpaces = loads
                     .filter((load) => load.id !== manualLoad.id && load.manualColumn === columnNumber)
                     .reduce((total, load) => total + getLoadOption(load).spaces, 0)
-                  const fits = occupiedSpaces + getLoadOption(manualLoad).spaces <= PANEL_SPACE_COUNT
+                  const fits = column.kind === 'CARGA'
+                    && occupiedSpaces + getLoadOption(manualLoad).spaces <= PANEL_SPACE_COUNT
                   return (
                     <option key={columnNumber} value={columnNumber} disabled={!fits}>
                       Column {columnNumber} ({columnLabels[index]})
+                      {column.kind === 'INFRA' ? ' · INFRA (fixed)' : ''}
                       {occupiedSpaces > 0 ? ` · ${PANEL_SPACE_COUNT - occupiedSpaces} spaces available` : ''}
                     </option>
                   )

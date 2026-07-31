@@ -33,7 +33,11 @@ export interface PanelLoad {
   parentLoadId?: string
   /** One-based physical column selected by the user. */
   manualColumn?: number
+  isAutomaticSpare?: boolean
+  equipped?: boolean
 }
+
+export type PanelColumnKind = 'INFRA' | 'CARGA'
 
 export interface PanelColumn {
   id: string
@@ -44,8 +48,12 @@ export interface PanelColumn {
     | 'tie-breaker'
     | 'transition'
     | 'tie-bus-transition'
+    | 'infrastructure'
+    | 'tie-auxiliary'
+  kind: PanelColumnKind
   widthIn: number
   loads: PanelLoad[]
+  emptyLoadWarning?: boolean
 }
 
 export interface PanelLayout {
@@ -56,6 +64,16 @@ export interface PanelLayout {
   usedHeightIn: number
   capacityHeightIn: number
   utilization: number
+  baseLoadSpaces: number
+  spareTargetSpaces: number
+  spareSpaces: number
+  loadColumnCount: number
+  emptyLoadColumnCount: number
+}
+
+export interface PanelLayoutOptions {
+  automaticSpares?: boolean
+  minimumLoadColumns?: number
 }
 
 export const PANEL_SPACE_COUNT = 12
@@ -66,6 +84,8 @@ export const TRANSITION_COLUMN_WIDTH_IN = 20.078
 export const TIE_BUS_TRANSITION_COLUMN_WIDTH_IN = TRANSITION_COLUMN_WIDTH_IN
 export const END_SECTION_WIDTH_IN = 4.156
 export const PANEL_HEIGHT_IN = PANEL_SPACE_COUNT * SPACE_HEIGHT_IN
+export const SPARE_PERCENTAGE = 0.2
+export const VALID_SPARE_SIZES = [12, 6, 3, 2, 1] as const
 
 export const LOAD_TYPES: LoadType[] = [
   {
@@ -365,15 +385,38 @@ function packStandardLoads(items: PanelLoad[], meterLoads: PanelLoad[]) {
   return best
 }
 
+const INFRA_LOAD_TYPES: LoadTypeId[] = [
+  'power-in',
+  'generator',
+  'metering',
+  'rly-pnl',
+  'transfer-control',
+  'tie-breaker',
+]
+
+export function isRealLoad(load: PanelLoad) {
+  return load.typeId !== 'spare' && !INFRA_LOAD_TYPES.includes(load.typeId)
+}
+
 function dedicatedColumn(load: PanelLoad): PanelColumn {
   const role = load.typeId === 'power-in' || load.typeId === 'generator'
     ? load.typeId
     : 'tie-breaker'
-
   return {
     id: `column-${load.id}`,
     role,
+    kind: 'INFRA',
     widthIn: getLoadOption(load).widthIn ?? POWER_COLUMN_WIDTH_IN,
+    loads: [load],
+  }
+}
+
+function meteringColumn(load: PanelLoad): PanelColumn {
+  return {
+    id: `meter-column-${load.id}`,
+    role: 'transition',
+    kind: 'INFRA',
+    widthIn: TRANSITION_COLUMN_WIDTH_IN,
     loads: [load],
   }
 }
@@ -382,75 +425,101 @@ function tieBusTransitionColumn(tieLoad: PanelLoad): PanelColumn {
   return {
     id: `tie-bus-transition-${tieLoad.id}`,
     role: 'tie-bus-transition',
+    kind: 'INFRA',
     widthIn: TIE_BUS_TRANSITION_COLUMN_WIDTH_IN,
     loads: [],
   }
 }
 
-function buildAutomaticPanelLayout(loads: PanelLoad[]): PanelLayout {
+function packedColumns(loads: PanelLoad[], kind: PanelColumnKind, idPrefix: string) {
+  return packStandardLoads(loads, []).map((bin, index): PanelColumn => ({
+    id: `${idPrefix}-${index}`,
+    role: kind === 'INFRA' ? 'infrastructure' : 'standard',
+    kind,
+    widthIn: STANDARD_COLUMN_WIDTH_IN,
+    loads: bin,
+  }))
+}
+
+function buildAutomaticColumns(loads: PanelLoad[]) {
   const powerLoads = loads.filter((load) => load.typeId === 'power-in')
   const generatorLoads = loads.filter((load) => load.typeId === 'generator')
   const tieLoads = loads.filter((load) => load.typeId === 'tie-breaker')
   const meterLoads = loads.filter((load) => load.typeId === 'metering')
-  const modularLoads = loads.filter(
-    (load) => !['power-in', 'generator', 'tie-breaker', 'metering'].includes(load.typeId),
+  const tieAuxiliaryIds = new Set(
+    loads
+      .filter((load) => load.typeId === 'rly-pnl' && tieLoads.some((tie) => tie.id === load.parentLoadId))
+      .map((load) => load.id),
   )
-  const packedBins = packStandardLoads(modularLoads, meterLoads)
-  const meterColumns = packedBins.slice(0, meterLoads.length).map((bin, index) => ({
-    id: `meter-column-${index}`,
-    role: 'transition' as const,
-    widthIn: TRANSITION_COLUMN_WIDTH_IN,
-    loads: bin,
-  }))
-  const standardColumns = packedBins.slice(meterLoads.length).map((bin, index) => ({
-    id: `standard-column-${index}`,
-    role: 'standard' as const,
-    widthIn: STANDARD_COLUMN_WIDTH_IN,
-    loads: bin,
-  }))
-  const columns: PanelColumn[] = []
+  const pairedMeterIds = new Set<string>()
+  const meterForPower = new Map<string, PanelLoad>()
 
-  powerLoads.forEach((powerLoad, index) => {
-    columns.push(dedicatedColumn(powerLoad))
-    if (meterColumns[index]) {
-      columns.push(meterColumns[index])
+  powerLoads.forEach((powerLoad) => {
+    const meter = meterLoads.find((candidate) =>
+      !pairedMeterIds.has(candidate.id) && candidate.parentLoadId === powerLoad.id,
+    ) ?? meterLoads.find((candidate) => !pairedMeterIds.has(candidate.id))
+    if (meter) {
+      meterForPower.set(powerLoad.id, meter)
+      pairedMeterIds.add(meter.id)
     }
   })
-  columns.push(...meterColumns.slice(powerLoads.length))
-  columns.push(...generatorLoads.map(dedicatedColumn))
-  tieLoads.forEach((tieLoad) => {
-    columns.push(dedicatedColumn(tieLoad), tieBusTransitionColumn(tieLoad))
-  })
-  columns.push(...standardColumns)
 
-  const equipmentWidthIn = columns.reduce((total, column) => total + column.widthIn, 0)
-  const widthIn = columns.length > 0
-    ? equipmentWidthIn + END_SECTION_WIDTH_IN * 2
-    : 0
-  const structuralTransitionCount = columns.filter(
-    (column) => column.role === 'tie-bus-transition',
-  ).length
-  const usedSpaces = loads.reduce((total, load) => total + getLoadOption(load).spaces, 0)
-    + structuralTransitionCount * PANEL_SPACE_COUNT
-  const capacitySpaces = columns.length * PANEL_SPACE_COUNT
-  const usedHeightIn = usedSpaces * SPACE_HEIGHT_IN
-  const capacityHeightIn = capacitySpaces * SPACE_HEIGHT_IN
-
-  return {
-    columns,
-    widthIn,
-    usedSpaces,
-    capacitySpaces,
-    usedHeightIn,
-    capacityHeightIn,
-    utilization: capacityHeightIn === 0 ? 0 : usedHeightIn / capacityHeightIn,
+  const powerPair = (powerLoad: PanelLoad, reverse = false) => {
+    const pair = [dedicatedColumn(powerLoad)]
+    const meter = meterForPower.get(powerLoad.id)
+    if (meter) {
+      pair.push(meteringColumn(meter))
+    }
+    return reverse ? pair.reverse() : pair
   }
+
+  const leftEdge = powerLoads[0] ? powerPair(powerLoads[0]) : []
+  const rightEdge = powerLoads[1] ? powerPair(powerLoads[1], true) : []
+  const extraPowerColumns = powerLoads.slice(2).flatMap((powerLoad) => powerPair(powerLoad))
+  const unpairedMeterColumns = meterLoads
+    .filter((meter) => !pairedMeterIds.has(meter.id))
+    .map(meteringColumn)
+
+  const infrastructureLoads = loads.filter((load) =>
+    INFRA_LOAD_TYPES.includes(load.typeId)
+    && !['power-in', 'generator', 'metering', 'tie-breaker'].includes(load.typeId)
+    && !tieAuxiliaryIds.has(load.id),
+  )
+  const realLoadColumns = packedColumns(
+    loads.filter((load) => isRealLoad(load) || load.typeId === 'spare'),
+    'CARGA',
+    'load-column',
+  )
+  const infrastructureColumns = packedColumns(infrastructureLoads, 'INFRA', 'infra-column')
+  const middleColumns: PanelColumn[] = [
+    ...extraPowerColumns,
+    ...generatorLoads.map(dedicatedColumn),
+    ...unpairedMeterColumns,
+    ...infrastructureColumns,
+    ...realLoadColumns,
+  ]
+  const tieColumns = tieLoads.flatMap((tieLoad): PanelColumn[] => {
+    const auxiliaryLoads = loads.filter((load) => load.parentLoadId === tieLoad.id && load.typeId === 'rly-pnl')
+    const auxiliaryColumn: PanelColumn[] = auxiliaryLoads.length > 0 ? [{
+      id: `tie-auxiliary-${tieLoad.id}`,
+      role: 'tie-auxiliary',
+      kind: 'INFRA',
+      widthIn: STANDARD_COLUMN_WIDTH_IN,
+      loads: auxiliaryLoads,
+    }] : []
+    return [...auxiliaryColumn, dedicatedColumn(tieLoad), tieBusTransitionColumn(tieLoad)]
+  })
+
+  middleColumns.splice(Math.ceil(middleColumns.length / 2), 0, ...tieColumns)
+  return [...leftEdge, ...middleColumns, ...rightEdge]
 }
 
 function manualColumn(loads: PanelLoad[], columnNumber: number): PanelColumn {
+  const kind = loads.some((load) => isRealLoad(load) || load.typeId === 'spare') ? 'CARGA' : 'INFRA'
   return {
     id: `manual-column-${columnNumber}`,
-    role: 'standard',
+    role: kind === 'CARGA' ? 'standard' : 'infrastructure',
+    kind,
     widthIn: Math.max(
       STANDARD_COLUMN_WIDTH_IN,
       ...loads.map((load) => getLoadOption(load).widthIn ?? STANDARD_COLUMN_WIDTH_IN),
@@ -459,89 +528,267 @@ function manualColumn(loads: PanelLoad[], columnNumber: number): PanelColumn {
   }
 }
 
-/**
- * Builds the panel while reserving user-selected columns before placing automatic
- * loads. Automatic packing can therefore never move or consume a manually placed
- * drawer.
- */
-export function buildPanelLayout(loads: PanelLoad[]): PanelLayout {
-  const manuallyPlacedLoads = loads.filter(
-    (load) => Number.isInteger(load.manualColumn) && (load.manualColumn ?? 0) > 0,
-  )
-  if (manuallyPlacedLoads.length === 0) {
-    return buildAutomaticPanelLayout(loads)
-  }
-
-  const automaticLoads = loads.filter((load) => !manuallyPlacedLoads.includes(load))
-  const automaticLayout = buildAutomaticPanelLayout(automaticLoads)
-  const manualGroups = new Map<number, PanelLoad[]>()
-
-  manuallyPlacedLoads.forEach((load) => {
-    const columnNumber = load.manualColumn as number
-    const group = manualGroups.get(columnNumber) ?? []
-    group.push(load)
-    manualGroups.set(columnNumber, group)
-  })
-
-  const columnSlots: Array<PanelColumn | undefined> = []
-  manualGroups.forEach((manualLoads, columnNumber) => {
-    columnSlots[columnNumber - 1] = manualColumn(manualLoads, columnNumber)
-  })
-
-  // Keep the structural two-column pairs together when a reserved column falls
-  // in the middle of their former position.
-  const automaticBlocks: PanelColumn[][] = []
-  for (let index = 0; index < automaticLayout.columns.length; index += 1) {
-    const column = automaticLayout.columns[index]
-    const nextColumn = automaticLayout.columns[index + 1]
-    const isStructuralPair = nextColumn && (
-      (column.role === 'power-in' && nextColumn.role === 'transition')
-      || (column.role === 'tie-breaker' && nextColumn.role === 'tie-bus-transition')
-    )
-    if (isStructuralPair) {
-      automaticBlocks.push([column, nextColumn])
+function automaticBlocks(columns: PanelColumn[]) {
+  const blocks: PanelColumn[][] = []
+  for (let index = 0; index < columns.length; index += 1) {
+    const column = columns[index]
+    const next = columns[index + 1]
+    const afterNext = columns[index + 2]
+    if (column.role === 'tie-auxiliary' && next?.role === 'tie-breaker' && afterNext?.role === 'tie-bus-transition') {
+      blocks.push([column, next, afterNext])
+      index += 2
+    } else if (
+      next && (
+        (column.role === 'power-in' && next.role === 'transition')
+        || (column.role === 'transition' && next.role === 'power-in')
+        || (column.role === 'tie-breaker' && next.role === 'tie-bus-transition')
+      )
+    ) {
+      blocks.push([column, next])
       index += 1
     } else {
-      automaticBlocks.push([column])
+      blocks.push([column])
     }
   }
+  return blocks
+}
 
-  let slotIndex = 0
-  automaticBlocks.forEach((block) => {
-    while (block.some((_, offset) => columnSlots[slotIndex + offset])) {
-      slotIndex += 1
-    }
-    block.forEach((column, offset) => {
-      columnSlots[slotIndex + offset] = column
-    })
-    slotIndex += block.length
-  })
+function rightEdgeStart(columns: PanelColumn[]) {
+  const lastIndex = columns.length - 1
+  if (columns[lastIndex]?.role !== 'power-in') {
+    return columns.length
+  }
+  return columns[lastIndex - 1]?.role === 'transition' ? lastIndex - 1 : lastIndex
+}
 
-  const columns: PanelColumn[] = columnSlots.map((column, index) => column ?? ({
-    id: `empty-column-${index + 1}`,
-    role: 'standard' as const,
+function emptyLoadColumn(id: string): PanelColumn {
+  return {
+    id,
+    role: 'standard',
+    kind: 'CARGA',
     widthIn: STANDARD_COLUMN_WIDTH_IN,
     loads: [],
-  }))
+  }
+}
 
-  const equipmentWidthIn = columns.reduce((total, column) => total + column.widthIn, 0)
-  const widthIn = equipmentWidthIn + END_SECTION_WIDTH_IN * 2
-  const structuralTransitionCount = columns.filter(
-    (column) => column.role === 'tie-bus-transition',
-  ).length
-  const usedSpaces = loads.reduce((total, load) => total + getLoadOption(load).spaces, 0)
-    + structuralTransitionCount * PANEL_SPACE_COUNT
+function ensureMinimumLoadColumns(columns: PanelColumn[], minimum: number) {
+  const next = [...columns]
+  let missing = Math.max(0, minimum - next.filter((column) => column.kind === 'CARGA').length)
+  while (missing > 0) {
+    next.splice(rightEdgeStart(next), 0, emptyLoadColumn(`retained-load-column-${missing}`))
+    missing -= 1
+  }
+  return next
+}
+
+function spareUnits(baseSpaces: number, largestLoad: number) {
+  if (baseSpaces === 0 || largestLoad === 0) {
+    return { target: 0, sizes: [] as number[] }
+  }
+  const dominantSize = [...VALID_SPARE_SIZES]
+    .reverse()
+    .find((size) => size >= largestLoad) ?? PANEL_SPACE_COUNT
+  const target = Math.max(Math.ceil(baseSpaces * SPARE_PERCENTAGE), dominantSize)
+  const sizes = [dominantSize]
+  let remaining = target - dominantSize
+  VALID_SPARE_SIZES.forEach((size) => {
+    while (remaining >= size) {
+      sizes.push(size)
+      remaining -= size
+    }
+  })
+  return { target, sizes: sizes.sort((first, second) => second - first) }
+}
+
+function addAutomaticSpares(columns: PanelColumn[]) {
+  const withoutSpares = columns.map((column) => ({
+    ...column,
+    loads: column.loads.filter((load) => load.typeId !== 'spare' && !load.isAutomaticSpare),
+  }))
+  const realLoads = withoutSpares
+    .filter((column) => column.kind === 'CARGA')
+    .flatMap((column) => column.loads.filter(isRealLoad))
+  const baseSpaces = realLoads.reduce((total, load) => total + getLoadOption(load).spaces, 0)
+  const largestLoad = realLoads.reduce(
+    (largest, load) => Math.max(largest, getLoadOption(load).spaces),
+    0,
+  )
+  const { target, sizes } = spareUnits(baseSpaces, largestLoad)
+
+  sizes.forEach((size, index) => {
+    const candidates = withoutSpares
+      .map((column, columnIndex) => ({
+        column,
+        columnIndex,
+        free: PANEL_SPACE_COUNT - columnUsedSpaces(column.loads),
+      }))
+      .filter(({ column, free }) => column.kind === 'CARGA' && free >= size)
+      .sort((first, second) => first.free - second.free)
+    let targetColumn = candidates[0]?.column
+    if (!targetColumn) {
+      targetColumn = emptyLoadColumn(`automatic-spare-column-${index}`)
+      withoutSpares.splice(rightEdgeStart(withoutSpares), 0, targetColumn)
+    }
+    targetColumn.loads.push({
+      id: `automatic-spare-${size}-${index}`,
+      typeId: 'spare',
+      optionId: `${size}-spaces`,
+      isAutomaticSpare: true,
+      equipped: true,
+    })
+  })
+
+  return { columns: withoutSpares, target, baseSpaces }
+}
+
+function arrangeFinalColumns(columns: PanelColumn[]) {
+  if (columns.length === 0) {
+    return columns
+  }
+  const slots: Array<PanelColumn | undefined> = new Array(columns.length)
+  const placed = new Set<PanelColumn>()
+  const placeBlock = (block: PanelColumn[], start: number) => {
+    block.forEach((column, offset) => {
+      slots[start + offset] = column
+      placed.add(column)
+    })
+  }
+
+  const leftBlock = columns[0]?.role === 'power-in'
+    ? columns.slice(0, columns[1]?.role === 'transition' ? 2 : 1)
+    : []
+  const lastIndex = columns.length - 1
+  const rightBlock = columns[lastIndex]?.role === 'power-in'
+    ? columns.slice(columns[lastIndex - 1]?.role === 'transition' ? lastIndex - 1 : lastIndex)
+    : []
+  if (leftBlock.length > 0) {
+    placeBlock(leftBlock, 0)
+  }
+  if (rightBlock.length > 0) {
+    placeBlock(rightBlock, columns.length - rightBlock.length)
+  }
+
+  columns.filter((column) => column.id.startsWith('manual-column-')).forEach((column) => {
+    const target = Number(column.id.slice('manual-column-'.length)) - 1
+    if (target >= 0 && target < slots.length && !slots[target]) {
+      placeBlock([column], target)
+    }
+  })
+
+  const tieBlocks = automaticBlocks(columns).filter((block) =>
+    block.some((column) => column.role === 'tie-breaker'),
+  )
+  tieBlocks.forEach((block) => {
+    const lineupCenter = (columns.length - 1) / 2
+    const candidates = Array.from(
+      { length: columns.length - block.length + 1 },
+      (_, start) => start,
+    ).filter((start) => block.every((_, offset) => !slots[start + offset]))
+    const bestStart = candidates.sort((first, second) => {
+      const firstDistance = Math.abs(first + (block.length - 1) / 2 - lineupCenter)
+      const secondDistance = Math.abs(second + (block.length - 1) / 2 - lineupCenter)
+      return firstDistance - secondDistance
+    })[0]
+    if (bestStart !== undefined) {
+      placeBlock(block, bestStart)
+    }
+  })
+
+  const remaining = columns.filter((column) => !placed.has(column))
+  for (let index = 0; index < slots.length; index += 1) {
+    if (!slots[index]) {
+      slots[index] = remaining.shift()
+    }
+  }
+  return slots.filter((column): column is PanelColumn => Boolean(column))
+}
+
+function finalizeLayout(
+  inputColumns: PanelColumn[],
+  automaticSpares: boolean,
+): PanelLayout {
+  const spareResult = automaticSpares
+    ? addAutomaticSpares(inputColumns)
+    : {
+        columns: inputColumns.map((column) => ({
+          ...column,
+          loads: column.loads.map((load) => load.typeId === 'spare' ? { ...load, equipped: true } : load),
+        })),
+        target: 0,
+        baseSpaces: inputColumns
+          .filter((column) => column.kind === 'CARGA')
+          .flatMap((column) => column.loads)
+          .filter(isRealLoad)
+          .reduce((total, load) => total + getLoadOption(load).spaces, 0),
+      }
+  const columns = arrangeFinalColumns(spareResult.columns).map((column) => ({
+    ...column,
+    emptyLoadWarning: column.kind === 'CARGA' && column.loads.length === 0,
+  }))
+  const structuralTransitionCount = columns.filter((column) => column.role === 'tie-bus-transition').length
+  const usedSpaces = columns.reduce(
+    (total, column) => total + columnUsedSpaces(column.loads),
+    structuralTransitionCount * PANEL_SPACE_COUNT,
+  )
   const capacitySpaces = columns.length * PANEL_SPACE_COUNT
   const usedHeightIn = usedSpaces * SPACE_HEIGHT_IN
   const capacityHeightIn = capacitySpaces * SPACE_HEIGHT_IN
+  const equipmentWidthIn = columns.reduce((total, column) => total + column.widthIn, 0)
+  const spareSpaces = columns
+    .flatMap((column) => column.loads)
+    .filter((load) => load.typeId === 'spare')
+    .reduce((total, load) => total + getLoadOption(load).spaces, 0)
+  const loadColumns = columns.filter((column) => column.kind === 'CARGA')
 
   return {
     columns,
-    widthIn,
+    widthIn: columns.length > 0 ? equipmentWidthIn + END_SECTION_WIDTH_IN * 2 : 0,
     usedSpaces,
     capacitySpaces,
     usedHeightIn,
     capacityHeightIn,
-    utilization: usedHeightIn / capacityHeightIn,
+    utilization: capacityHeightIn === 0 ? 0 : usedHeightIn / capacityHeightIn,
+    baseLoadSpaces: spareResult.baseSpaces,
+    spareTargetSpaces: spareResult.target,
+    spareSpaces,
+    loadColumnCount: loadColumns.length,
+    emptyLoadColumnCount: loadColumns.filter((column) => column.emptyLoadWarning).length,
   }
+}
+
+/** Build a deterministic lineup, then add equipped spare buckets as the final allocation step. */
+export function buildPanelLayout(loads: PanelLoad[], options: PanelLayoutOptions = {}): PanelLayout {
+  const automaticSpares = options.automaticSpares ?? true
+  const manuallyPlacedLoads = loads.filter(
+    (load) => Number.isInteger(load.manualColumn) && (load.manualColumn ?? 0) > 0,
+  )
+  const automaticLoads = loads.filter((load) => !manuallyPlacedLoads.includes(load))
+  const automaticColumns = buildAutomaticColumns(automaticLoads)
+  let columns = automaticColumns
+
+  if (manuallyPlacedLoads.length > 0) {
+    const manualGroups = new Map<number, PanelLoad[]>()
+    manuallyPlacedLoads.forEach((load) => {
+      const columnNumber = load.manualColumn as number
+      manualGroups.set(columnNumber, [...(manualGroups.get(columnNumber) ?? []), load])
+    })
+    const slots: Array<PanelColumn | undefined> = []
+    manualGroups.forEach((manualLoads, columnNumber) => {
+      slots[columnNumber - 1] = manualColumn(manualLoads, columnNumber)
+    })
+    let slotIndex = 0
+    automaticBlocks(automaticColumns).forEach((block) => {
+      while (block.some((_, offset) => slots[slotIndex + offset])) {
+        slotIndex += 1
+      }
+      block.forEach((column, offset) => {
+        slots[slotIndex + offset] = column
+      })
+      slotIndex += block.length
+    })
+    columns = slots.map((column, index) => column ?? emptyLoadColumn(`empty-column-${index + 1}`))
+  }
+
+  columns = ensureMinimumLoadColumns(columns, options.minimumLoadColumns ?? 0)
+  return finalizeLayout(columns, automaticSpares)
 }
