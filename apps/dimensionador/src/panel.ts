@@ -31,6 +31,8 @@ export interface PanelLoad {
   typeId: LoadTypeId
   optionId: string
   parentLoadId?: string
+  /** One-based physical column selected by the user. */
+  manualColumn?: number
 }
 
 export interface PanelColumn {
@@ -385,7 +387,7 @@ function tieBusTransitionColumn(tieLoad: PanelLoad): PanelColumn {
   }
 }
 
-export function buildPanelLayout(loads: PanelLoad[]): PanelLayout {
+function buildAutomaticPanelLayout(loads: PanelLoad[]): PanelLayout {
   const powerLoads = loads.filter((load) => load.typeId === 'power-in')
   const generatorLoads = loads.filter((load) => load.typeId === 'generator')
   const tieLoads = loads.filter((load) => load.typeId === 'tie-breaker')
@@ -442,5 +444,104 @@ export function buildPanelLayout(loads: PanelLoad[]): PanelLayout {
     usedHeightIn,
     capacityHeightIn,
     utilization: capacityHeightIn === 0 ? 0 : usedHeightIn / capacityHeightIn,
+  }
+}
+
+function manualColumn(loads: PanelLoad[], columnNumber: number): PanelColumn {
+  return {
+    id: `manual-column-${columnNumber}`,
+    role: 'standard',
+    widthIn: Math.max(
+      STANDARD_COLUMN_WIDTH_IN,
+      ...loads.map((load) => getLoadOption(load).widthIn ?? STANDARD_COLUMN_WIDTH_IN),
+    ),
+    loads,
+  }
+}
+
+/**
+ * Builds the panel while reserving user-selected columns before placing automatic
+ * loads. Automatic packing can therefore never move or consume a manually placed
+ * drawer.
+ */
+export function buildPanelLayout(loads: PanelLoad[]): PanelLayout {
+  const manuallyPlacedLoads = loads.filter(
+    (load) => Number.isInteger(load.manualColumn) && (load.manualColumn ?? 0) > 0,
+  )
+  if (manuallyPlacedLoads.length === 0) {
+    return buildAutomaticPanelLayout(loads)
+  }
+
+  const automaticLoads = loads.filter((load) => !manuallyPlacedLoads.includes(load))
+  const automaticLayout = buildAutomaticPanelLayout(automaticLoads)
+  const manualGroups = new Map<number, PanelLoad[]>()
+
+  manuallyPlacedLoads.forEach((load) => {
+    const columnNumber = load.manualColumn as number
+    const group = manualGroups.get(columnNumber) ?? []
+    group.push(load)
+    manualGroups.set(columnNumber, group)
+  })
+
+  const columnSlots: Array<PanelColumn | undefined> = []
+  manualGroups.forEach((manualLoads, columnNumber) => {
+    columnSlots[columnNumber - 1] = manualColumn(manualLoads, columnNumber)
+  })
+
+  // Keep the structural two-column pairs together when a reserved column falls
+  // in the middle of their former position.
+  const automaticBlocks: PanelColumn[][] = []
+  for (let index = 0; index < automaticLayout.columns.length; index += 1) {
+    const column = automaticLayout.columns[index]
+    const nextColumn = automaticLayout.columns[index + 1]
+    const isStructuralPair = nextColumn && (
+      (column.role === 'power-in' && nextColumn.role === 'transition')
+      || (column.role === 'tie-breaker' && nextColumn.role === 'tie-bus-transition')
+    )
+    if (isStructuralPair) {
+      automaticBlocks.push([column, nextColumn])
+      index += 1
+    } else {
+      automaticBlocks.push([column])
+    }
+  }
+
+  let slotIndex = 0
+  automaticBlocks.forEach((block) => {
+    while (block.some((_, offset) => columnSlots[slotIndex + offset])) {
+      slotIndex += 1
+    }
+    block.forEach((column, offset) => {
+      columnSlots[slotIndex + offset] = column
+    })
+    slotIndex += block.length
+  })
+
+  const columns: PanelColumn[] = columnSlots.map((column, index) => column ?? ({
+    id: `empty-column-${index + 1}`,
+    role: 'standard' as const,
+    widthIn: STANDARD_COLUMN_WIDTH_IN,
+    loads: [],
+  }))
+
+  const equipmentWidthIn = columns.reduce((total, column) => total + column.widthIn, 0)
+  const widthIn = equipmentWidthIn + END_SECTION_WIDTH_IN * 2
+  const structuralTransitionCount = columns.filter(
+    (column) => column.role === 'tie-bus-transition',
+  ).length
+  const usedSpaces = loads.reduce((total, load) => total + getLoadOption(load).spaces, 0)
+    + structuralTransitionCount * PANEL_SPACE_COUNT
+  const capacitySpaces = columns.length * PANEL_SPACE_COUNT
+  const usedHeightIn = usedSpaces * SPACE_HEIGHT_IN
+  const capacityHeightIn = capacitySpaces * SPACE_HEIGHT_IN
+
+  return {
+    columns,
+    widthIn,
+    usedSpaces,
+    capacitySpaces,
+    usedHeightIn,
+    capacityHeightIn,
+    utilization: usedHeightIn / capacityHeightIn,
   }
 }

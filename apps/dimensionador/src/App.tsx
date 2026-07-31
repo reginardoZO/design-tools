@@ -5,6 +5,7 @@ import {
   Layers3,
   Link2,
   LockKeyhole,
+  Save,
   Plus,
   Ruler,
   Trash2,
@@ -40,7 +41,65 @@ function formatOption(option: { label: string; spaces: number }) {
   return `${option.label} · ${spaceLabel} · ${height}`
 }
 
-function PanelColumnView({ column, label }: { column: PanelColumn; label: string }) {
+const PANEL_STORAGE_KEY = 'dimensionador.saved-panel.v1'
+const FIXED_LOAD_TYPES: LoadTypeId[] = ['power-in', 'generator', 'tie-breaker', 'metering']
+
+interface SavedPanel {
+  version: 1
+  loads: PanelLoad[]
+  panelTag: string
+  savedAt: string
+}
+
+function isManualDrawer(load: PanelLoad) {
+  return !FIXED_LOAD_TYPES.includes(load.typeId)
+}
+
+function readSavedPanel(): SavedPanel | null {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(PANEL_STORAGE_KEY) ?? 'null',
+    ) as Partial<SavedPanel> | null
+    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.loads)) {
+      return null
+    }
+
+    const loads = parsed.loads.filter((load): load is PanelLoad => {
+      if (!load || typeof load.id !== 'string' || typeof load.optionId !== 'string') {
+        return false
+      }
+      const type = LOAD_TYPES.find((candidate) => candidate.id === load.typeId)
+      return Boolean(type?.options.some((option) => option.id === load.optionId))
+    }).map((load) => {
+      const manualColumn = Number.isInteger(load.manualColumn)
+        && (load.manualColumn ?? 0) > 0
+        && (load.manualColumn ?? 0) <= 100
+        && isManualDrawer(load)
+        ? load.manualColumn
+        : undefined
+      return { ...load, manualColumn }
+    })
+
+    return {
+      version: 1,
+      loads,
+      panelTag: typeof parsed.panelTag === 'string' ? parsed.panelTag : '',
+      savedAt: typeof parsed.savedAt === 'string' ? parsed.savedAt : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+function PanelColumnView({
+  column,
+  label,
+  onLoadClick,
+}: {
+  column: PanelColumn
+  label: string
+  onLoadClick: (load: PanelLoad) => void
+}) {
   return (
     <div
       className={`panel-column column-${column.role}`}
@@ -60,17 +119,23 @@ function PanelColumnView({ column, label }: { column: PanelColumn; label: string
           const heightIn = option.spaces * SPACE_HEIGHT_IN
 
           return (
-            <div
+            <button
+              type="button"
               className={`load-bucket load-${load.typeId}`}
               data-compact={compact}
+              data-manual={Boolean(load.manualColumn)}
               key={load.id}
               style={{ height: `${(option.spaces / PANEL_SPACE_COUNT) * 100}%` }}
-              title={`${type.label} · ${formatOption(option)}`}
+              title={isManualDrawer(load)
+                ? `${type.label} · ${formatOption(option)} · Click to choose a column`
+                : `${type.label} · ${formatOption(option)} · Fixed by the panel rules`}
+              onClick={() => onLoadClick(load)}
+              disabled={!isManualDrawer(load)}
             >
               <span>{type.shortLabel}</span>
               <strong>{option.shortLabel}</strong>
               <small>{option.spaces} SP · {inchesFormatter.format(heightIn)}&quot;</small>
-            </div>
+            </button>
           )
         })}
       </div>
@@ -98,7 +163,8 @@ function EndSectionView({ position }: { position: 'start' | 'end' }) {
 }
 
 function App() {
-  const [loads, setLoads] = useState<PanelLoad[]>([])
+  const [initialPanel] = useState(readSavedPanel)
+  const [loads, setLoads] = useState<PanelLoad[]>(initialPanel?.loads ?? [])
   const [selectedTypeId, setSelectedTypeId] = useState<LoadTypeId>('fvnr')
   const [selectedOptionId, setSelectedOptionId] = useState(
     getLoadType('fvnr').options[0].id,
@@ -128,11 +194,71 @@ function App() {
 
   const [exportOpen, setExportOpen] = useState(false)
   const [tagInput, setTagInput] = useState('')
-  const [panelTag, setPanelTag] = useState('')
+  const [panelTag, setPanelTag] = useState(initialPanel?.panelTag ?? '')
+  const [saveStatus, setSaveStatus] = useState(
+    initialPanel?.savedAt ? `Restored ${new Date(initialPanel.savedAt).toLocaleString()}` : '',
+  )
+  const [manualLoadId, setManualLoadId] = useState<string | null>(null)
+  const [manualColumnInput, setManualColumnInput] = useState('0')
   const [pendingPrint, setPendingPrint] = useState(false)
   const [printScale, setPrintScale] = useState(1)
   const stageRef = useRef<HTMLDivElement>(null)
   const printingRef = useRef(false)
+
+  const manualLoad = loads.find((load) => load.id === manualLoadId) ?? null
+
+  const openManualDialog = (load: PanelLoad) => {
+    if (!isManualDrawer(load)) {
+      return
+    }
+    const currentColumn = layout.columns.findIndex((column) =>
+      column.loads.some((candidate) => candidate.id === load.id),
+    )
+    setManualLoadId(load.id)
+    setManualColumnInput(String(load.manualColumn ?? currentColumn + 1))
+  }
+
+  const closeManualDialog = () => {
+    setManualLoadId(null)
+    setManualColumnInput('0')
+  }
+
+  const confirmManualColumn = () => {
+    if (!manualLoad) {
+      return
+    }
+    const targetColumn = Number(manualColumnInput)
+    const occupiedSpaces = loads
+      .filter((load) => load.id !== manualLoad.id && load.manualColumn === targetColumn)
+      .reduce((total, load) => total + getLoadOption(load).spaces, 0)
+    if (targetColumn > 0 && occupiedSpaces + getLoadOption(manualLoad).spaces > PANEL_SPACE_COUNT) {
+      return
+    }
+
+    startTransition(() => setLoads((current) => current.map((load) => {
+      if (load.id !== manualLoad.id) {
+        return load
+      }
+      if (targetColumn === 0) {
+        const { manualColumn: _manualColumn, ...automaticLoad } = load
+        return automaticLoad
+      }
+      return { ...load, manualColumn: targetColumn }
+    })))
+    setSaveStatus('Unsaved changes')
+    closeManualDialog()
+  }
+
+  const savePanel = () => {
+    const savedAt = new Date().toISOString()
+    const snapshot: SavedPanel = { version: 1, loads, panelTag, savedAt }
+    try {
+      window.localStorage.setItem(PANEL_STORAGE_KEY, JSON.stringify(snapshot))
+      setSaveStatus(`Saved ${new Date(savedAt).toLocaleString()}`)
+    } catch {
+      setSaveStatus('The panel could not be saved in this browser')
+    }
+  }
 
   const openExportDialog = () => {
     setTagInput(panelTag)
@@ -148,6 +274,9 @@ function App() {
     const stageWidth = stageRef.current?.offsetWidth ?? 0
     const printableWidthPx = 1000
     setPanelTag(tag)
+    if (tag !== panelTag) {
+      setSaveStatus('Unsaved changes')
+    }
     setPrintScale(stageWidth > printableWidthPx ? printableWidthPx / stageWidth : 1)
     setExportOpen(false)
     setPendingPrint(true)
@@ -202,6 +331,7 @@ function App() {
       return [parentLoad, ...automaticRlyLoads]
     })
     startTransition(() => setLoads((current) => [...current, ...nextLoads]))
+    setSaveStatus('Unsaved changes')
   }
 
   const removeLoad = (load: PanelLoad) => {
@@ -216,7 +346,18 @@ function App() {
     startTransition(() => setLoads((current) => current.filter(
       (item) => item.id !== load.id && item.parentLoadId !== load.id,
     )))
+    setSaveStatus('Unsaved changes')
   }
+
+  const selectedManualColumn = Number(manualColumnInput)
+  const selectedManualColumnSpaces = manualLoad
+    ? loads
+      .filter((load) => load.id !== manualLoad.id && load.manualColumn === selectedManualColumn)
+      .reduce((total, load) => total + getLoadOption(load).spaces, 0)
+      + getLoadOption(manualLoad).spaces
+    : 0
+  const manualSelectionFits = selectedManualColumn === 0
+    || selectedManualColumnSpaces <= PANEL_SPACE_COUNT
 
   return (
     <div className="app-shell">
@@ -343,6 +484,7 @@ function App() {
                         <span>
                           {formatOption(option)}
                           {isAutomaticRly && ' · Automatic'}
+                          {load.manualColumn && ` · Column ${load.manualColumn} (manual)`}
                         </span>
                       </div>
                       <button
@@ -362,7 +504,14 @@ function App() {
             </div>
 
             {loads.length > 0 && (
-              <button className="clear-button" type="button" onClick={() => setLoads([])}>
+              <button
+                className="clear-button"
+                type="button"
+                onClick={() => {
+                  setLoads([])
+                  setSaveStatus('Unsaved changes')
+                }}
+              >
                 <Trash2 size={15} aria-hidden="true" />
                 Clear panel
               </button>
@@ -380,7 +529,10 @@ function App() {
             </div>
             <div className="print-meta">
               <span>Total width {widthFeet} ft · {inchesFormatter.format(layout.widthIn)} in</span>
-              <span>Sections {layout.columns.length + 2} · Utilization {Math.round(layout.utilization * 100)}%</span>
+              <span>
+                Columns {layout.columns.length} · Sections {layout.columns.length + 2}
+                {' '}· Utilization {Math.round(layout.utilization * 100)}%
+              </span>
               <span>Issued on {new Date().toLocaleDateString('en-US')}</span>
             </div>
           </div>
@@ -412,15 +564,29 @@ function App() {
               <span className="section-number">03</span>
               <h2>Front elevation</h2>
             </div>
-            <button
-              className="export-button"
-              type="button"
-              onClick={openExportDialog}
-              disabled={layout.columns.length === 0}
-            >
-              <FileDown size={15} aria-hidden="true" />
-              Export PDF
-            </button>
+            <div className="drawing-actions">
+              <div className="save-action">
+                <button
+                  className="save-button"
+                  type="button"
+                  onClick={savePanel}
+                  disabled={layout.columns.length === 0}
+                >
+                  <Save size={15} aria-hidden="true" />
+                  Save panel
+                </button>
+                {saveStatus && <span className="save-status" role="status">{saveStatus}</span>}
+              </div>
+              <button
+                className="export-button"
+                type="button"
+                onClick={openExportDialog}
+                disabled={layout.columns.length === 0}
+              >
+                <FileDown size={15} aria-hidden="true" />
+                Export PDF
+              </button>
+            </div>
             <div className="drawing-specs">
               <span>Height {PANEL_HEIGHT_IN} in</span>
               <span>{PANEL_SPACE_COUNT} spaces × {SPACE_HEIGHT_IN} in</span>
@@ -452,7 +618,12 @@ function App() {
                 <div className="panel-rack">
                   <EndSectionView position="start" />
                   {layout.columns.map((column, index) => (
-                    <PanelColumnView column={column} label={columnLabels[index]} key={column.id} />
+                    <PanelColumnView
+                      column={column}
+                      label={`C${String(index + 1).padStart(2, '0')} · ${columnLabels[index]}`}
+                      onLoadClick={openManualDialog}
+                      key={column.id}
+                    />
                   ))}
                   <EndSectionView position="end" />
                 </div>
@@ -478,6 +649,63 @@ function App() {
           </div>
         </section>
       </main>
+
+      {manualLoad && (
+        <div className="export-dialog-overlay">
+          <form
+            className="export-dialog column-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="column-dialog-title"
+            onSubmit={(event) => {
+              event.preventDefault()
+              confirmManualColumn()
+            }}
+          >
+            <h2 id="column-dialog-title">Choose drawer column</h2>
+            <p>
+              Choose the physical column for {getLoadType(manualLoad.typeId).label}{' '}
+              {getLoadOption(manualLoad).shortLabel}. A manual drawer is excluded from
+              automatic column adjustment.
+            </p>
+            <label htmlFor="drawer-column">Column</label>
+            <div className="select-wrap">
+              <select
+                id="drawer-column"
+                value={manualColumnInput}
+                onChange={(event) => setManualColumnInput(event.target.value)}
+                autoFocus
+              >
+                <option value="0">Automatic placement</option>
+                {layout.columns.map((_, index) => {
+                  const columnNumber = index + 1
+                  const occupiedSpaces = loads
+                    .filter((load) => load.id !== manualLoad.id && load.manualColumn === columnNumber)
+                    .reduce((total, load) => total + getLoadOption(load).spaces, 0)
+                  const fits = occupiedSpaces + getLoadOption(manualLoad).spaces <= PANEL_SPACE_COUNT
+                  return (
+                    <option key={columnNumber} value={columnNumber} disabled={!fits}>
+                      Column {columnNumber} ({columnLabels[index]})
+                      {occupiedSpaces > 0 ? ` · ${PANEL_SPACE_COUNT - occupiedSpaces} spaces available` : ''}
+                    </option>
+                  )
+                })}
+              </select>
+            </div>
+            {!manualSelectionFits && (
+              <span className="dialog-error">This column does not have enough vertical space.</span>
+            )}
+            <div className="export-dialog-actions">
+              <button type="button" className="dialog-cancel" onClick={closeManualDialog}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-button" disabled={!manualSelectionFits}>
+                Apply
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {exportOpen && (
         <div className="export-dialog-overlay">
