@@ -32,6 +32,7 @@ regenerate it.
 | --- | --- | --- |
 | Neher-McGrath Duct Bank Ampacity | `apps/neher` | static (vanilla JS) |
 | Cable Tray Ampacity & Sizing | `apps/nec-cable-tray` | Vite + React + Tailwind |
+| Conduit Fill | `apps/conduit-fill` | static (vanilla JS) |
 | LV Cable Voltage Drop | `apps/voltage-drop` | Vite + React |
 | LV Panel Sizer | `apps/dimensionador` | Vite + React + TS |
 | MV Panel Load Router | `apps/panel-router` | Vite + React |
@@ -83,6 +84,8 @@ npm test
 - `tests/nec-cable-tray.test.js` checks the NEC 392.80 derating chain, load
   rules, ambient and adjustment factors, voltage drop and EGC sizing against
   values worked by hand from the code tables.
+- `tests/conduit-fill.test.js` checks NEC Chapter 9 fill factors and the
+  Schedule 40 conduit geometry used by the Conduit Fill tool.
 
 ## Design system
 

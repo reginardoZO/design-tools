@@ -31,7 +31,7 @@ const distApps = join(dist, 'apps');
 const VITE_APPS = ['dimensionador', 'panel-router', 'voltage-drop', 'nec-cable-tray'];
 
 /** Applications that are already plain static files. */
-const STATIC_APPS = ['neher', 'under-routing'];
+const STATIC_APPS = ['neher', 'under-routing', 'conduit-fill'];
 
 // Node >= 22 refuses to spawn the npm.cmd shim without a shell on Windows, so
 // run npm through the shell. Every command below is a fixed literal.

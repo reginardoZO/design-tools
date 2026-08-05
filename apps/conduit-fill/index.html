@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conduit Fill | Engineering Tools Hub</title>
+<link rel="icon" href="../../assets/favicon.svg">
+<link rel="stylesheet" href="../../shared/theme.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="eh-header">
+    <div>
+      <a class="back" href="../../index.html">&larr; Engineering Tools Hub</a>
+      <h1>Conduit Fill</h1>
+      <div class="eh-sub">Geometric verification for PVC Schedule 40 conduits</div>
+    </div>
+    <div class="eh-sub">NEC 2023 &middot; Chapter 9</div>
+  </header>
+  <div class="layout">
+    <section class="work-area" aria-label="Cable inputs">
+      <div class="section-heading"><div><div class="eyebrow">Conductors</div><h2>Cables in conduit</h2></div><button class="add-row" id="add-row" type="button">+ Add cable</button></div>
+      <div class="cable-table" role="region" aria-label="Cable list" tabindex="0">
+        <div class="cable-head"><span>Quantity</span><span>Cable</span><span>Outside diameter</span><span></span></div>
+        <div id="cable-rows"></div>
+      </div>
+      <p class="helper">Outside diameters are loaded from the hub cable database. Add as many rows as needed; there is no quantity limit per row.</p>
+      <div class="rule-card">
+        <div class="eyebrow">NEC 2023, Chapter 9, Table 1</div>
+        <div class="rule-values"><div><strong>1 cable</strong><span>53% maximum fill</span></div><div><strong>2 cables</strong><span>31% maximum fill</span></div><div><strong>3 or more</strong><span>40% maximum fill</span></div></div>
+      </div>
+    </section>
+    <aside class="results" aria-live="polite">
+      <div class="eyebrow">Selected conduit</div><div class="size-buttons" id="size-buttons" aria-label="Conduit size"></div>
+      <div class="status" id="status"></div><dl class="metrics" id="metrics"></dl><p class="result-note" id="result-note"></p>
+    </aside>
+  </div>
+  <section class="all-sizes" aria-labelledby="all-sizes-title">
+    <div class="section-heading compact"><div><div class="eyebrow">Comparison</div><h2 id="all-sizes-title">Available space by size</h2></div><div class="table-ref">PVC SCH 40 &middot; NEC Ch. 9, Table 1</div></div>
+    <div class="summary-scroll"><table><thead><tr><th>Conduit</th><th>Inside Ø</th><th>Internal area</th><th>Allowed fill</th><th>Used area</th><th>Available space</th><th>Status</th></tr></thead><tbody id="summary-body"></tbody></table></div>
+  </section>
+  <footer class="eh-foot">Support tool only. Confirm the conduit type, adopted code edition and installation conditions before specifying the design.</footer>
+</main>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
