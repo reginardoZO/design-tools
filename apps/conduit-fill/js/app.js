@@ -1,5 +1,10 @@
 import { calculateConduitFill, NEC_PVC_SCH40_CONDUITS, SUPPORTED_CONDUIT_SIZES } from './engine.js';
 
+const GROUNDING_CABLES = [
+  ['14', 0.111], ['12', 0.130], ['10', 0.164], ['8', 0.204], ['6', 0.249], ['4', 0.320], ['3', 0.355],
+  ['2', 0.384], ['1', 0.441], ['1/0', 0.482], ['2/0', 0.526], ['3/0', 0.571], ['4/0', 0.625],
+];
+
 const $ = (selector) => document.querySelector(selector);
 const rows = $('#cable-rows');
 const addRowButton = $('#add-row');
@@ -19,7 +24,12 @@ function addCableRow(initialCableId = '', initialQuantity = 1) {
   row.querySelector('.quantity').addEventListener('input', renderResults); select.addEventListener('change', update);
   row.querySelector('.remove-row').addEventListener('click', () => { row.remove(); renderResults(); }); rows.append(row); update();
 }
-function currentCableRows() { return [...rows.querySelectorAll('.cable-row')].map((row) => { const cable = selectedCable(row.querySelector('.cable')); return { quantity: Math.max(0, Number.parseInt(row.querySelector('.quantity').value, 10) || 0), diameter: cable?.od || 0 }; }); }
+function currentCableRows() {
+  return [...rows.querySelectorAll('.cable-row')].map((row) => {
+    const cable = selectedCable(row.querySelector('.cable'));
+    return { quantity: Math.max(0, Number.parseInt(row.querySelector('.quantity').value, 10) || 0), diameter: cable?.od || 0 };
+  });
+}
 function renderSizeButtons() { const container = $('#size-buttons'); container.innerHTML = ''; for (const size of SUPPORTED_CONDUIT_SIZES) { const button = document.createElement('button'); button.type = 'button'; button.className = `size-button${size === selectedSize ? ' active' : ''}`; button.textContent = `${size} in`; button.addEventListener('click', () => { selectedSize = size; renderSizeButtons(); renderResults(); }); container.append(button); } }
 function metric(label, value) { return `<dt>${label}</dt><dd>${value}</dd>`; }
 function renderSelected(result) {
@@ -34,7 +44,7 @@ function renderResults() { const cableRows = currentCableRows(); const results =
 async function initialize() {
   const response = await fetch('../neher/data/cables.json'); if (!response.ok) throw new Error('Unable to load the cable database.'); const data = await response.json();
   conduits = SUPPORTED_CONDUIT_SIZES.map((size) => NEC_PVC_SCH40_CONDUITS[size]);
-  cables = [...data.low_voltage.map((cable, index) => ({ id: `lv-${index}`, label: `LV · ${cable.size} ${Number(cable.size) >= 250 ? 'kcmil' : 'AWG'}`, od: cable.OD })), ...data.medium_voltage.map((cable, index) => ({ id: `mv-${index}`, label: `MV · ${cable.size} ${Number(cable.size) >= 250 ? 'kcmil' : 'AWG'}`, od: cable.OD }))].filter((cable) => cable.od > 0);
+  cables = [...data.low_voltage.map((cable, index) => ({ id: `lv-${index}`, label: `LV · ${cable.size} ${Number(cable.size) >= 250 ? 'kcmil' : 'AWG'}`, od: cable.OD })), ...data.medium_voltage.map((cable, index) => ({ id: `mv-${index}`, label: `MV · ${cable.size} ${Number(cable.size) >= 250 ? 'kcmil' : 'AWG'}`, od: cable.OD })), ...GROUNDING_CABLES.map(([size, od]) => ({ id: `gnd-${size}`, label: `GND · Cu THHN/THWN-2 · ${size} AWG`, od }))].filter((cable) => cable.od > 0);
   renderSizeButtons(); addCableRow(); addRowButton.addEventListener('click', () => addCableRow());
 }
 initialize().catch((error) => { $('#status').className = 'status fail'; $('#status').textContent = 'Data loading error'; $('#result-note').textContent = error.message; });
