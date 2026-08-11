@@ -9,6 +9,7 @@
  *     apps/under-routing/      <- static app, copied
  *     apps/conduit-fill/       <- static app, copied
  *     apps/calculator/         <- static app, copied
+ *     apps/duct-sketch/        <- static app, copied
  *     apps/dimensionador/      <- vite build output
  *     apps/panel-router/       <- vite build output
  *     apps/voltage-drop/       <- vite build output
@@ -33,7 +34,7 @@ const distApps = join(dist, 'apps');
 const VITE_APPS = ['dimensionador', 'panel-router', 'voltage-drop', 'nec-cable-tray'];
 
 /** Applications that are already plain static files. */
-const STATIC_APPS = ['neher', 'under-routing', 'conduit-fill', 'calculator'];
+const STATIC_APPS = ['neher', 'under-routing', 'conduit-fill', 'calculator', 'duct-sketch'];
 
 // Node >= 22 refuses to spawn the npm.cmd shim without a shell on Windows, so
 // run npm through the shell. Every command below is a fixed literal.

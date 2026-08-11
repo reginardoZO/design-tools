@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Duct Sketch | Engineering Tools Hub</title>
+<link rel="icon" href="../../assets/favicon.svg">
+<link rel="stylesheet" href="../../shared/theme.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<main class="wrap">
+
+  <header class="eh-header">
+    <div>
+      <h1>Duct Sketch</h1>
+      <div class="eh-sub">Sketch a duct bank cross-section and assign conduits &amp; circuits</div>
+    </div>
+    <a class="eh-back" href="../../index.html">&larr; Hub</a>
+  </header>
+
+  <div class="db-layout">
+
+    <section class="eh-card db-config">
+      <h2>Layout</h2>
+      <div class="row-inline">
+        <div>
+          <label for="rows">Rows</label>
+          <input id="rows" type="number" min="1" value="4">
+        </div>
+        <div>
+          <label for="cols">Columns</label>
+          <input id="cols" type="number" min="1" value="5">
+        </div>
+      </div>
+      <button id="apply-layout" class="eh-btn" type="button">Apply layout</button>
+      <p class="hint" id="layout-hint">Minimum of 20 conduits (rows &times; columns).</p>
+
+      <div class="db-actions">
+        <button id="clear-all" class="eh-btn" type="button">Clear all</button>
+        <button id="export-png" class="eh-btn eh-btn-primary" type="button">Export PNG</button>
+      </div>
+    </section>
+
+    <section class="eh-card db-canvas-card">
+      <h2>Duct bank</h2>
+      <div class="db-canvas-wrap">
+        <div class="db-envelope" id="envelope">
+          <div class="db-grid" id="grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="eh-card db-summary">
+      <h2>Assigned circuits</h2>
+      <div class="db-summary-count" id="summary-count"></div>
+      <div class="db-summary-list" id="summary-list"></div>
+    </aside>
+
+  </div>
+
+  <footer class="eh-foot">
+    Support tool only &mdash; verify conduit fill, spacing and concrete encasement requirements against the code edition adopted in your jurisdiction.
+  </footer>
+
+  <div class="db-modal-overlay hidden" id="modal-overlay">
+    <div class="db-modal eh-card">
+      <h2 id="modal-title">Conduit</h2>
+
+      <label for="modal-size">Size (in)</label>
+      <select id="modal-size">
+        <option value="2">2"</option>
+        <option value="4">4"</option>
+        <option value="5">5"</option>
+        <option value="6">6"</option>
+      </select>
+
+      <label for="modal-circuits">Circuits (one per line or comma-separated)</label>
+      <textarea id="modal-circuits" rows="4" placeholder="e.g. C-101, C-102"></textarea>
+
+      <div class="db-modal-actions">
+        <button id="modal-clear" class="eh-btn" type="button">Clear</button>
+        <button id="modal-cancel" class="eh-btn" type="button">Cancel</button>
+        <button id="modal-save" class="eh-btn eh-btn-primary" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+<script src="js/app.js"></script>
+</body>
+</html>
