@@ -83,6 +83,9 @@ body { padding: 24px 16px 48px; }
 }
 .db-conduit:hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
 .db-conduit.used { border-style: solid; border-color: var(--accent); background: var(--accent-wash); }
+.db-conduit.used { cursor: grab; }
+.db-conduit.dragging { opacity: 0.4; cursor: grabbing; }
+.db-cell.drag-over .db-conduit { border-color: var(--bad, #c0392b); box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.25); }
 
 .db-conduit .db-info { text-align: center; padding: 0 4px; }
 .db-conduit .db-size { font-family: var(--data); font-size: clamp(7px, 1vw, 10px); color: var(--muted); line-height: 1; }

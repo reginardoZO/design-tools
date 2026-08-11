@@ -82,20 +82,83 @@ function renderGrid() {
 
       if (entry) {
         const circuitsText = entry.circuits.length ? entry.circuits.join(', ') : 'spare';
-        cellEl.title = `${entry.size}" — ${circuitsText}`;
+        cellEl.title = `${entry.size}" — ${circuitsText} (drag to move)`;
         conduit.innerHTML =
           `<div class="db-info"><div class="db-size">${entry.size}&quot;</div>` +
           `<div class="db-circuits">${escapeHtml(circuitsText)}</div></div>`;
+        conduit.draggable = true;
       } else {
         cellEl.title = 'Click to configure';
         conduit.innerHTML = '<div class="db-placeholder">+</div>';
       }
 
+      cellEl.dataset.row = r;
+      cellEl.dataset.col = c;
       cellEl.appendChild(conduit);
       cellEl.addEventListener('click', () => openModal(r, c));
+      attachDragHandlers(cellEl, conduit, r, c);
       grid.appendChild(cellEl);
     }
   }
+}
+
+let dragSource = null;
+
+function attachDragHandlers(cellEl, conduit, row, col) {
+  conduit.addEventListener('dragstart', (ev) => {
+    if (!state.conduits[key(row, col)]) {
+      ev.preventDefault();
+      return;
+    }
+    dragSource = { row, col };
+    ev.dataTransfer.effectAllowed = 'move';
+    ev.dataTransfer.setData('text/plain', key(row, col));
+    conduit.classList.add('dragging');
+  });
+
+  conduit.addEventListener('dragend', () => {
+    conduit.classList.remove('dragging');
+    grid.querySelectorAll('.db-cell.drag-over').forEach((el) => el.classList.remove('drag-over'));
+    dragSource = null;
+  });
+
+  cellEl.addEventListener('dragover', (ev) => {
+    if (!dragSource) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'move';
+    cellEl.classList.add('drag-over');
+  });
+
+  cellEl.addEventListener('dragleave', () => {
+    cellEl.classList.remove('drag-over');
+  });
+
+  cellEl.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    cellEl.classList.remove('drag-over');
+    if (!dragSource) return;
+    const from = dragSource;
+    const to = { row, col };
+    dragSource = null;
+    if (from.row === to.row && from.col === to.col) return;
+
+    const fromKey = key(from.row, from.col);
+    const toKey = key(to.row, to.col);
+    const fromEntry = state.conduits[fromKey];
+    const toEntry = state.conduits[toKey];
+
+    if (!fromEntry) return;
+
+    if (toEntry) {
+      state.conduits[fromKey] = toEntry;
+    } else {
+      delete state.conduits[fromKey];
+    }
+    state.conduits[toKey] = fromEntry;
+
+    saveState();
+    render();
+  });
 }
 
 function renderSummary() {
