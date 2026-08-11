@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculator | Engineering Tools Hub</title>
+  <link rel="icon" href="../../assets/favicon.svg">
+  <link rel="stylesheet" href="../../shared/theme.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="eh-header">
+    <div>
+      <h1>Load Current Calculator</h1>
+      <div class="eh-sub">Calculate current from load parameters: power, voltage, power factor and efficiency</div>
+    </div>
+    <a class="eh-back" href="../../index.html">&larr; Hub</a>
+  </header>
+
+  <div class="grid">
+
+    <!-- ======================= INPUT PANEL ======================= -->
+    <section class="eh-card">
+      <h2>Inputs</h2>
+
+      <!-- System Type Selection -->
+      <div class="row">
+        <div style="grid-column: 1 / -1">
+          <label for="systemType">System Type</label>
+          <select id="systemType">
+            <option value="1">Single Phase (1Φ)</option>
+            <option value="2">Two Phase (2Φ)</option>
+            <option value="3" selected>Three Phase (3Φ)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Voltage Input -->
+      <div class="row">
+        <div>
+          <label for="voltage">Voltage (V)</label>
+          <input id="voltage" type="number" value="480" step="any" min="0">
+        </div>
+      </div>
+
+      <!-- Power Input -->
+      <div class="row">
+        <div>
+          <label for="power">Power Value</label>
+          <input id="power" type="number" value="100" step="any" min="0">
+        </div>
+        <div>
+          <label for="powerUnit">Power Unit</label>
+          <select id="powerUnit">
+            <option value="kW" selected>kW</option>
+            <option value="HP">HP</option>
+            <option value="kVA">kVA</option>
+            <option value="kVAr">kVAr</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Power Factor -->
+      <div class="row">
+        <div>
+          <label for="powerFactor">Power Factor (0-1)</label>
+          <input id="powerFactor" type="number" value="0.92" step="any" min="0" max="1">
+        </div>
+        <div>
+          <label for="efficiency">Efficiency (0-1)</label>
+          <input id="efficiency" type="number" value="0.95" step="any" min="0" max="1">
+        </div>
+      </div>
+
+      <div class="hint">All fields update in real-time. Efficiency factor adjusts the nominal power to calculate the actual grid input power.</div>
+
+    </section>
+
+    <!-- ======================= OUTPUT PANEL ======================= -->
+    <section class="eh-card output-card">
+      <h2>Result</h2>
+
+      <div class="output-box">
+        <div class="output-value">
+          <span id="currentResult" class="current-display">—</span>
+          <span class="current-unit">A</span>
+        </div>
+        <div class="output-label">Current</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="calculation-details">
+        <h3>Calculation Details</h3>
+        <dl>
+          <dt>System:</dt>
+          <dd id="detailSystem">—</dd>
+          
+          <dt>Voltage:</dt>
+          <dd id="detailVoltage">—</dd>
+          
+          <dt>Nominal Power:</dt>
+          <dd id="detailNominalPower">—</dd>
+          
+          <dt>Efficiency:</dt>
+          <dd id="detailEfficiency">—</dd>
+          
+          <dt>Grid Input Power:</dt>
+          <dd id="detailInputPower">—</dd>
+          
+          <dt>Power Factor:</dt>
+          <dd id="detailPowerFactor">—</dd>
+          
+          <dt>Formula:</dt>
+          <dd id="detailFormula">—</dd>
+        </dl>
+      </div>
+
+      <p class="result-note">Support tool only. Always verify results with official equipment datasheets and applicable design standards before use.</p>
+
+    </section>
+
+  </div>
+
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
