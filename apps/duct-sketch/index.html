@@ -21,9 +21,8 @@
 
   <div class="db-layout">
 
-    <section class="eh-card db-config">
-      <h2>Layout</h2>
-      <div class="row-inline">
+    <section class="eh-card db-toolbar">
+      <div class="db-toolbar-fields">
         <div>
           <label for="rows">Rows</label>
           <input id="rows" type="number" min="1" value="4">
@@ -32,30 +31,26 @@
           <label for="cols">Columns</label>
           <input id="cols" type="number" min="1" value="5">
         </div>
+        <button id="apply-layout" class="eh-btn" type="button">Apply layout</button>
       </div>
-      <button id="apply-layout" class="eh-btn" type="button">Apply layout</button>
-      <p class="hint" id="layout-hint">Minimum of 20 conduits (rows &times; columns).</p>
-
-      <div class="db-actions">
+      <div class="db-toolbar-actions">
         <button id="clear-all" class="eh-btn" type="button">Clear all</button>
         <button id="export-png" class="eh-btn eh-btn-primary" type="button">Export PNG</button>
       </div>
+      <p class="hint" id="layout-hint">Minimum of 20 conduits (rows &times; columns).</p>
     </section>
 
     <section class="eh-card db-canvas-card">
-      <h2>Duct bank</h2>
-      <div class="db-canvas-wrap">
-        <div class="db-envelope" id="envelope">
-          <div class="db-grid" id="grid"></div>
-        </div>
+      <div class="db-envelope" id="envelope">
+        <div class="db-grid" id="grid"></div>
       </div>
     </section>
 
-    <aside class="eh-card db-summary">
+    <section class="eh-card db-summary">
       <h2>Assigned circuits</h2>
       <div class="db-summary-count" id="summary-count"></div>
       <div class="db-summary-list" id="summary-list"></div>
-    </aside>
+    </section>
 
   </div>
 

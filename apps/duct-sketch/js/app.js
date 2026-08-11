@@ -2,6 +2,10 @@
 // State persists to localStorage; export renders the same geometry to a canvas.
 
 const STORAGE_KEY = 'duct-sketch:v1';
+// Percentage of the grid cell each conduit's circle occupies, scaled by trade size.
+const SIZE_SCALE = { 2: 60, 4: 75, 5: 85, 6: 95 };
+const PLACEHOLDER_SCALE = 55;
+// Fixed pixel geometry used only for the PNG export canvas.
 const SIZE_DIAMETER = { 2: 44, 4: 58, 5: 66, 6: 74 };
 const PLACEHOLDER_DIAMETER = 46;
 const CELL = 90;
@@ -60,34 +64,36 @@ function render() {
 }
 
 function renderGrid() {
-  grid.style.gridTemplateColumns = `repeat(${state.cols}, ${CELL}px)`;
-  grid.style.gridTemplateRows = `repeat(${state.rows}, ${CELL}px)`;
-  grid.style.gap = `${GAP}px`;
+  grid.style.gridTemplateColumns = `repeat(${state.cols}, 1fr)`;
   grid.innerHTML = '';
 
   for (let r = 0; r < state.rows; r++) {
     for (let c = 0; c < state.cols; c++) {
       const entry = state.conduits[key(r, c)];
-      const cell = document.createElement('div');
-      cell.className = 'db-conduit' + (entry ? ' used' : '');
 
-      const diameter = entry ? SIZE_DIAMETER[entry.size] : PLACEHOLDER_DIAMETER;
-      cell.style.width = `${diameter}px`;
-      cell.style.height = `${diameter}px`;
+      const cellEl = document.createElement('div');
+      cellEl.className = 'db-cell';
+
+      const conduit = document.createElement('div');
+      conduit.className = 'db-conduit' + (entry ? ' used' : '');
+      const scale = entry ? SIZE_SCALE[entry.size] : PLACEHOLDER_SCALE;
+      conduit.style.width = `${scale}%`;
+      conduit.style.height = `${scale}%`;
 
       if (entry) {
         const circuitsText = entry.circuits.length ? entry.circuits.join(', ') : 'spare';
-        cell.title = `${entry.size}" — ${circuitsText}`;
-        cell.innerHTML =
+        cellEl.title = `${entry.size}" — ${circuitsText}`;
+        conduit.innerHTML =
           `<div class="db-info"><div class="db-size">${entry.size}&quot;</div>` +
           `<div class="db-circuits">${escapeHtml(circuitsText)}</div></div>`;
       } else {
-        cell.title = 'Click to configure';
-        cell.innerHTML = '<div class="db-placeholder">+</div>';
+        cellEl.title = 'Click to configure';
+        conduit.innerHTML = '<div class="db-placeholder">+</div>';
       }
 
-      cell.addEventListener('click', () => openModal(r, c));
-      grid.appendChild(cell);
+      cellEl.appendChild(conduit);
+      cellEl.addEventListener('click', () => openModal(r, c));
+      grid.appendChild(cellEl);
     }
   }
 }

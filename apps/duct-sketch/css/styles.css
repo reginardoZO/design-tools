@@ -2,28 +2,30 @@
 
 body { padding: 24px 16px 48px; }
 
-.wrap { max-width: 1200px; margin: 0 auto; }
+.wrap { max-width: 1400px; margin: 0 auto; }
 
 .db-layout {
-  display: grid;
-  grid-template-columns: 240px 1fr 280px;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
-  align-items: start;
 }
 
-@media (max-width: 980px) {
-  .db-layout { grid-template-columns: 1fr; }
-}
+/* ------------------------------ toolbar ---------------------------------- */
 
-/* ------------------------------ controls -------------------------------- */
-
-.db-config .row-inline {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
+.db-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
 }
-.db-config label {
+.db-toolbar-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.db-toolbar-fields > div { display: flex; flex-direction: column; width: 100px; }
+.db-toolbar label {
   display: block;
   font-size: 12px;
   font-weight: 600;
@@ -32,7 +34,7 @@ body { padding: 24px 16px 48px; }
   color: var(--muted);
   margin-bottom: 4px;
 }
-.db-config input {
+.db-toolbar input {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--steel);
@@ -42,38 +44,34 @@ body { padding: 24px 16px 48px; }
   color: var(--ink);
   background: var(--field);
 }
-#apply-layout { width: 100%; }
-.hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 10px 0 0; }
+.db-toolbar-actions { display: flex; gap: 8px; margin-left: auto; }
+.hint { flex-basis: 100%; font-size: 12px; color: var(--muted); line-height: 1.5; margin: 0; }
 .hint.warn { color: var(--bad); }
-
-.db-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--steel);
-}
-.db-actions .eh-btn { width: 100%; }
 
 /* -------------------------------- canvas -------------------------------- */
 
-.db-canvas-card { overflow: auto; }
-.db-canvas-wrap { display: flex; justify-content: center; padding: 6px 0; }
+.db-canvas-card { padding: 20px; }
 
 .db-envelope {
-  display: inline-block;
-  padding: 30px;
+  padding: clamp(14px, 2.4vw, 34px);
   border: 4px solid var(--ink);
   border-radius: 4px;
   background: var(--bg);
 }
 
-.db-grid { display: grid; }
+.db-grid {
+  display: grid;
+  gap: clamp(6px, 1.2vw, 16px);
+}
+
+.db-cell {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .db-conduit {
-  justify-self: center;
-  align-self: center;
   border-radius: 50%;
   border: 2px dashed var(--steel);
   background: var(--field);
@@ -87,12 +85,12 @@ body { padding: 24px 16px 48px; }
 .db-conduit.used { border-style: solid; border-color: var(--accent); background: var(--accent-wash); }
 
 .db-conduit .db-info { text-align: center; padding: 0 4px; }
-.db-conduit .db-size { font-family: var(--data); font-size: 9px; color: var(--muted); line-height: 1; }
+.db-conduit .db-size { font-family: var(--data); font-size: clamp(7px, 1vw, 10px); color: var(--muted); line-height: 1; }
 .db-conduit.used .db-size { color: var(--accent-dark); }
 .db-conduit .db-circuits {
   font-family: var(--data);
   font-weight: 600;
-  font-size: 10px;
+  font-size: clamp(8px, 1.3vw, 12px);
   line-height: 1.15;
   color: var(--ink);
   margin-top: 2px;
@@ -102,15 +100,16 @@ body { padding: 24px 16px 48px; }
   -webkit-box-orient: vertical;
   word-break: break-word;
 }
-.db-conduit .db-placeholder { font-size: 16px; color: var(--steel); }
+.db-conduit .db-placeholder { font-size: clamp(12px, 1.8vw, 18px); color: var(--steel); }
 
 /* -------------------------------- summary -------------------------------- */
 
-.db-summary { max-height: 680px; overflow: auto; }
 .db-summary-count { font-family: var(--data); font-size: 12px; color: var(--muted); margin-bottom: 10px; }
-.db-summary-list { display: flex; flex-direction: column; gap: 8px; }
+.db-summary-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .db-summary-empty { color: var(--muted); font-size: 12.5px; }
 .db-summary-item {
+  flex: 1 1 200px;
+  max-width: 260px;
   border: 1px solid var(--steel);
   border-radius: 4px;
   padding: 8px 10px;
