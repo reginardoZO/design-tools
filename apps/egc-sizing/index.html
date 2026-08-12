@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Equipment Grounding Conductor Sizing | Engineering Tools Hub</title>
+<link rel="icon" href="../../assets/favicon.svg">
+<link rel="stylesheet" href="../../shared/theme.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="eh-header">
+    <div>
+      <h1>Equipment Grounding Conductor Sizing</h1>
+      <div class="eh-sub">Minimum EGC size from the rating of the overcurrent device ahead of the circuit</div>
+    </div>
+    <a class="eh-back" href="../../index.html">&larr; Hub</a>
+  </header>
+
+  <div class="grid">
+
+    <!-- ======================= INPUT PANEL ======================= -->
+    <section class="eh-card">
+      <h2>Inputs</h2>
+
+      <div class="row">
+        <div style="grid-column: 1 / -1">
+          <label for="ocpdRating">OCPD rating / circuit ampacity (A)</label>
+          <input id="ocpdRating" type="number" value="100" step="any" min="0">
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="grid-column: 1 / -1">
+          <label for="material">Conductor material</label>
+          <select id="material">
+            <option value="cu" selected>Copper</option>
+            <option value="al">Aluminum / Copper-clad Aluminum</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="hint">Enter the rating (or setting) of the automatic overcurrent device — or the ampacity of the circuit conductors — ahead of the equipment, raceway, etc. The table entry used is the smallest listed rating not less than the value entered, per NEC Table 250.122.</div>
+
+    </section>
+
+    <!-- ======================= OUTPUT PANEL ======================= -->
+    <section class="eh-card output-card">
+      <h2>Result</h2>
+
+      <div class="output-box">
+        <div class="output-value">
+          <span id="sizeResult" class="size-display">—</span>
+        </div>
+        <div class="output-label">Minimum Equipment Grounding Conductor</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="calculation-details">
+        <h3>Table Row Used</h3>
+        <dl>
+          <dt>OCPD not exceeding:</dt>
+          <dd id="detailRating">—</dd>
+
+          <dt>Material:</dt>
+          <dd id="detailMaterial">—</dd>
+
+          <dt>NEC reference:</dt>
+          <dd>Table 250.122</dd>
+        </dl>
+      </div>
+
+      <p class="result-note">Support tool only. If ungrounded conductors are increased in size for any reason (e.g., voltage drop), Section 250.122(B) requires the EGC to be increased proportionately. Always verify against the code edition adopted in your jurisdiction.</p>
+
+    </section>
+
+  </div>
+
+  <section class="eh-card table-card">
+    <h2>Reference &mdash; NEC Table 250.122</h2>
+    <div class="table-wrap">
+      <table id="refTable">
+        <thead>
+          <tr>
+            <th>OCPD rating, not exceeding (A)</th>
+            <th>Copper</th>
+            <th>Aluminum / Cu-clad Al</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

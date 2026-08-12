@@ -1,0 +1,73 @@
+/* Ft · In · mm Converter — app-specific styles */
+
+body { padding: 24px 16px 48px; }
+
+.wrap { max-width: 760px; margin: 0 auto; }
+
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.eh-card h2 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.row > div { display: flex; flex-direction: column; }
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+.hint code {
+  font-family: var(--data);
+  background: var(--accent-wash);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.info-line {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--steel);
+  font-size: 14px;
+  color: var(--muted);
+}
+.info-line strong {
+  font-family: var(--data);
+  font-size: 19px;
+  color: var(--accent-dark);
+}
+
+.mm-outputs dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 16px;
+  margin: 0;
+}
+.mm-outputs dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.mm-outputs dd {
+  margin: 0;
+  font-family: var(--data);
+  font-size: 16px;
+  color: var(--ink);
+  font-weight: 600;
+}

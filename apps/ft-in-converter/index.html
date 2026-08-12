@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ft &middot; In &middot; mm Converter | Engineering Tools Hub</title>
+<link rel="icon" href="../../assets/favicon.svg">
+<link rel="stylesheet" href="../../shared/theme.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="eh-header">
+    <div>
+      <h1>Ft &middot; In &middot; mm Converter</h1>
+      <div class="eh-sub">Feet &harr; inches with flexible entry, plus millimeter conversion</div>
+    </div>
+    <a class="eh-back" href="../../index.html">&larr; Hub</a>
+  </header>
+
+  <div class="blocks">
+
+    <!-- ======================= BLOCK 1: FT <-> IN ======================= -->
+    <section class="eh-card">
+      <h2>Feet &harr; Inches</h2>
+
+      <div class="row">
+        <div>
+          <label for="ftMode">Feet display format</label>
+          <select id="ftMode">
+            <option value="ftin" selected>Ft-In (nearest 1/4&Prime;)</option>
+            <option value="decimal">Decimal feet</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="ftInput">Feet</label>
+          <input id="ftInput" type="text" inputmode="text" placeholder="e.g. 5-6, 5 ft - 6 in, 5 6, 5,6, 5_6 or 5.5">
+        </div>
+        <div>
+          <label for="inInput">Inches (decimal)</label>
+          <input id="inInput" type="text" inputmode="decimal" placeholder="e.g. 66">
+        </div>
+      </div>
+
+      <div class="hint">Feet field accepts: <code>x-y</code>, <code>ft - in</code>, <code>x y</code>, <code>x,y</code> or <code>x_y</code> (x = feet, y = inches). A plain decimal number (e.g. <code>5.5</code>) is read as decimal feet. When converting to Ft-In format, values are rounded to the nearest 1/4 inch.</div>
+
+      <div class="info-line">Equivalent to <strong id="metersOut1">&mdash;</strong></div>
+    </section>
+
+    <!-- ======================= BLOCK 2: MM -> FT/IN ======================= -->
+    <section class="eh-card">
+      <h2>Millimeters &rarr; Ft-In / Ft / In</h2>
+
+      <div class="row">
+        <div style="grid-column: 1 / -1">
+          <label for="mmInput">Millimeters (mm)</label>
+          <input id="mmInput" type="number" step="any" min="0" value="1000">
+        </div>
+      </div>
+
+      <div class="mm-outputs">
+        <dl>
+          <dt>Ft-In:</dt>
+          <dd id="mmFtIn">&mdash;</dd>
+
+          <dt>Ft (decimal):</dt>
+          <dd id="mmFtDec">&mdash;</dd>
+
+          <dt>In (decimal):</dt>
+          <dd id="mmInDec">&mdash;</dd>
+        </dl>
+      </div>
+
+      <div class="hint">Ft-In result is rounded to the nearest 1/4 inch.</div>
+    </section>
+
+  </div>
+
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
