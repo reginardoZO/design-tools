@@ -167,6 +167,7 @@ function fill(id,t,selected=0){$(id).innerHTML=opts(t,selected);}
 function row(k,v,u=""){return `<div class="res"><span class="k">${k}</span><span class="v">${v}${u?` <small>${u}</small>`:""}</span></div>`;}
 function fmtYears(y){if(!Number.isFinite(y))return "—";if(y>=1000)return Math.round(y).toLocaleString("en-US");if(y>=100)return y.toFixed(0);if(y>=10)return y.toFixed(1);return y.toFixed(2);}
 function eventInterval(rate){if(!Number.isFinite(rate)||rate<=0)return "no events expected";const years=1/rate;return years>=1?`~1 event every ${fmtYears(years)} years`:`~${fmt(rate)} events/year`;}
+function fmtRate(x){if(!Number.isFinite(x))return "—";if(x===0)return "0";const ax=Math.abs(x);if(ax>=1e-3)return x.toLocaleString("en-US",{maximumSignificantDigits:6});return `${(x/1e-3).toLocaleString("en-US",{maximumSignificantDigits:3})}×10⁻³`;}
 function densityRows(){
  const d=$("density"),ng=Number(d.dataset.ng),sym=densitySymbol(),N=densityValue();
  if(Number.isFinite(ng)&&edition()==="2026")return row("Ground flash density N<sub>G</sub> (source)",fmt(ng),"flashes/km²/year")+row("Ground strike-point density N<sub>SG</sub> = 1.7 × N<sub>G</sub>",fmt(N),"strike points/km²/year");
@@ -296,7 +297,10 @@ function calcAll(){
  syncServices();const N=densityValue(),confirmed=$("densityConfirmed").checked,sym=densitySymbol();
  const sL=num("sL")*FT,sW=num("sW")*FT,sH=num("sH")*FT;$("sLm").textContent=`${sL.toFixed(3)} m`;$("sWm").textContent=`${sW.toFixed(3)} m`;$("sHm").textContent=`${sH.toFixed(3)} m`;
  const ADs=collArea(sL,sW,sH),CDs=val("sCD",T.CD),NDs=N*ADs*CDs*1e-6,C=val("sC2",T.C2)*val("sC3",T.C3)*val("sC4",T.C4)*val("sC5",T.C5),NC=1.5e-3/C;
- $("simpleResults").innerHTML=densityRows()+row("CD — relative location factor",fmt(CDs))+row("Equivalent collection area AD",fmt(ADs),"m²")+row(`Annual threat ND = ${sym}·AD·CD·10⁻⁶`,fmt(NDs),"/year")+row("Expected ND interval",eventInterval(NDs))+row("Combined coefficient C = C2·C3·C4·C5",fmt(C))+row("Tolerable frequency NC = 1.5×10⁻³/C",fmt(NC),"/year")+row("Tolerable NC interval",eventInterval(NC))+row("ND / NC",fmt(NDs/NC));
+ const locGroup=densityRows()+row("CD — relative location factor",fmt(CDs));
+ const ndGroup=row("Equivalent collection area AD",fmt(ADs),"m²")+row(`Annual threat ND = ${sym}·AD·CD·10⁻⁶`,fmtRate(NDs),"/year")+row("Expected ND interval",eventInterval(NDs));
+ const ncGroup=row("Combined coefficient C = C2·C3·C4·C5",fmt(C))+row("Tolerable frequency NC = 1.5×10⁻³/C",fmtRate(NC),"/year")+row("Tolerable NC interval",eventInterval(NC))+row("ND / NC",fmt(NDs/NC));
+ $("simpleResults").innerHTML=`<div class="res-col">${locGroup}</div><div class="res-col">${ndGroup}</div><div class="res-col">${ncGroup}</div>`;
  const sv=$("simpleVerdict");if(!confirmed){sv.className="verdict warn";sv.innerHTML="PRELIMINARY ONLY — lightning-density source has not been confirmed.";}else if(NDs>NC){sv.className="verdict bad";sv.innerHTML="ND &gt; NC — lightning protection is recommended by the simplified assessment.";}else{sv.className="verdict good";sv.innerHTML="ND ≤ NC — lightning protection is optional under the simplified assessment, subject to special-occupancy requirements and AHJ/project criteria.";}
 
  const L=num("dL")*FT,W=num("dW")*FT,H=num("dH")*FT,AD=collArea(L,W,H),CD=val("dCD",T.CD),ND=N*AD*CD*1e-6;
@@ -432,7 +436,7 @@ ${tr("Combined coefficient C = C2 · C3 · C4 · C5",fmt(C))}
 <table><tbody>
 ${tr("Equation",`N<sub>D</sub> = ${sym} · A<sub>D</sub> · C<sub>D</sub> × 10⁻⁶`)}
 ${tr("Substitution",`N<sub>D</sub> = ${fmt(N)} × ${fmt(AD)} × ${fmt(CD)} × 10⁻⁶`)}
-${tr("Result N<sub>D</sub>",`${fmt(ND)} /year`)}
+${tr("Result N<sub>D</sub>",`${fmtRate(ND)} /year`)}
 ${tr("Expected interval",eventInterval(ND))}
 </tbody></table>
 
@@ -440,7 +444,7 @@ ${tr("Expected interval",eventInterval(ND))}
 <table><tbody>
 ${tr("Equation","N<sub>C</sub> = 1.5 × 10⁻³ / C")}
 ${tr("Substitution",`N<sub>C</sub> = 1.5 × 10⁻³ / ${fmt(C)}`)}
-${tr("Result N<sub>C</sub>",`${fmt(NC)} /year`)}
+${tr("Result N<sub>C</sub>",`${fmtRate(NC)} /year`)}
 ${tr("Tolerable interval",eventInterval(NC))}
 </tbody></table>
 

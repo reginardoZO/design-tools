@@ -106,6 +106,7 @@ main h3{font-size:.85rem;margin:18px 0 10px;color:var(--navy,var(--accent-dark))
 .pane{display:none}.pane.active{display:block}
 
 .results{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:0 22px}
+.res-col{display:flex;flex-direction:column;align-self:start}
 .res{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid var(--steel);padding:8px 0;font-size:.86rem}
 .res .k{color:var(--muted)}
 .res .v{font-weight:700;text-align:right;font-variant-numeric:tabular-nums;font-family:var(--data)}
