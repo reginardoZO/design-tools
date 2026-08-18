@@ -21,15 +21,15 @@
   --input-bg: var(--field); --input-border: var(--steel);
 }
 
-body{padding:24px 16px 90px}
-.wrap{max-width:1100px;margin:0 auto}
+body{padding:24px 24px 90px}
+.wrap{max-width:90vw;margin:0 auto}
 
 .intro{font-size:13px;color:var(--muted);max-width:900px;margin:-6px 0 18px;line-height:1.55}
 
 .card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px;margin-top:16px}
 .card h2{margin:0 0 14px;font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:8px}
 .card h2 .num{background:var(--blue);color:#fff;border-radius:4px;font-size:.72rem;padding:2px 7px;text-transform:none;letter-spacing:normal}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
 label{display:block;font-size:.78rem;color:var(--ink2);margin-bottom:3px;font-weight:600}
 input,select{width:100%;padding:9px 10px;font-size:.9rem;border:1.5px solid var(--input-border);background:var(--input-bg);color:var(--ink);border-radius:4px;font-family:inherit}
 input:focus,select:focus{outline:2px solid var(--blue);outline-offset:1px}
@@ -85,7 +85,7 @@ table.ref td:last-child,table.ref th:last-child{text-align:right;font-variant-nu
 h3.sub{font-size:.85rem;margin:14px 0 6px;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em}
 
 /* ---- NFPA780 components ---- */
-.grid.compact{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.grid.compact{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
 main h3{font-size:.85rem;margin:18px 0 10px;color:var(--navy,var(--accent-dark));text-transform:uppercase;letter-spacing:.04em}
 
 .notice{padding:11px 14px;border-radius:6px;line-height:1.5;font-size:.84rem;margin-top:8px}
@@ -95,6 +95,7 @@ main h3{font-size:.85rem;margin:18px 0 10px;color:var(--navy,var(--accent-dark))
 
 .row-inline{display:flex;gap:9px;align-items:flex-end}
 .row-inline>*:first-child{flex:1}
+.row-inline input{flex:1}
 
 .btn{border:0;border-radius:4px;padding:9px 16px;min-height:40px;background:var(--accent);color:#fff;font-weight:700;font-family:var(--ui);cursor:pointer;white-space:nowrap;letter-spacing:.4px}
 .btn:hover{background:var(--accent-dark)}

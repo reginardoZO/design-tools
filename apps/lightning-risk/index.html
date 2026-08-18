@@ -26,12 +26,12 @@
       <div><label for="edition">NFPA 780 edition basis</label><select id="edition"><option value="2026" selected>NFPA 780-2026 — equations use NSG</option><option value="2020">NFPA 780-2020 — equations use NG</option></select><div class="hint">For 2026, the embedded 2020 map remains an N<sub>G</sub> source and L.2.2 conversion N<sub>SG</sub> = 1.7 × N<sub>G</sub> is applied exactly once. For 2020, no conversion is applied.</div></div>
       <div><label for="location">U.S. ZIP code or exact coordinates</label><div class="row-inline"><input id="location" placeholder="85085 or 33.775834, -112.160572"><button class="btn" id="locate" type="button">Resolve location</button></div><div class="hint">A ZIP resolves only to an approximate postal-area centroid. Exact coordinates are preferred.</div></div>
       <div><label>Resolved latitude / longitude</label><div class="row-inline"><input id="lat" readonly placeholder="Latitude"><input id="lon" readonly placeholder="Longitude"></div></div>
-      <div><label id="densityLabel" for="density">Ground strike-point density NSG (strike points/km²/year)</label><input id="density" type="number" min="0" step="0.001" value="3.400" data-ng="2.00" readonly><div class="hint" id="densityHint">The digitized Figure L.2 supplies N<sub>G</sub>; NFPA 780-2026 L.2.2 conversion N<sub>SG</sub> = 1.7 × N<sub>G</sub> is then applied exactly once.</div></div>
-      <div><label for="densitySource">Density source / report reference</label><input id="densitySource" placeholder="Automatically populated from Figure L.2" readonly><div class="hint">Document the dataset, averaging period, resolution and selected site value.</div></div>
+      <div><label id="densityLabel" for="density">Ground strike-point density NSG (strike points/km²/year)</label><input id="density" type="number" min="0" step="0.001" value="3.400" data-ng="2.00"><div class="hint" id="densityHint">The digitized Figure L.2 supplies N<sub>G</sub>; NFPA 780-2026 L.2.2 conversion N<sub>SG</sub> = 1.7 × N<sub>G</sub> is then applied exactly once.</div></div>
+      <div><label for="densitySource">Density source / report reference</label><input id="densitySource" placeholder="Automatically populated from Figure L.2, or enter manually"><div class="hint">Document the dataset, averaging period, resolution and selected site value.</div></div>
     </div>
     <div id="locationStatus" class="notice info" style="margin-top:13px">Enter exact coordinates or a U.S. ZIP code to locate the point, obtain N<sub>G</sub> from Figure L.2 and, on the 2026 basis, calculate N<sub>SG</sub> automatically.</div>
     <div class="notice info" style="margin-top:10px"><b>Automatic Figure L.2 lookup:</b> the embedded grid was digitized from the supplied 2007–2016 NLDN ground-flash-density map. The application reports the detected legend range, applies its conservative upper limit as N<sub>G</sub>, and converts it to N<sub>SG</sub> only when the 2026 edition is selected.</div>
-    <div class="check" style="margin-top:12px"><input id="densityConfirmed" type="checkbox" disabled><label for="densityConfirmed">Figure L.2 density lookup completed for the resolved project point.</label></div>
+    <div class="check" style="margin-top:12px"><input id="densityConfirmed" type="checkbox"><label for="densityConfirmed">Lightning density confirmed for the resolved project point.</label></div>
   </section>
 
   <nav class="tabs" aria-label="Calculator sections">
@@ -180,7 +180,7 @@ function applyFigureL2(lat,lon){
 }
 function densityValue(){return num("density");}
 function applyDensityBasis(){
- const d=$("density"),ng=Number(d.dataset.ng);if(!Number.isFinite(ng))return;
+ const d=$("density"),ng=Number(d.dataset.ng);if(d.dataset.manual==="1"||!Number.isFinite(ng))return;
  const N=densityFromNg(ng);
  d.value=N.toFixed(edition()==="2026"?3:2);
  if(d.dataset.bandLabel){const base=`NFPA 780-2020 Figure L.2 — NLDN 2007–2016 — legend ${d.dataset.bandLabel} flashes/km²/year`;$("densitySource").value=edition()==="2026"?`${base}; NG=${ng.toFixed(2)}; NFPA 780-2026 L.2.2: NSG=1.7×NG=${N.toFixed(3)} strike points/km²/year`:`${base}; applied NG=${ng.toFixed(2)} flashes/km²/year`;}
@@ -279,12 +279,12 @@ function calcAll(){
 function updateEdition(){
  const is2026=edition()==="2026";
  $("densityLabel").innerHTML=is2026?"Ground strike-point density N<sub>SG</sub> (strike points/km²/year)":"Ground flash density N<sub>G</sub> (flashes/km²/year)";
- $("densityHint").innerHTML=is2026?"The digitized Figure L.2 supplies N<sub>G</sub>; NFPA 780-2026 L.2.2 conversion N<sub>SG</sub> = 1.7 × N<sub>G</sub> is then applied exactly once.":"Automatically populated from NFPA 780-2020 Figure L.2. The conservative upper limit of the identified legend range is applied directly as N<sub>G</sub>.";
+ $('densityHint').innerHTML=is2026?'The digitized Figure L.2 supplies N<sub>G</sub>; NFPA 780-2026 L.2.2 conversion N<sub>SG</sub> = 1.7 × N<sub>G</sub> is then applied exactly once. You may also type N<sub>SG</sub> directly.':'Automatically populated from NFPA 780-2020 Figure L.2. You may also type N<sub>G</sub> directly.';
  $("editionBasisFoot").innerHTML=is2026?"NFPA 780-2026 basis: N<sub>G</sub> is obtained from the supplied 2020 Figure L.2 and converted once by N<sub>SG</sub> = 1.7 × N<sub>G</sub>; all occurrence-frequency equations use N<sub>SG</sub>; the near-structure collection boundary uses 350 m; N<sub>M</sub> is not permitted to be negative. For formal issue, retain the selected NFPA edition, density source, geometry, line data, assumptions and results with the project calculation package.":"NFPA 780-2020 basis: N<sub>G</sub> is obtained from Figure L.2 and used directly; the near-structure collection boundary uses 500 m; N<sub>M</sub> is not permitted to be negative. For formal issue, retain the selected NFPA edition, density source, geometry, line data, assumptions and results with the project calculation package.";
  applyDensityBasis();renderResolvedDensityStatus();calcAll();
 }
 async function resolveLocation(){
- const q=$("location").value.trim(),status=$("locationStatus"),btn=$("locate"),d=$("density");status.className="notice info";delete status.dataset.prefix;delete d.dataset.bandLabel;delete d.dataset.bandNote;$("densityConfirmed").checked=false;$("densitySource").value="";$("lat").value="";$("lon").value="";calcAll();
+ const q=$("location").value.trim(),status=$("locationStatus"),btn=$("locate"),d=$("density");status.className="notice info";delete status.dataset.prefix;delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.manual;$("densityConfirmed").checked=false;$("densitySource").value="";$("lat").value="";$("lon").value="";calcAll();
  const applyPoint=(lat,lon,prefix)=>{const band=applyFigureL2(lat,lon);if(!band){status.className="notice bad";status.textContent="The resolved point is outside the digitized CONUS coverage of Figure L.2.";return false;}$("lat").value=lat.toFixed(6);$("lon").value=lon.toFixed(6);status.dataset.prefix=prefix;renderResolvedDensityStatus();return true;};
  const m=q.match(/^(-?\d{1,2}(?:\.\d+)?)\s*[,; ]\s*(-?\d{1,3}(?:\.\d+)?)$/);
  if(m){const lat=+m[1],lon=+m[2];if(lat<-90||lat>90||lon<-180||lon>180){status.className="notice bad";status.textContent="Coordinates are outside valid latitude/longitude limits.";return;}applyPoint(lat,lon,`Exact point resolved: <b>${lat.toFixed(6)}, ${lon.toFixed(6)}</b>.`);return;}
@@ -294,7 +294,8 @@ async function resolveLocation(){
  catch(e){status.className="notice bad";status.textContent=`Location lookup failed: ${e.message}. Exact coordinates can still be entered directly.`;}finally{btn.disabled=false;}
 }
 $("locate").addEventListener("click",resolveLocation);$("edition").addEventListener("change",updateEdition);
-$("location").addEventListener("input",()=>{const d=$("density"),status=$("locationStatus");delete status.dataset.prefix;delete d.dataset.bandLabel;delete d.dataset.bandNote;$("densityConfirmed").checked=false;$("densitySource").value="";status.className="notice info";status.innerHTML="Location changed. Resolve it again to obtain N<sub>G</sub> from Figure L.2 and establish the density used in the equations.";calcAll();});
+$("density").addEventListener("input",()=>{const d=$("density"),status=$("locationStatus");d.dataset.manual="1";delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.ng;delete status.dataset.prefix;status.className="notice warn";status.innerHTML="Density entered manually. Document the source in the field below and check the confirmation box.";calcAll();});
+$("location").addEventListener("input",()=>{const d=$("density"),status=$("locationStatus");delete status.dataset.prefix;delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.manual;$("densityConfirmed").checked=false;$("densitySource").value="";status.className="notice info";status.innerHTML="Location changed. Resolve it again to obtain N<sub>G</sub> from Figure L.2 and establish the density used in the equations.";calcAll();});
 document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".pane").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.pane).classList.add("active");}));
 document.querySelectorAll("input,select").forEach(el=>{if(!el.closest("#services")){el.addEventListener("input",calcAll);el.addEventListener("change",calcAll);}});
 
