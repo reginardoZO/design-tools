@@ -48,13 +48,15 @@
         <div><label for="sL">Length L (ft)</label><input id="sL" type="number" min="0" step="0.01" value="300"><div class="hint" id="sLm"></div></div>
         <div><label for="sW">Width W (ft)</label><input id="sW" type="number" min="0" step="0.01" value="100"><div class="hint" id="sWm"></div></div>
         <div><label for="sH">Height H (ft)</label><input id="sH" type="number" min="0" step="0.01" value="42"><div class="hint" id="sHm"></div></div>
+        <div><label for="sADmanualOn">Equivalent collection area AD</label><select id="sADmanualOn"><option value="0" selected>Calculate from L, W, H (rectangular equation)</option><option value="1">Enter AD manually — irregular structure</option></select></div>
+        <div><label for="sADval">Manual AD (ft²)</label><input id="sADval" type="number" min="0" step="0.01" value="0" disabled><div class="hint">Enabled only when AD is set to manual entry above. Enter the engineering-calculated collection area for the irregular structure, in ft².</div></div>
         <div><label for="sCD">C1 / CD — relative location</label><select id="sCD"></select></div>
         <div><label for="sC2">C2 — structure and roof construction</label><select id="sC2"></select></div>
         <div><label for="sC3">C3 — structure contents</label><select id="sC3"></select></div>
         <div><label for="sC4">C4 — structure occupancy</label><select id="sC4"></select></div>
         <div><label for="sC5">C5 — lightning consequence</label><select id="sC5"></select></div>
       </div>
-      <div class="hint" style="margin-top:12px">The rectangular collection-area equation is used. For irregular structures, calculate the collection area separately and use the detailed method with an engineering value.</div>
+      <div class="hint" style="margin-top:12px">The rectangular collection-area equation is used by default. For irregular structures, set "Equivalent collection area AD" to manual entry above and enter the engineering-calculated AD in ft².</div>
     </div>
     <div class="card"><h2>3. Simplified result</h2><div id="simpleResults" class="results"></div><div id="simpleVerdict" class="verdict"></div><button id="simpleReportBtn" class="btn secondary" type="button" style="margin-top:14px">Generate PDF report (simplified method)</button></div>
   </section>
@@ -66,6 +68,8 @@
         <div><label for="dL">Length L (ft)</label><input id="dL" type="number" min="0" value="300"></div>
         <div><label for="dW">Width W (ft)</label><input id="dW" type="number" min="0" value="100"></div>
         <div><label for="dH">Height H (ft)</label><input id="dH" type="number" min="0" value="42"></div>
+        <div><label for="dADmanualOn">Equivalent collection area AD</label><select id="dADmanualOn"><option value="0" selected>Calculate from L, W, H (rectangular equation)</option><option value="1">Enter AD manually — irregular structure</option></select></div>
+        <div><label for="dADval">Manual AD (ft²)</label><input id="dADval" type="number" min="0" step="0.01" value="0" disabled><div class="hint">Enabled only when AD is set to manual entry above. L, W and H are still used for AM (near-structure collection area). Enter AD in ft².</div></div>
         <div><label for="dCD">CD — relative location</label><select id="dCD"></select></div>
         <div><label for="dPA">PA — touch/step protection</label><select id="dPA"></select></div>
         <div><label for="dPB">PB — structural lightning protection</label><select id="dPB"></select></div>
@@ -133,7 +137,7 @@
 
 <script>
 "use strict";
-const FT=0.3048;
+const FT=0.3048,FT2=FT*FT;
 const T={
  CD:[["Surrounded by taller structures/trees within 3H",0.25],["Surrounded by equal or lower structures within 3H",0.5],["Isolated structure — nothing within 3H",1],["Isolated structure on a hilltop",2]],
  C2:[["Metal structure / metal roof",0.5],["Metal structure / nonmetallic roof",1],["Metal structure / combustible roof",2],["Nonmetallic structure / metal roof",1],["Nonmetallic structure / nonmetallic roof",1],["Nonmetallic structure / combustible roof",2.5],["Combustible structure / metal roof",2],["Combustible structure / nonmetallic roof",2.5],["Combustible structure / combustible roof",3]],
@@ -296,14 +300,18 @@ function genericRisk(ND,NM,PB,PC,PM,lineData,a,b,c,includeTouch,PA,rt){
 function calcAll(){
  syncServices();const N=densityValue(),confirmed=$("densityConfirmed").checked,sym=densitySymbol();
  const sL=num("sL")*FT,sW=num("sW")*FT,sH=num("sH")*FT;$("sLm").textContent=`${sL.toFixed(3)} m`;$("sWm").textContent=`${sW.toFixed(3)} m`;$("sHm").textContent=`${sH.toFixed(3)} m`;
- const ADs=collArea(sL,sW,sH),CDs=val("sCD",T.CD),NDs=N*ADs*CDs*1e-6,C=val("sC2",T.C2)*val("sC3",T.C3)*val("sC4",T.C4)*val("sC5",T.C5),NC=1.5e-3/C;
+ const sADOverride=$("sADmanualOn").value==="1";
+ const ADs=sADOverride?num("sADval")*FT2:collArea(sL,sW,sH),CDs=val("sCD",T.CD),NDs=N*ADs*CDs*1e-6,C=val("sC2",T.C2)*val("sC3",T.C3)*val("sC4",T.C4)*val("sC5",T.C5),NC=1.5e-3/C;
  const locGroup=densityRows()+row("CD — relative location factor",fmt(CDs));
- const ndGroup=row("Equivalent collection area AD",fmt(ADs),"m²")+row(`Annual threat ND = ${sym}·AD·CD·10⁻⁶`,fmtRate(NDs),"/year")+row("Expected ND interval",eventInterval(NDs));
+ const ndGroup=row(sADOverride?"Equivalent collection area AD (manual entry)":"Equivalent collection area AD",fmt(ADs),"m²")+row(`Annual threat ND = ${sym}·AD·CD·10⁻⁶`,fmtRate(NDs),"/year")+row("Expected ND interval",eventInterval(NDs));
  const ncGroup=row("Combined coefficient C = C2·C3·C4·C5",fmt(C))+row("Tolerable frequency NC = 1.5×10⁻³/C",fmtRate(NC),"/year")+row("Tolerable NC interval",eventInterval(NC))+row("ND / NC",fmt(NDs/NC));
  $("simpleResults").innerHTML=`<div class="res-col">${locGroup}</div><div class="res-col">${ndGroup}</div><div class="res-col">${ncGroup}</div>`;
  const sv=$("simpleVerdict");if(!confirmed){sv.className="verdict warn";sv.innerHTML="PRELIMINARY ONLY — lightning-density source has not been confirmed.";}else if(NDs>NC){sv.className="verdict bad";sv.innerHTML="ND &gt; NC — lightning protection is recommended by the simplified assessment.";}else{sv.className="verdict good";sv.innerHTML="ND ≤ NC — lightning protection is optional under the simplified assessment, subject to special-occupancy requirements and AHJ/project criteria.";}
 
- const L=num("dL")*FT,W=num("dW")*FT,H=num("dH")*FT,AD=collArea(L,W,H),CD=val("dCD",T.CD),ND=N*AD*CD*1e-6;
+ const L=num("dL")*FT,W=num("dW")*FT,H=num("dH")*FT;
+ const dADOverride=$("dADmanualOn").value==="1";
+ const AD=dADOverride?num("dADval")*FT2:collArea(L,W,H),CD=val("dCD",T.CD),ND=N*AD*CD*1e-6;
+
  const radius=edition()==="2026"?350:500,AM=2*radius*(L+W)+Math.PI*radius*radius,NM=N*Math.max(0,AM-AD)*CD*1e-6;
  const PA=val("dPA",T.PA),PB=val("dPB",T.PB),PC=val("dPC",T.PC),KS1=num("ks1"),KS2=num("ks2"),KS3=val("ks3",T.KS3),KS4=1.5/num("dUw"),KS=KS1*KS2*KS3*KS4;
  let PM;
@@ -323,7 +331,7 @@ function calcAll(){
  const LB3=rp*rf*num("lf3");let R3=ND*PB*LB3;lineData.forEach(x=>R3+=(x.NL+x.NDJ)*x.PV*LB3);if($("r3on").value!=="1")R3=0;
  let R4=genericRisk(ND,NM,PB,PC,PM,lineData,num("lt4"),rp*rf*num("lf4"),num("lo4"),true,PA,rt);if($("r4on").value!=="1")R4=0;
  const totalNL=lineData.reduce((a,x)=>a+x.NL,0),totalNI=lineData.reduce((a,x)=>a+x.NI,0),totalNDJ=lineData.reduce((a,x)=>a+x.NDJ,0);
- $("detailedResults").innerHTML=densityRows()+row("CD — relative location factor",fmt(CD))+row("AD — structure collection area",fmt(AD),"m²")+row(`AM — ${radius} m near-structure collection area`,fmt(AM),"m²")+row(`ND — strikes to structure (${sym})`,fmt(ND),"/year")+row("ND interval",eventInterval(ND))+row("NM — strikes near structure",fmt(NM),"/year")+row("NM interval",eventInterval(NM))+row("NL / NI / NDJ — service totals",`${fmt(totalNL)} / ${fmt(totalNI)} / ${fmt(totalNDJ)}`)+row("KS / PM",`${fmt(KS)} / ${fmt(PM)}`)+row("PA / PB / PC",`${fmt(PA)} / ${fmt(PB)} / ${fmt(PC)}`)+row("LA / LB / LC",`${fmt(LA)} / ${fmt(LB)} / ${fmt(LC)}`);
+ $("detailedResults").innerHTML=densityRows()+row("CD — relative location factor",fmt(CD))+row(dADOverride?"AD — structure collection area (manual entry)":"AD — structure collection area",fmt(AD),"m²")+row(`AM — ${radius} m near-structure collection area`,fmt(AM),"m²")+row(`ND — strikes to structure (${sym})`,fmt(ND),"/year")+row("ND interval",eventInterval(ND))+row("NM — strikes near structure",fmt(NM),"/year")+row("NM interval",eventInterval(NM))+row("NL / NI / NDJ — service totals",`${fmt(totalNL)} / ${fmt(totalNI)} / ${fmt(totalNDJ)}`)+row("KS / PM",`${fmt(KS)} / ${fmt(PM)}`)+row("PA / PB / PC",`${fmt(PA)} / ${fmt(PB)} / ${fmt(PC)}`)+row("LA / LB / LC",`${fmt(LA)} / ${fmt(LB)} / ${fmt(LC)}`);
  const comps=[["RA",RA],["RB",RB],["RC",RC],["RM",RM],["RU",RU],["RV",RV],["RW",RW],["RZ",RZ]];
  $("componentTable").innerHTML=`<table class="component-table"><thead><tr><th>Component</th><th>Risk/year</th><th>Share of R1</th></tr></thead><tbody>${comps.map(([k,v])=>`<tr><td>${k}</td><td>${fmt(v)}</td><td>${R1?fmt(100*v/R1)+"%":"0%"}</td></tr>`).join("")}</tbody><tfoot><tr><th>R1 total</th><th>${fmt(R1)}</th><th>100%</th></tr></tfoot></table>`;
  const verdict=(name,R,RT,app=true)=>!app?"":`<div class="verdict ${!confirmed?"warn":R>RT?"bad":"good"}">${!confirmed?"PRELIMINARY — density unconfirmed. ":""}${name}: R = ${fmt(R)}; RT = ${fmt(RT)} — ${R>RT?"risk exceeds tolerable value":"risk does not exceed tolerable value"}.</div>`;
@@ -368,6 +376,12 @@ $("location").addEventListener("input",()=>{const d=$("density"),status=$("locat
 
 document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".pane").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.pane).classList.add("active");}));
 document.querySelectorAll("input,select").forEach(el=>{if(!el.closest("#services")){el.addEventListener("input",calcAll);el.addEventListener("change",calcAll);}});
+$("sADmanualOn").addEventListener("change",()=>{
+ const manual=$("sADmanualOn").value==="1";
+ $("sADval").disabled=!manual;
+ $("sL").disabled=$("sW").disabled=$("sH").disabled=manual;
+});
+$("dADmanualOn").addEventListener("change",()=>{$("dADval").disabled=$("dADmanualOn").value!=="1";});
 
 function buildReference(){
  const refs=[["Edition density basis",[["NFPA 780-2020","Use NG from the selected density source directly"],["NFPA 780-2026","When the selected NG source is used: NSG = 1.7 × NG, applied once before all occurrence-frequency equations"]]],["Figure L.2 NG legend (digitized; applied value is conservative upper limit)",NFPA_FIGURE_L2.bands.map(x=>[x.label,x.apply])],["NOAA NLDN gridded estimate (2003-2023)",[["Source","NOAA (https://www.noaa.gov/) — National Lightning Detection Network tiled counts, 2003-2023; confirm the exact dataset/download URL for the project record"],["Resolution","0.1° tiles (about 9-11 km at CONUS latitudes)"],["Conversion","NG = MEAN_ANNUAL_COUNT / true WGS84 tile area at the tile's latitude"]]],["CD — location factor",T.CD],["PA — touch/step protection",T.PA],["PB — NFPA structural protection",T.PB],["PC — internal-system SPD protection",T.PC],["KS3 — internal wiring",T.KS3],["CE — service environment",T.CE],["rt — contact surface",T.RT],["rp — fire provisions",T.RP],["rf — fire/explosion risk",T.RF],["hZ — special hazard",T.HZ]];
@@ -377,7 +391,8 @@ function buildReference(){
 function generateSimpleReport(){
  syncServices();
  const d=$("density"),ng=Number(d.dataset.ng),edt=edition(),sym=densitySymbol(),N=densityValue(),confirmed=$("densityConfirmed").checked;
- const sL=num("sL")*FT,sW=num("sW")*FT,sH=num("sH")*FT,AD=collArea(sL,sW,sH);
+ const sL=num("sL")*FT,sW=num("sW")*FT,sH=num("sH")*FT;
+ const sADOverride=$("sADmanualOn").value==="1",AD=sADOverride?num("sADval")*FT2:collArea(sL,sW,sH);
  const CD=val("sCD",T.CD),CDLabel=T.CD[+$("sCD").value][0];
  const C2=val("sC2",T.C2),C2Label=T.C2[+$("sC2").value][0];
  const C3=val("sC3",T.C3),C3Label=T.C3[+$("sC3").value][0];
@@ -415,10 +430,7 @@ ${densityBasisRows}
 
 <h2>2. Structure geometry and equivalent collection area</h2>
 <table><tbody>
-${tr("Length L",`${num("sL").toFixed(2)} ft (${sL.toFixed(3)} m)`)}
-${tr("Width W",`${num("sW").toFixed(2)} ft (${sW.toFixed(3)} m)`)}
-${tr("Height H",`${num("sH").toFixed(2)} ft (${sH.toFixed(3)} m)`)}
-${tr("Equation","A<sub>D</sub> = L·W + 6H(L+W) + 9πH²")}
+${sADOverride?tr("Manual A<sub>D</sub> entry",`${num("sADval").toFixed(2)} ft²`):`${tr("Length L",`${num("sL").toFixed(2)} ft (${sL.toFixed(3)} m)`)}${tr("Width W",`${num("sW").toFixed(2)} ft (${sW.toFixed(3)} m)`)}${tr("Height H",`${num("sH").toFixed(2)} ft (${sH.toFixed(3)} m)`)}${tr("Equation","A<sub>D</sub> = L·W + 6H(L+W) + 9πH²")}`}
 ${tr("Equivalent collection area A<sub>D</sub>",`${fmt(AD)} m²`)}
 </tbody></table>
 
