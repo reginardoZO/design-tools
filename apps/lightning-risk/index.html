@@ -24,8 +24,8 @@
     <div class="grid">
       <div><label for="project">Project / structure</label><input id="project" value="Lightning Risk Assessment"></div>
       <div><label for="edition">NFPA 780 edition basis</label><select id="edition"><option value="2026" selected>NFPA 780-2026 — equations use NSG</option><option value="2020">NFPA 780-2020 — equations use NG</option></select><div class="hint">For 2026, the embedded 2020 map remains an N<sub>G</sub> source and L.2.2 conversion N<sub>SG</sub> = 1.7 × N<sub>G</sub> is applied exactly once. For 2020, no conversion is applied.</div></div>
+      <div><label for="ngSource">Lightning-density source</label><select id="ngSource"><option value="figurel2" selected>NFPA 780 Figure L.2 (digitized bands, NLDN 2007-2016)</option><option value="nldn">NOAA NLDN gridded estimate (2003-2023, continuous)</option></select><div class="hint">Figure L.2 is the NFPA-anchored citation with 8 conservative bands. The NOAA NLDN option interpolates a continuous N<sub>G</sub> per 0.1&deg; tile from a longer, more recent record; confirm the exact NOAA dataset URL before formal use. Changing this after a location has been resolved automatically re-runs the lookup at the same point.</div></div>
       <div><label for="location">U.S. ZIP code or exact coordinates</label><div class="row-inline"><input id="location" placeholder="85085 or 33.775834, -112.160572"><button class="btn" id="locate" type="button">Resolve location</button></div><div class="hint">A ZIP resolves only to an approximate postal-area centroid. Exact coordinates are preferred.</div></div>
-      <div><label for="ngSource">Lightning-density source</label><select id="ngSource"><option value="figurel2" selected>NFPA 780 Figure L.2 (digitized bands, NLDN 2007-2016)</option><option value="nldn">NOAA NLDN gridded estimate (2003-2023, continuous)</option></select><div class="hint">Figure L.2 is the NFPA-anchored citation with 8 conservative bands. The NOAA NLDN option interpolates a continuous N<sub>G</sub> per 0.1&deg; tile from a longer, more recent record; confirm the exact NOAA dataset URL before formal use.</div></div>
       <div><label>Resolved latitude / longitude</label><div class="row-inline"><input id="lat" readonly placeholder="Latitude"><input id="lon" readonly placeholder="Longitude"></div></div>
       <div><label id="densityLabel" for="density">Ground strike-point density NSG (strike points/km²/year)</label><input id="density" type="number" min="0" step="0.001" value="3.400" data-ng="2.00"><div class="hint" id="densityHint">The digitized Figure L.2 supplies N<sub>G</sub>; NFPA 780-2026 L.2.2 conversion N<sub>SG</sub> = 1.7 × N<sub>G</sub> is then applied exactly once.</div></div>
       <div id="densitySource" class="notice info" role="status">Density source will be shown here after a Figure L.2 lookup or manual density entry.</div>
@@ -56,7 +56,7 @@
       </div>
       <div class="hint" style="margin-top:12px">The rectangular collection-area equation is used. For irregular structures, calculate the collection area separately and use the detailed method with an engineering value.</div>
     </div>
-    <div class="card"><h2>3. Simplified result</h2><div id="simpleResults" class="results"></div><div id="simpleVerdict" class="verdict"></div></div>
+    <div class="card"><h2>3. Simplified result</h2><div id="simpleResults" class="results"></div><div id="simpleVerdict" class="verdict"></div><button id="simpleReportBtn" class="btn secondary" type="button" style="margin-top:14px">Generate PDF report (simplified method)</button></div>
   </section>
 
   <section id="detailed" class="pane">
@@ -165,6 +165,14 @@ function fmt(x){if(!Number.isFinite(x))return "—";if(x===0)return "0";if(Math.
 function opts(t,selected=0){return t.map((r,i)=>`<option value="${i}" ${i===selected?"selected":""}>${esc(r[0])} — ${Array.isArray(r[1])?"table values":r[1]}</option>`).join("");}
 function fill(id,t,selected=0){$(id).innerHTML=opts(t,selected);}
 function row(k,v,u=""){return `<div class="res"><span class="k">${k}</span><span class="v">${v}${u?` <small>${u}</small>`:""}</span></div>`;}
+function fmtYears(y){if(!Number.isFinite(y))return "—";if(y>=1000)return Math.round(y).toLocaleString("en-US");if(y>=100)return y.toFixed(0);if(y>=10)return y.toFixed(1);return y.toFixed(2);}
+function eventInterval(rate){if(!Number.isFinite(rate)||rate<=0)return "no events expected";const years=1/rate;return years>=1?`~1 event every ${fmtYears(years)} years`:`~${fmt(rate)} events/year`;}
+function densityRows(){
+ const d=$("density"),ng=Number(d.dataset.ng),sym=densitySymbol(),N=densityValue();
+ if(Number.isFinite(ng)&&edition()==="2026")return row("Ground flash density N<sub>G</sub> (source)",fmt(ng),"flashes/km²/year")+row("Ground strike-point density N<sub>SG</sub> = 1.7 × N<sub>G</sub>",fmt(N),"strike points/km²/year");
+ if(Number.isFinite(ng))return row("Ground flash density N<sub>G</sub>",fmt(ng),"flashes/km²/year");
+ return row(`Density ${sym} (manual entry)`,fmt(N),edition()==="2026"?"strike points/km²/year":"flashes/km²/year");
+}
 function collArea(L,W,H){return L*W+6*H*(L+W)+9*Math.PI*H*H;}
 function edition(){return $("edition").value;}
 function densitySymbol(){return edition()==="2026"?"N<sub>SG</sub>":"N<sub>G</sub>";}
@@ -218,6 +226,22 @@ function renderResolvedDensityStatus(){
  }
 }
 function pmTable(ks){if(ks>.4)return 1;if(ks>=.15)return .9;if(ks>=.07)return .5;if(ks>=.035)return .1;if(ks>=.021)return .01;if(ks>=.016)return .005;if(ks>=.015)return .003;if(ks>=.014)return .001;return .0001;}
+let lastResolvedPoint=null;
+async function applyPointForSource(lat,lon,prefix){
+ const status=$("locationStatus"),btn=$("locate"),useNldn=$("ngSource").value==="nldn";
+ let hit;
+ if(useNldn){
+  btn.disabled=true;status.textContent="Fetching NOAA NLDN 2003-2023 tile data…";
+  hit=await applyNldn(lat,lon);btn.disabled=false;
+  if(hit&&hit.error){status.className="notice bad";status.textContent="Failed to load the NOAA NLDN data file: "+hit.error;return false;}
+ }else{
+  hit=applyFigureL2(lat,lon);
+ }
+ if(!hit){status.className="notice bad";status.textContent=useNldn?"The resolved point is outside the gridded coverage of the NOAA NLDN 2003-2023 file.":"The resolved point is outside the digitized CONUS coverage of Figure L.2.";return false;}
+ $("lat").value=lat.toFixed(6);$("lon").value=lon.toFixed(6);status.dataset.prefix=prefix;renderResolvedDensityStatus();
+ lastResolvedPoint={lat,lon,prefix};
+ return true;
+}
 function uwIndex(u){return u>=6?4:u>=4?3:u>=2.5?2:u>=1.5?1:0;}
 
 fill("sCD",T.CD,2);fill("dCD",T.CD,2);fill("sC2",T.C2,0);fill("sC3",T.C3,3);fill("sC4",T.C4,1);fill("sC5",T.C5,1);
@@ -272,7 +296,7 @@ function calcAll(){
  syncServices();const N=densityValue(),confirmed=$("densityConfirmed").checked,sym=densitySymbol();
  const sL=num("sL")*FT,sW=num("sW")*FT,sH=num("sH")*FT;$("sLm").textContent=`${sL.toFixed(3)} m`;$("sWm").textContent=`${sW.toFixed(3)} m`;$("sHm").textContent=`${sH.toFixed(3)} m`;
  const ADs=collArea(sL,sW,sH),CDs=val("sCD",T.CD),NDs=N*ADs*CDs*1e-6,C=val("sC2",T.C2)*val("sC3",T.C3)*val("sC4",T.C4)*val("sC5",T.C5),NC=1.5e-3/C;
- $("simpleResults").innerHTML=row("Equivalent collection area AD",fmt(ADs),"m²")+row(`Annual threat ND = ${sym}·AD·CD·10⁻⁶`,fmt(NDs),"/year")+row("Combined coefficient C = C2·C3·C4·C5",fmt(C))+row("Tolerable frequency NC = 1.5×10⁻³/C",fmt(NC),"/year")+row("ND / NC",fmt(NDs/NC));
+ $("simpleResults").innerHTML=densityRows()+row("CD — relative location factor",fmt(CDs))+row("Equivalent collection area AD",fmt(ADs),"m²")+row(`Annual threat ND = ${sym}·AD·CD·10⁻⁶`,fmt(NDs),"/year")+row("Expected ND interval",eventInterval(NDs))+row("Combined coefficient C = C2·C3·C4·C5",fmt(C))+row("Tolerable frequency NC = 1.5×10⁻³/C",fmt(NC),"/year")+row("Tolerable NC interval",eventInterval(NC))+row("ND / NC",fmt(NDs/NC));
  const sv=$("simpleVerdict");if(!confirmed){sv.className="verdict warn";sv.innerHTML="PRELIMINARY ONLY — lightning-density source has not been confirmed.";}else if(NDs>NC){sv.className="verdict bad";sv.innerHTML="ND &gt; NC — lightning protection is recommended by the simplified assessment.";}else{sv.className="verdict good";sv.innerHTML="ND ≤ NC — lightning protection is optional under the simplified assessment, subject to special-occupancy requirements and AHJ/project criteria.";}
 
  const L=num("dL")*FT,W=num("dW")*FT,H=num("dH")*FT,AD=collArea(L,W,H),CD=val("dCD",T.CD),ND=N*AD*CD*1e-6;
@@ -295,7 +319,7 @@ function calcAll(){
  const LB3=rp*rf*num("lf3");let R3=ND*PB*LB3;lineData.forEach(x=>R3+=(x.NL+x.NDJ)*x.PV*LB3);if($("r3on").value!=="1")R3=0;
  let R4=genericRisk(ND,NM,PB,PC,PM,lineData,num("lt4"),rp*rf*num("lf4"),num("lo4"),true,PA,rt);if($("r4on").value!=="1")R4=0;
  const totalNL=lineData.reduce((a,x)=>a+x.NL,0),totalNI=lineData.reduce((a,x)=>a+x.NI,0),totalNDJ=lineData.reduce((a,x)=>a+x.NDJ,0);
- $("detailedResults").innerHTML=row("AD — structure collection area",fmt(AD),"m²")+row(`AM — ${radius} m near-structure collection area`,fmt(AM),"m²")+row(`ND — strikes to structure (${sym})`,fmt(ND),"/year")+row("NM — strikes near structure",fmt(NM),"/year")+row("NL / NI / NDJ — service totals",`${fmt(totalNL)} / ${fmt(totalNI)} / ${fmt(totalNDJ)}`)+row("KS / PM",`${fmt(KS)} / ${fmt(PM)}`)+row("PA / PB / PC",`${fmt(PA)} / ${fmt(PB)} / ${fmt(PC)}`)+row("LA / LB / LC",`${fmt(LA)} / ${fmt(LB)} / ${fmt(LC)}`);
+ $("detailedResults").innerHTML=densityRows()+row("CD — relative location factor",fmt(CD))+row("AD — structure collection area",fmt(AD),"m²")+row(`AM — ${radius} m near-structure collection area`,fmt(AM),"m²")+row(`ND — strikes to structure (${sym})`,fmt(ND),"/year")+row("ND interval",eventInterval(ND))+row("NM — strikes near structure",fmt(NM),"/year")+row("NM interval",eventInterval(NM))+row("NL / NI / NDJ — service totals",`${fmt(totalNL)} / ${fmt(totalNI)} / ${fmt(totalNDJ)}`)+row("KS / PM",`${fmt(KS)} / ${fmt(PM)}`)+row("PA / PB / PC",`${fmt(PA)} / ${fmt(PB)} / ${fmt(PC)}`)+row("LA / LB / LC",`${fmt(LA)} / ${fmt(LB)} / ${fmt(LC)}`);
  const comps=[["RA",RA],["RB",RB],["RC",RC],["RM",RM],["RU",RU],["RV",RV],["RW",RW],["RZ",RZ]];
  $("componentTable").innerHTML=`<table class="component-table"><thead><tr><th>Component</th><th>Risk/year</th><th>Share of R1</th></tr></thead><tbody>${comps.map(([k,v])=>`<tr><td>${k}</td><td>${fmt(v)}</td><td>${R1?fmt(100*v/R1)+"%":"0%"}</td></tr>`).join("")}</tbody><tfoot><tr><th>R1 total</th><th>${fmt(R1)}</th><th>100%</th></tr></tfoot></table>`;
  const verdict=(name,R,RT,app=true)=>!app?"":`<div class="verdict ${!confirmed?"warn":R>RT?"bad":"good"}">${!confirmed?"PRELIMINARY — density unconfirmed. ":""}${name}: R = ${fmt(R)}; RT = ${fmt(RT)} — ${R>RT?"risk exceeds tolerable value":"risk does not exceed tolerable value"}.</div>`;
@@ -311,31 +335,33 @@ function updateEdition(){
  applyDensityBasis();renderResolvedDensityStatus();calcAll();
 }
 async function resolveLocation(){
- const q=$("location").value.trim(),status=$("locationStatus"),btn=$("locate"),d=$("density");status.className="notice info";delete status.dataset.prefix;delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.nldn;delete d.dataset.nldnCellsAway;delete d.dataset.manual;$("densityConfirmed").checked=false;$("densitySource").textContent="Density source will be shown here after a lookup or manual density entry.";$("lat").value="";$("lon").value="";calcAll();
- const applyPoint=async(lat,lon,prefix)=>{
-  const useNldn=$("ngSource").value==="nldn";
-  let hit;
-  if(useNldn){
-   btn.disabled=true;status.textContent="Fetching NOAA NLDN 2003-2023 tile data…";
-   hit=await applyNldn(lat,lon);btn.disabled=false;
-   if(hit&&hit.error){status.className="notice bad";status.textContent="Failed to load the NOAA NLDN data file: "+hit.error;return false;}
-  }else{
-   hit=applyFigureL2(lat,lon);
-  }
-  if(!hit){status.className="notice bad";status.textContent=useNldn?"The resolved point is outside the gridded coverage of the NOAA NLDN 2003-2023 file.":"The resolved point is outside the digitized CONUS coverage of Figure L.2.";return false;}
-  $("lat").value=lat.toFixed(6);$("lon").value=lon.toFixed(6);status.dataset.prefix=prefix;renderResolvedDensityStatus();return true;
- };
+ const q=$("location").value.trim(),status=$("locationStatus"),btn=$("locate"),d=$("density");status.className="notice info";delete status.dataset.prefix;delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.nldn;delete d.dataset.nldnCellsAway;delete d.dataset.manual;$("densityConfirmed").checked=false;$("densitySource").textContent="Density source will be shown here after a lookup or manual density entry.";$("lat").value="";$("lon").value="";lastResolvedPoint=null;calcAll();
  const m=q.match(/^(-?\d{1,2}(?:\.\d+)?)\s*[,; ]\s*(-?\d{1,3}(?:\.\d+)?)$/);
- if(m){const lat=+m[1],lon=+m[2];if(lat<-90||lat>90||lon<-180||lon>180){status.className="notice bad";status.textContent="Coordinates are outside valid latitude/longitude limits.";return;}await applyPoint(lat,lon,`Exact point resolved: <b>${lat.toFixed(6)}, ${lon.toFixed(6)}</b>.`);return;}
+ if(m){const lat=+m[1],lon=+m[2];if(lat<-90||lat>90||lon<-180||lon>180){status.className="notice bad";status.textContent="Coordinates are outside valid latitude/longitude limits.";return;}await applyPointForSource(lat,lon,`Exact point resolved: <b>${lat.toFixed(6)}, ${lon.toFixed(6)}</b>.`);return;}
  if(!/^\d{5}$/.test(q)){status.className="notice bad";status.textContent="Enter a 5-digit U.S. ZIP code or coordinates in the form 33.775834, -112.160572.";return;}
  btn.disabled=true;status.textContent=`Resolving ZIP ${q}…`;
- try{const r=await fetch(`https://api.zippopotam.us/us/${q}`);if(!r.ok)throw new Error("ZIP code not found");const j=await r.json(),p=j.places?.[0];if(!p)throw new Error("No location returned");const lat=+p.latitude,lon=+p.longitude;if(await applyPoint(lat,lon,`ZIP centroid: <b>${esc(p["place name"])}, ${esc(p["state abbreviation"])}</b> at ${lat.toFixed(6)}, ${lon.toFixed(6)}.`))status.className="notice warn";}
+ try{const r=await fetch(`https://api.zippopotam.us/us/${q}`);if(!r.ok)throw new Error("ZIP code not found");const j=await r.json(),p=j.places?.[0];if(!p)throw new Error("No location returned");const lat=+p.latitude,lon=+p.longitude;if(await applyPointForSource(lat,lon,`ZIP centroid: <b>${esc(p["place name"])}, ${esc(p["state abbreviation"])}</b> at ${lat.toFixed(6)}, ${lon.toFixed(6)}.`))status.className="notice warn";}
  catch(e){status.className="notice bad";status.textContent=`Location lookup failed: ${e.message}. Exact coordinates can still be entered directly.`;}finally{btn.disabled=false;}
 }
 $("locate").addEventListener("click",resolveLocation);$("edition").addEventListener("change",updateEdition);
-$("ngSource").addEventListener("change",()=>{const d=$("density"),status=$("locationStatus");delete status.dataset.prefix;delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.nldn;delete d.dataset.nldnCellsAway;delete d.dataset.manual;$("densityConfirmed").checked=false;$("densitySource").textContent="Density source will be shown here after a lookup or manual density entry.";status.className="notice info";status.innerHTML=$("ngSource").value==="nldn"?"Lightning-density source set to the NOAA NLDN 2003-2023 gridded estimate. Resolve the location again to look up N<sub>G</sub> for this point.":"Lightning-density source set to the digitized NFPA 780 Figure L.2 legend bands. Resolve the location again to look up N<sub>G</sub> for this point.";updateEdition();});
-$("density").addEventListener("input",()=>{const d=$("density"),status=$("locationStatus");d.dataset.manual="1";delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.ng;delete d.dataset.nldn;delete d.dataset.nldnCellsAway;delete status.dataset.prefix;$("densitySource").textContent=`Manual ${edition()==="2026"?"NSG":"NG"} value entered: ${d.value || "not specified"}.`;status.className="notice warn";status.innerHTML="Density entered manually. Check the confirmation box before using the results.";calcAll();});
-$("location").addEventListener("input",()=>{const d=$("density"),status=$("locationStatus");delete status.dataset.prefix;delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.nldn;delete d.dataset.nldnCellsAway;delete d.dataset.manual;$("densityConfirmed").checked=false;$("densitySource").textContent="Density source will be shown here after a lookup or manual density entry.";status.className="notice info";status.innerHTML="Location changed. Resolve it again to obtain N<sub>G</sub> from the selected source and establish the density used in the equations.";calcAll();});
+$("ngSource").addEventListener("change",async()=>{
+ const d=$("density"),status=$("locationStatus");
+ delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.nldn;delete d.dataset.nldnCellsAway;delete d.dataset.manual;
+ $("densitySource").textContent="Density source will be shown here after a lookup or manual density entry.";
+ $("densityConfirmed").checked=false;
+ if(lastResolvedPoint){
+  status.className="notice info";status.textContent="Lightning-density source changed. Re-resolving the previously resolved point…";
+  const ok=await applyPointForSource(lastResolvedPoint.lat,lastResolvedPoint.lon,lastResolvedPoint.prefix);
+  $("densityConfirmed").checked=!!ok;
+ }else{
+  delete status.dataset.prefix;status.className="notice info";
+  status.innerHTML=$("ngSource").value==="nldn"?"Lightning-density source set to the NOAA NLDN 2003-2023 gridded estimate. Resolve the location to look up N<sub>G</sub> for this point.":"Lightning-density source set to the digitized NFPA 780 Figure L.2 legend bands. Resolve the location to look up N<sub>G</sub> for this point.";
+ }
+ updateEdition();
+});
+$("density").addEventListener("input",()=>{const d=$("density"),status=$("locationStatus");d.dataset.manual="1";delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.ng;delete d.dataset.nldn;delete d.dataset.nldnCellsAway;delete status.dataset.prefix;lastResolvedPoint=null;$("densitySource").textContent=`Manual ${edition()==="2026"?"NSG":"NG"} value entered: ${d.value || "not specified"}.`;status.className="notice warn";status.innerHTML="Density entered manually. Check the confirmation box before using the results.";calcAll();});
+$("location").addEventListener("input",()=>{const d=$("density"),status=$("locationStatus");delete status.dataset.prefix;delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.nldn;delete d.dataset.nldnCellsAway;delete d.dataset.manual;lastResolvedPoint=null;$("densityConfirmed").checked=false;$("densitySource").textContent="Density source will be shown here after a lookup or manual density entry.";status.className="notice info";status.innerHTML="Location changed. Resolve it again to obtain N<sub>G</sub> from the selected source and establish the density used in the equations.";calcAll();});
+
 document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".pane").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.pane).classList.add("active");}));
 document.querySelectorAll("input,select").forEach(el=>{if(!el.closest("#services")){el.addEventListener("input",calcAll);el.addEventListener("change",calcAll);}});
 
@@ -343,7 +369,99 @@ function buildReference(){
  const refs=[["Edition density basis",[["NFPA 780-2020","Use NG from the selected density source directly"],["NFPA 780-2026","When the selected NG source is used: NSG = 1.7 × NG, applied once before all occurrence-frequency equations"]]],["Figure L.2 NG legend (digitized; applied value is conservative upper limit)",NFPA_FIGURE_L2.bands.map(x=>[x.label,x.apply])],["NOAA NLDN gridded estimate (2003-2023)",[["Source","NOAA (https://www.noaa.gov/) — National Lightning Detection Network tiled counts, 2003-2023; confirm the exact dataset/download URL for the project record"],["Resolution","0.1° tiles (about 9-11 km at CONUS latitudes)"],["Conversion","NG = MEAN_ANNUAL_COUNT / true WGS84 tile area at the tile's latitude"]]],["CD — location factor",T.CD],["PA — touch/step protection",T.PA],["PB — NFPA structural protection",T.PB],["PC — internal-system SPD protection",T.PC],["KS3 — internal wiring",T.KS3],["CE — service environment",T.CE],["rt — contact surface",T.RT],["rp — fire provisions",T.RP],["rf — fire/explosion risk",T.RF],["hZ — special hazard",T.HZ]];
  $("referenceTables").innerHTML=refs.map(([name,t])=>`<details class="service"><summary>${name}</summary><div class="inside"><table class="component-table"><thead><tr><th>Condition</th><th>Value</th></tr></thead><tbody>${t.map(r=>`<tr><td>${esc(r[0])}</td><td>${Array.isArray(r[1])?r[1].join(" / "):r[1]}</td></tr>`).join("")}</tbody></table></div></details>`).join("");
 }
+
+function generateSimpleReport(){
+ syncServices();
+ const d=$("density"),ng=Number(d.dataset.ng),edt=edition(),sym=densitySymbol(),N=densityValue(),confirmed=$("densityConfirmed").checked;
+ const sL=num("sL")*FT,sW=num("sW")*FT,sH=num("sH")*FT,AD=collArea(sL,sW,sH);
+ const CD=val("sCD",T.CD),CDLabel=T.CD[+$("sCD").value][0];
+ const C2=val("sC2",T.C2),C2Label=T.C2[+$("sC2").value][0];
+ const C3=val("sC3",T.C3),C3Label=T.C3[+$("sC3").value][0];
+ const C4=val("sC4",T.C4),C4Label=T.C4[+$("sC4").value][0];
+ const C5=val("sC5",T.C5),C5Label=T.C5[+$("sC5").value][0];
+ const C=C2*C3*C4*C5,ND=N*AD*CD*1e-6,NC=1.5e-3/C;
+ const verdictClass=!confirmed?"#c98a00":ND>NC?"#a3231b":"#1a7a35";
+ const verdictText=!confirmed?"PRELIMINARY ONLY — lightning-density source has not been confirmed.":ND>NC?"ND > NC — lightning protection is recommended by the simplified assessment.":"ND ≤ NC — lightning protection is optional under the simplified assessment, subject to special-occupancy requirements and AHJ/project criteria.";
+ const tr=(k,v)=>`<tr><td>${k}</td><td>${v}</td></tr>`;
+ let densityBasisRows="";
+ if(Number.isFinite(ng)&&edt==="2026")densityBasisRows=tr("Ground flash density N<sub>G</sub> (source)",`${fmt(ng)} flashes/km²/year`)+tr("Ground strike-point density N<sub>SG</sub> = 1.7 × N<sub>G</sub>",`${fmt(N)} strike points/km²/year`);
+ else if(Number.isFinite(ng))densityBasisRows=tr("Ground flash density N<sub>G</sub>",`${fmt(ng)} flashes/km²/year`);
+ else densityBasisRows=tr(`Density ${sym} (manual entry)`,`${fmt(N)} /km²/year`);
+ const html=`<!doctype html><html><head><meta charset="utf-8"><title>Lightning Risk Assessment — Simplified Method Report</title>
+<style>
+ @page{size:portrait;margin:16mm}
+ body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:12.5px;line-height:1.5;margin:0}
+ h1{font-size:19px;margin:0 0 4px}
+ h2{font-size:14px;margin:22px 0 8px;border-bottom:2px solid #1a1a1a;padding-bottom:4px}
+ table{width:100%;border-collapse:collapse;margin-top:6px}
+ td,th{border:1px solid #999;padding:5px 8px;font-size:12px;text-align:left}
+ td:last-child,th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+ .sub{color:#555;font-size:12px;margin-bottom:14px}
+ .verdict{margin-top:14px;padding:10px 14px;border:2px solid ${verdictClass};color:${verdictClass};font-weight:bold}
+ .foot{margin-top:26px;font-size:10.5px;color:#555}
+</style></head><body>
+<h1>Lightning Risk Assessment — Simplified Method</h1>
+<div class="sub">Project: ${esc($("project").value)} &nbsp;|&nbsp; NFPA 780 edition basis: ${edt} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString("en-US")}</div>
+
+<h2>1. Location and lightning-density basis</h2>
+<table><tbody>
+${tr("Resolved coordinates",`${esc($("lat").value||"—")}, ${esc($("lon").value||"—")}`)}
+${tr("Lightning-density source",esc($("ngSource").selectedOptions[0].textContent))}
+${tr("Density source detail",esc($("densitySource").textContent))}
+${densityBasisRows}
+${tr("Density confirmed by user",confirmed?"Yes":"No — PRELIMINARY")}
+</tbody></table>
+
+<h2>2. Structure geometry and equivalent collection area</h2>
+<table><tbody>
+${tr("Length L",`${num("sL").toFixed(2)} ft (${sL.toFixed(3)} m)`)}
+${tr("Width W",`${num("sW").toFixed(2)} ft (${sW.toFixed(3)} m)`)}
+${tr("Height H",`${num("sH").toFixed(2)} ft (${sH.toFixed(3)} m)`)}
+${tr("Equation","A<sub>D</sub> = L·W + 6H(L+W) + 9πH²")}
+${tr("Equivalent collection area A<sub>D</sub>",`${fmt(AD)} m²`)}
+</tbody></table>
+
+<h2>3. Location and structure coefficients</h2>
+<table><tbody>
+${tr("C1 / C<sub>D</sub> — relative location",`${esc(CDLabel)} (C<sub>D</sub> = ${fmt(CD)})`)}
+${tr("C2 — structure and roof construction",`${esc(C2Label)} (C2 = ${fmt(C2)})`)}
+${tr("C3 — structure contents",`${esc(C3Label)} (C3 = ${fmt(C3)})`)}
+${tr("C4 — structure occupancy",`${esc(C4Label)} (C4 = ${fmt(C4)})`)}
+${tr("C5 — lightning consequence",`${esc(C5Label)} (C5 = ${fmt(C5)})`)}
+${tr("Combined coefficient C = C2 · C3 · C4 · C5",fmt(C))}
+</tbody></table>
+
+<h2>4. Annual threat of occurrence (N<sub>D</sub>)</h2>
+<table><tbody>
+${tr("Equation",`N<sub>D</sub> = ${sym} · A<sub>D</sub> · C<sub>D</sub> × 10⁻⁶`)}
+${tr("Substitution",`N<sub>D</sub> = ${fmt(N)} × ${fmt(AD)} × ${fmt(CD)} × 10⁻⁶`)}
+${tr("Result N<sub>D</sub>",`${fmt(ND)} /year`)}
+${tr("Expected interval",eventInterval(ND))}
+</tbody></table>
+
+<h2>5. Tolerable frequency of occurrence (N<sub>C</sub>)</h2>
+<table><tbody>
+${tr("Equation","N<sub>C</sub> = 1.5 × 10⁻³ / C")}
+${tr("Substitution",`N<sub>C</sub> = 1.5 × 10⁻³ / ${fmt(C)}`)}
+${tr("Result N<sub>C</sub>",`${fmt(NC)} /year`)}
+${tr("Tolerable interval",eventInterval(NC))}
+</tbody></table>
+
+<h2>6. Comparison and verdict</h2>
+<table><tbody>
+${tr("N<sub>D</sub> / N<sub>C</sub>",fmt(ND/NC))}
+</tbody></table>
+<div class="verdict">${verdictText}</div>
+
+<div class="foot">Generated by the Engineering Tools Hub — Lightning Risk Assessment worksheet. NFPA 780 Annex L simplified method is informational; results do not certify an installation and do not waive AHJ or specification requirements. Keep this report with the project calculation package together with the selected edition, density source and confirmed inputs.</div>
+<script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
+</body></html>`;
+ const win=window.open("","_blank");
+ if(win){win.document.open();win.document.write(html);win.document.close();}
+}
+$("simpleReportBtn").addEventListener("click",generateSimpleReport);
 renderServices();buildReference();updateEdition();
 </script>
+
 </body>
 </html>
