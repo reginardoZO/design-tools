@@ -13,6 +13,8 @@
 const MM_PER_INCH = 25.4;
 const IN_PER_METER = 1 / 0.0254;
 const QUARTERS_PER_FOOT = 48; // 12 in/ft * 4 quarters/in
+const IN2_PER_FT2 = 144;
+const M2_PER_FT2 = 0.09290304; // 0.3048^2
 
 // ==================== PARSING ====================
 
@@ -50,16 +52,25 @@ function parseFeetEntry(raw) {
 }
 
 /**
- * Parses a decimal inches string (accepts comma as decimal separator).
+ * Parses a plain decimal number string (accepts comma as decimal separator).
  * @param {string} raw
  * @returns {number|null}
  */
-function parseInchesEntry(raw) {
+function parseDecimalEntry(raw) {
   if (typeof raw !== 'string') return null;
   const s = raw.trim().replace(',', '.');
   if (!s) return null;
   const v = parseFloat(s);
   return Number.isNaN(v) ? null : v;
+}
+
+/**
+ * Parses a decimal inches string (accepts comma as decimal separator).
+ * @param {string} raw
+ * @returns {number|null}
+ */
+function parseInchesEntry(raw) {
+  return parseDecimalEntry(raw);
 }
 
 // ==================== FORMATTING ====================
@@ -109,6 +120,10 @@ const els = {
   mmFtIn: document.getElementById('mmFtIn'),
   mmFtDec: document.getElementById('mmFtDec'),
   mmInDec: document.getElementById('mmInDec'),
+
+  sqftInput: document.getElementById('sqftInput'),
+  sqinInput: document.getElementById('sqinInput'),
+  sqmInput: document.getElementById('sqmInput'),
 };
 
 // ==================== BLOCK 1: FT <-> IN ====================
@@ -174,9 +189,59 @@ function updateFromMm() {
 
 els.mmInput.addEventListener('input', updateFromMm);
 
+// ==================== BLOCK 3: AREA FT2 <-> IN2 <-> M2 ====================
+
+// Canonical value shared by all three fields, in square feet.
+let areaSqFt = 100;
+
+function refreshSqFt() {
+  els.sqftInput.value = formatDecimal(areaSqFt, 4);
+}
+
+function refreshSqIn() {
+  els.sqinInput.value = formatDecimal(areaSqFt * IN2_PER_FT2, 4);
+}
+
+function refreshSqM() {
+  els.sqmInput.value = formatDecimal(areaSqFt * M2_PER_FT2, 6);
+}
+
+els.sqftInput.addEventListener('input', () => {
+  const parsed = parseDecimalEntry(els.sqftInput.value);
+  if (parsed !== null) {
+    areaSqFt = parsed;
+    refreshSqIn();
+    refreshSqM();
+  }
+});
+els.sqftInput.addEventListener('blur', refreshSqFt);
+
+els.sqinInput.addEventListener('input', () => {
+  const parsed = parseDecimalEntry(els.sqinInput.value);
+  if (parsed !== null) {
+    areaSqFt = parsed / IN2_PER_FT2;
+    refreshSqFt();
+    refreshSqM();
+  }
+});
+els.sqinInput.addEventListener('blur', refreshSqIn);
+
+els.sqmInput.addEventListener('input', () => {
+  const parsed = parseDecimalEntry(els.sqmInput.value);
+  if (parsed !== null) {
+    areaSqFt = parsed / M2_PER_FT2;
+    refreshSqFt();
+    refreshSqIn();
+  }
+});
+els.sqmInput.addEventListener('blur', refreshSqM);
+
 // ==================== INIT ====================
 
 refreshFeetField();
 refreshInchesField();
 refreshMeters();
 updateFromMm();
+refreshSqFt();
+refreshSqIn();
+refreshSqM();
