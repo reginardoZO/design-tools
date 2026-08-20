@@ -64,6 +64,10 @@
   <section id="detailed" class="pane">
     <div class="card">
       <h2>2. Detailed method — structure, protection and internal systems</h2>
+      <div class="notice info">
+        <button id="loadRefCase" class="btn secondary" type="button">Load NFPA reference case (detailed.pdf)</button>
+        Loads the "Electrolyzer Building" case study values from <code>apps/lightning-risk/detailed.pdf</code> (a third-party NFPA 780 Annex L report) so the results here can be compared side by side with that report. See <code>tests/lightning-risk-detailed.test.js</code> for the same fixture as an automated check.
+      </div>
       <div class="grid compact">
         <div><label for="dL">Length L (ft)</label><input id="dL" type="number" min="0" value="300"></div>
         <div><label for="dW">Width W (ft)</label><input id="dW" type="number" min="0" value="100"></div>
@@ -138,7 +142,7 @@
 <script type="module">
 "use strict";
 import { computeNg, defaultYearRange, SwdiCoverageError } from "./js/ng-swdi.js";
-const FT=0.3048,FT2=FT*FT;
+import { FT, FT2, collArea, computeDetailedRisk } from "./js/detailed-risk-calc.js";
 const T={
  CD:[["Surrounded by taller structures/trees within 3H",0.25],["Surrounded by equal or lower structures within 3H",0.5],["Isolated structure — nothing within 3H",1],["Isolated structure on a hilltop",2]],
  C2:[["Metal structure / metal roof",0.5],["Metal structure / nonmetallic roof",1],["Metal structure / combustible roof",2],["Nonmetallic structure / metal roof",1],["Nonmetallic structure / nonmetallic roof",1],["Nonmetallic structure / combustible roof",2.5],["Combustible structure / metal roof",2],["Combustible structure / nonmetallic roof",2.5],["Combustible structure / combustible roof",3]],
@@ -179,7 +183,6 @@ function densityRows(){
  if(Number.isFinite(ng))return row("Ground flash density N<sub>G</sub>",fmt(ng),"flashes/km²/year");
  return row(`Density ${sym} (manual entry)`,fmt(N),edition()==="2026"?"strike points/km²/year":"flashes/km²/year");
 }
-function collArea(L,W,H){return L*W+6*H*(L+W)+9*Math.PI*H*H;}
 function edition(){return $("edition").value;}
 function densitySymbol(){return edition()==="2026"?"N<sub>SG</sub>":"N<sub>G</sub>";}
 function densityFromNg(ng){return edition()==="2026"?1.7*ng:ng;}
@@ -250,7 +253,6 @@ function renderResolvedDensityStatus(){
   status.innerHTML=status.dataset.prefix+` NOAA NLDN 2003-2023 gridded estimate${away}${basis}. Source: https://www.noaa.gov/ — confirm the exact dataset URL for the project record.`;
  }
 }
-function pmTable(ks){if(ks>.4)return 1;if(ks>=.15)return .9;if(ks>=.07)return .5;if(ks>=.035)return .1;if(ks>=.021)return .01;if(ks>=.016)return .005;if(ks>=.015)return .003;if(ks>=.014)return .001;return .0001;}
 let lastResolvedPoint=null;
 async function applyPointForSource(lat,lon,prefix){
  const status=$("locationStatus"),btn=$("locate"),source=$("ngSource").value;
@@ -276,14 +278,12 @@ async function applyPointForSource(lat,lon,prefix){
  lastResolvedPoint={lat,lon,prefix};
  return true;
 }
-function uwIndex(u){return u>=6?4:u>=4?3:u>=2.5?2:u>=1.5?1:0;}
-
 fill("sCD",T.CD,2);fill("dCD",T.CD,2);fill("sC2",T.C2,0);fill("sC3",T.C3,3);fill("sC4",T.C4,1);fill("sC5",T.C5,1);
 fill("dPA",T.PA,0);fill("dPB",T.PB,0);fill("dPC",T.PC,0);fill("ks3",T.KS3,0);fill("rt",T.RT,0);fill("rp",T.RP,0);fill("rf",T.RF,0);fill("hz",T.HZ,0);
 
 let services=[
- {name:"Power service",on:1,length:3280.84,ce:3,ct:.2,pu:0,uw:4,spd:0,reduce:0,pz:0,aL:0,aW:0,aH:0,aCD:2},
- {name:"Telecommunication / data service",on:1,length:3280.84,ce:3,ct:1,pu:0,uw:2.5,spd:0,reduce:0,pz:1,aL:0,aW:0,aH:0,aCD:2}
+ {name:"Power service",on:1,length:3280.84,ce:3,ct:.2,pu:0,uw:4,spd:0,reduce:0,pz:0,aL:0,aW:0,aH:0,aCD:2,adjManualOn:0,adjManualVal:0},
+ {name:"Telecommunication / data service",on:1,length:3280.84,ce:3,ct:1,pu:0,uw:2.5,spd:0,reduce:0,pz:1,aL:0,aW:0,aH:0,aCD:2,adjManualOn:0,adjManualVal:0}
 ];
 function selectRaw(items,current){return items.map(([label,value])=>`<option value="${value}" ${String(value)===String(current)?"selected":""}>${esc(label)}</option>`).join("");}
 function renderServices(){
@@ -300,31 +300,34 @@ function renderServices(){
  <div><label>PZ line type</label><select data-i="${i}" data-k="pz">${opts(T.PZ,s.pz)}</select></div>
  <div><label>Adjacent structure L × W × H (ft; zero = none)</label><div class="row-inline"><input data-i="${i}" data-k="aL" type="number" min="0" value="${s.aL}"><input data-i="${i}" data-k="aW" type="number" min="0" value="${s.aW}"><input data-i="${i}" data-k="aH" type="number" min="0" value="${s.aH}"></div></div>
  <div><label>CDJ — adjacent structure location</label><select data-i="${i}" data-k="aCD">${opts(T.CD,s.aCD)}</select></div>
+ <div><label>Equivalent collection area A<sub>DJ</sub> of adjacent structure</label><select data-i="${i}" data-k="adjManualOn">${selectRaw([["Calculate from L, W, H (rectangular equation)",0],["Enter ADJ manually — irregular structure",1]],s.adjManualOn)}</select></div>
+ <div><label>Manual A<sub>DJ</sub> (ft²)</label><input data-i="${i}" data-k="adjManualVal" type="number" min="0" step="0.01" value="${s.adjManualVal}" ${s.adjManualOn?"":"disabled"}><div class="hint">Enabled only when A<sub>DJ</sub> is set to manual entry above. Enter the engineering-calculated collection area for an irregular adjacent structure, in ft².</div></div>
  </div><div class="service-actions"><button class="btn danger" type="button" onclick="removeService(${i})">Remove service</button></div></div></details>`).join("");
- $("services").querySelectorAll("input,select").forEach(el=>{el.addEventListener("input",()=>{syncServices();calcAll();});el.addEventListener("change",()=>{syncServices();calcAll();});});
+ $("services").querySelectorAll("input,select").forEach(el=>{
+  el.addEventListener("input",()=>{syncServices();calcAll();});
+  el.addEventListener("change",()=>{
+   syncServices();
+   if(el.dataset.k==="adjManualOn"){
+    const valEl=$("services").querySelector(`[data-i="${el.dataset.i}"][data-k="adjManualVal"]`);
+    if(valEl)valEl.disabled=el.value!=="1";
+   }
+   calcAll();
+  });
+ });
 }
 function syncServices(){
  $("services").querySelectorAll("[data-i]").forEach(el=>{const s=services[+el.dataset.i],k=el.dataset.k;if(!s)return;s[k]=k==="name"?el.value:parseFloat(el.value)||0;});
 }
 window.removeService=i=>{syncServices();services.splice(i,1);renderServices();calcAll();};
-$("addService").addEventListener("click",()=>{syncServices();services.push({name:`Service ${services.length+1}`,on:1,length:3280.84,ce:3,ct:1,pu:0,uw:1.5,spd:0,reduce:0,pz:0,aL:0,aW:0,aH:0,aCD:2});renderServices();calcAll();});
+$("addService").addEventListener("click",()=>{syncServices();services.push({name:`Service ${services.length+1}`,on:1,length:3280.84,ce:3,ct:1,pu:0,uw:1.5,spd:0,reduce:0,pz:0,aL:0,aW:0,aH:0,aCD:2,adjManualOn:0,adjManualVal:0});renderServices();calcAll();});
 
-function serviceCalc(s,N,PC,PA){
- if(!s.on)return {NL:0,NI:0,NDJ:0,PU:0,PV:0,PW:0,PZ:0};
- const LL=Math.min(1000,Math.max(0,s.length*FT));
- const CE=T.CE[s.ce]?.[1]??1,CT=Number(s.ct)||1,AL=40*LL,AI=4000*LL;
- const NL=N*AL*CE*CT*1e-6,NI=N*AI*CE*CT*1e-6;
- const aL=s.aL*FT,aW=s.aW*FT,aH=s.aH*FT,ADJ=(aL>0&&aW>0)?collArea(aL,aW,aH):0;
- const CDJ=T.CD[s.aCD]?.[1]??1,NDJ=N*ADJ*CDJ*CT*1e-6,ui=uwIndex(s.uw);
- let PU=T.PU[s.pu]?.[1]?.[ui]??1;if(s.spd)PU=Math.min(PC,PU);if(s.reduce)PU*=PA;
- const PV=s.spd?Math.min(PC,T.PU[s.pu]?.[1]?.[ui]??1):(T.PU[s.pu]?.[1]?.[ui]??1);
- const PW=PV;let PZ=T.PZ[s.pz]?.[1]?.[ui]??1;if(s.spd)PZ=Math.min(PC,PZ);
- return {NL,NI,NDJ,PU,PV,PW,PZ,LL};
-}
-function genericRisk(ND,NM,PB,PC,PM,lineData,a,b,c,includeTouch,PA,rt){
- let R=(includeTouch?ND*PA*(rt*a):0)+ND*PB*b+ND*PC*c+NM*PM*c;
- lineData.forEach(x=>{R+=(includeTouch?(x.NL+x.NDJ)*x.PU*(rt*a):0)+(x.NL+x.NDJ)*x.PV*b+(x.NL+x.NDJ)*x.PW*c+x.NI*x.PZ*c;});
- return R;
+function resolveService(s){
+ return {
+  on:s.on,lengthFt:s.length,ce:T.CE[s.ce]?.[1]??1,ct:s.ct,
+  puRow:T.PU[s.pu]?.[1],uw:s.uw,spd:s.spd,reduce:s.reduce,pzRow:T.PZ[s.pz]?.[1],
+  aLft:s.aL,aWft:s.aW,aHft:s.aH,aCD:T.CD[s.aCD]?.[1]??1,
+  adjManualM2:s.adjManualOn?s.adjManualVal*FT2:0,
+ };
 }
 function calcAll(){
  syncServices();const N=densityValue(),confirmed=$("densityConfirmed").checked,sym=densitySymbol();
@@ -339,27 +342,21 @@ function calcAll(){
 
  const L=num("dL")*FT,W=num("dW")*FT,H=num("dH")*FT;
  const dADOverride=$("dADmanualOn").value==="1";
- const AD=dADOverride?num("dADval")*FT2:collArea(L,W,H),CD=val("dCD",T.CD),ND=N*AD*CD*1e-6;
-
- const radius=edition()==="2026"?350:500,AM=2*radius*(L+W)+Math.PI*radius*radius,NM=N*Math.max(0,AM-AD)*CD*1e-6;
- const PA=val("dPA",T.PA),PB=val("dPB",T.PB),PC=val("dPC",T.PC),KS1=num("ks1"),KS2=num("ks2"),KS3=val("ks3",T.KS3),KS4=1.5/num("dUw"),KS=KS1*KS2*KS3*KS4;
- let PM;
- if($("pmUnknown").value==="1"){
-  PM=1;
- }else{
-  PM=pmTable(KS);
-  if($("pmCoordinated").value==="1")PM=Math.min(PC,PM);
- }
+ const CD=val("dCD",T.CD);
+ const radius=edition()==="2026"?350:500;
+ const PA=val("dPA",T.PA),PB=val("dPB",T.PB),PC=val("dPC",T.PC),KS1=num("ks1"),KS2=num("ks2"),KS3=val("ks3",T.KS3),UW=num("dUw");
  const lt=+$("lt").value,lf=+$("lf").value,lo=+$("lo").value,rt=val("rt",T.RT),rp=val("rp",T.RP),rf=val("rf",T.RF),hz=val("hz",T.HZ);
- const LA=rt*lt,LB=rp*rf*hz*lf,LC=lo,critical=$("lifeCritical").value==="1";
- const lineData=services.map(s=>serviceCalc(s,N,PC,PA));
- let RA=ND*PA*LA,RB=ND*PB*LB,RC=critical?ND*PC*LC:0,RM=critical?NM*PM*LC:0,RU=0,RV=0,RW=0,RZ=0;
- lineData.forEach(x=>{RU+=(x.NL+x.NDJ)*x.PU*LA;RV+=(x.NL+x.NDJ)*x.PV*LB;if(critical){RW+=(x.NL+x.NDJ)*x.PW*LC;RZ+=x.NI*x.PZ*LC;}});
- const R1=RA+RB+RC+RM+RU+RV+RW+RZ;
- const LB2=rp*rf*num("lf2"),LC2=num("lo2");let R2=ND*PB*LB2+ND*PC*LC2+NM*PM*LC2;lineData.forEach(x=>{R2+=(x.NL+x.NDJ)*x.PV*LB2+(x.NL+x.NDJ)*x.PW*LC2+x.NI*x.PZ*LC2;});if($("r2on").value!=="1")R2=0;
- const LB3=rp*rf*num("lf3");let R3=ND*PB*LB3;lineData.forEach(x=>R3+=(x.NL+x.NDJ)*x.PV*LB3);if($("r3on").value!=="1")R3=0;
- let R4=genericRisk(ND,NM,PB,PC,PM,lineData,num("lt4"),rp*rf*num("lf4"),num("lo4"),true,PA,rt);if($("r4on").value!=="1")R4=0;
- const totalNL=lineData.reduce((a,x)=>a+x.NL,0),totalNI=lineData.reduce((a,x)=>a+x.NI,0),totalNDJ=lineData.reduce((a,x)=>a+x.NDJ,0);
+ const critical=$("lifeCritical").value==="1";
+ const result=computeDetailedRisk({
+  N,L,W,H,ADmanualM2:dADOverride?num("dADval")*FT2:null,CD,radius,
+  PA,PB,PC,KS1,KS2,KS3,UW,pmUnknown:$("pmUnknown").value==="1",pmCoordinated:$("pmCoordinated").value==="1",
+  LT:lt,LF:lf,LO:lo,rt,rp,rf,hz,critical,
+  services:services.map(resolveService),
+  r2:{on:$("r2on").value==="1",lf2:num("lf2"),lo2:num("lo2")},
+  r3:{on:$("r3on").value==="1",lf3:num("lf3")},
+  r4:{on:$("r4on").value==="1",lt4:num("lt4"),lf4:num("lf4"),lo4:num("lo4")},
+ });
+ const {AD,AM,ND,NM,KS,PM,LA,LB,LC,components:{RA,RB,RC,RM,RU,RV,RW,RZ},R1,R2,R3,R4,totals:{NL:totalNL,NI:totalNI,NDJ:totalNDJ}}=result;
  $("detailedResults").innerHTML=densityRows()+row("CD — relative location factor",fmt(CD))+row(dADOverride?"AD — structure collection area (manual entry)":"AD — structure collection area",fmt(AD),"m²")+row(`AM — ${radius} m near-structure collection area`,fmt(AM),"m²")+row(`ND — strikes to structure (${sym})`,fmt(ND),"/year")+row("ND interval",eventInterval(ND))+row("NM — strikes near structure",fmt(NM),"/year")+row("NM interval",eventInterval(NM))+row("NL / NI / NDJ — service totals",`${fmt(totalNL)} / ${fmt(totalNI)} / ${fmt(totalNDJ)}`)+row("KS / PM",`${fmt(KS)} / ${fmt(PM)}`)+row("PA / PB / PC",`${fmt(PA)} / ${fmt(PB)} / ${fmt(PC)}`)+row("LA / LB / LC",`${fmt(LA)} / ${fmt(LB)} / ${fmt(LC)}`);
  const comps=[["RA",RA],["RB",RB],["RC",RC],["RM",RM],["RU",RU],["RV",RV],["RW",RW],["RZ",RZ]];
  $("componentTable").innerHTML=`<table class="component-table"><thead><tr><th>Component</th><th>Risk/year</th><th>Share of R1</th></tr></thead><tbody>${comps.map(([k,v])=>`<tr><td>${k}</td><td>${fmt(v)}</td><td>${R1?fmt(100*v/R1)+"%":"0%"}</td></tr>`).join("")}</tbody><tfoot><tr><th>R1 total</th><th>${fmt(R1)}</th><th>100%</th></tr></tfoot></table>`;
@@ -501,6 +498,36 @@ ${tr("N<sub>D</sub> / N<sub>C</sub>",fmt(ND/NC))}
  if(win){win.document.open();win.document.write(html);win.document.close();}
 }
 $("simpleReportBtn").addEventListener("click",generateSimpleReport);
+
+function loadReferenceCase(){
+ $("project").value="Electrolyzer Building — NFPA 780 Annex L reference case (detailed.pdf)";
+ $("edition").value="2020";updateEdition();
+ $("ngSource").value="figurel2";
+ const d=$("density");delete d.dataset.bandLabel;delete d.dataset.bandNote;delete d.dataset.nldn;delete d.dataset.nldnCellsAway;delete d.dataset.swdi;delete d.dataset.swdiProvenance;delete d.dataset.ng;
+ d.dataset.manual="1";d.value="1.19";
+ $("densityConfirmed").checked=true;
+ $("densitySource").textContent="Manual entry matching apps/lightning-risk/detailed.pdf: NG = 1.19 flashes/km²/year.";
+ $("locationStatus").className="notice info";delete $("locationStatus").dataset.prefix;
+ $("locationStatus").textContent="Reference case loaded from detailed.pdf — density entered manually, not resolved from a location.";
+ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".pane").forEach(x=>x.classList.remove("active"));
+ document.querySelector('.tab[data-pane="detailed"]').classList.add("active");$("detailed").classList.add("active");
+ $("dL").value=75;$("dW").value=175;$("dH").value=26; // 22.86 x 53.34 x 7.92 m
+ $("dADmanualOn").value="0";$("dADval").disabled=true;
+ $("dCD").value=1; // "Surrounded by equal or lower structures within 3H" — CD = 0.5
+ $("dPA").value=4; // "Structural steel frame used as down-conductor system" — PA = 1e-6
+ $("dPB").value=3; // "Qualified metal roof + continuous metal natural down-conductor system" — PB = 0.001
+ $("dPC").value=0; // "No qualifying SPD protection" — PC = 1.0
+ $("lifeCritical").value="0";
+ $("ks1").value=0.69;$("ks2").value=0.69;$("ks3").value=0;$("dUw").value="1.5";
+ $("pmUnknown").value="0";$("pmCoordinated").value="0";
+ $("lt").value="0.001";$("lf").value="0.05";$("lo").value="0.000001";
+ $("rt").value=0;$("rp").value=0;$("rf").value=1;$("hz").value=1;
+ services=[{name:"Power service (to adjacent structure)",on:1,length:240/FT,ce:3,ct:.2,pu:3,uw:1.5,spd:0,reduce:0,pz:0,aL:0,aW:0,aH:0,aCD:1,adjManualOn:1,adjManualVal:125856/FT2}];
+ renderServices();
+ $("r2on").value="0";$("r3on").value="0";$("r4on").value="0";
+ calcAll();
+}
+$("loadRefCase").addEventListener("click",loadReferenceCase);
 renderServices();buildReference();updateEdition();
 </script>
 
