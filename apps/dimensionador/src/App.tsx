@@ -281,7 +281,7 @@ function App() {
     const targetColumn = Number(manualColumnInput)
     const targetColumnData = layout.columns[targetColumn - 1]
     const occupiedSpaces = (targetColumnData?.loads ?? [])
-      .filter((load) => load.id !== manualLoad.id)
+      .filter((load) => load.id !== manualLoad.id && !load.isAutomaticSpare)
       .reduce((total, load) => total + getLoadOption(load).spaces, 0)
     if (
       targetColumn > 0
@@ -447,7 +447,7 @@ function App() {
   const selectedManualColumnTarget = layout.columns[selectedManualColumn - 1]
   const selectedManualColumnSpaces = manualLoad && selectedManualColumnTarget
     ? selectedManualColumnTarget.loads
-      .filter((load) => load.id !== manualLoad.id)
+      .filter((load) => load.id !== manualLoad.id && !load.isAutomaticSpare)
       .reduce((total, load) => total + getLoadOption(load).spaces, 0)
       + getLoadOption(manualLoad).spaces
     : 0
@@ -837,7 +837,7 @@ function App() {
                 {layout.columns.map((column, index) => {
                   const columnNumber = index + 1
                   const occupiedSpaces = column.loads
-                    .filter((load) => load.id !== manualLoad.id)
+                    .filter((load) => load.id !== manualLoad.id && !load.isAutomaticSpare)
                     .reduce((total, load) => total + getLoadOption(load).spaces, 0)
                   const fits = isColumnFillable(column)
                     && occupiedSpaces + getLoadOption(manualLoad).spaces <= PANEL_SPACE_COUNT

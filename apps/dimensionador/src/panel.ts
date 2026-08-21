@@ -107,6 +107,13 @@ export const LOAD_TYPES: LoadType[] = [
         spaces: 12,
         widthIn: POWER_COLUMN_WIDTH_IN,
       },
+            {
+        id: '1600a',
+        label: '1600 A',
+        shortLabel: '1600 A',
+        spaces: 12,
+        widthIn: POWER_COLUMN_WIDTH_IN,
+      },
     ],
   },
   {
@@ -164,8 +171,9 @@ export const LOAD_TYPES: LoadType[] = [
       { id: '25hp-n2', label: '25 HP · NEMA 2', shortLabel: '25 HP · N2', spaces: 2 },
       { id: '40hp-n3', label: '40 HP · NEMA 3', shortLabel: '40 HP · N3', spaces: 3 },
       { id: '50hp-n3', label: '50 HP · NEMA 3', shortLabel: '50 HP · N3', spaces: 3 },
-      { id: '200hp-n5-42', label: '200 HP · NEMA 5', shortLabel: '200 HP · N5', spaces: 7 },
-      { id: '200hp-n5-48', label: '200 HP · NEMA 5', shortLabel: '200 HP · N5', spaces: 8 },
+      { id: '200hp-n5-42', label: '200 HP · NEMA 5', shortLabel: '200 HP · N5', spaces: 6 },
+      { id: '200hp-n5-48', label: '200 HP · NEMA 5', shortLabel: '200 HP · N5', spaces: 6 },
+      { id: '300hp-n6', label: '300 HP · NEMA 6', shortLabel: '300 HP · N6', spaces: 9 },
       { id: '400hp-n6', label: '400 HP · NEMA 6', shortLabel: '400 HP · N6', spaces: 11 },
     ],
   },
@@ -832,7 +840,10 @@ export function buildPanelLayout(loads: PanelLoad[], options: PanelLayoutOptions
     manualGroups.forEach((manualLoads, columnNumber) => {
       const index = columnNumber - 1
       const target = slots[index]
-      if (target && isColumnFillable(target)) {
+      const fits = target
+        && isColumnFillable(target)
+        && columnUsedSpaces(target.loads) + columnUsedSpaces(manualLoads) <= PANEL_SPACE_COUNT
+      if (fits) {
         target.loads = [...target.loads, ...manualLoads]
         target.kind = binKind(target.loads)
         if (target.role === 'infrastructure' && target.kind === 'CARGA') {
@@ -841,7 +852,8 @@ export function buildPanelLayout(loads: PanelLoad[], options: PanelLayoutOptions
       } else if (!target) {
         slots[index] = manualColumn(manualLoads, columnNumber)
       } else {
-        // Never displace a dedicated bus/breaker column; fall back to the end of the lineup.
+        // Never displace a dedicated column, and never overflow a column that's already full —
+        // fall back to a new column at the end of the lineup.
         slots.push(manualColumn(manualLoads, columnNumber))
       }
     })
