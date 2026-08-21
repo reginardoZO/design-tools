@@ -18,6 +18,7 @@ import {
   END_SECTION_WIDTH_IN,
   getLoadOption,
   getLoadType,
+  isColumnFillable,
   LOAD_TYPES,
   PANEL_HEIGHT_IN,
   PANEL_SPACE_COUNT,
@@ -278,13 +279,15 @@ function App() {
       return
     }
     const targetColumn = Number(manualColumnInput)
-    const occupiedSpaces = loads
-      .filter((load) => load.id !== manualLoad.id && load.manualColumn === targetColumn)
+    const targetColumnData = layout.columns[targetColumn - 1]
+    const occupiedSpaces = (targetColumnData?.loads ?? [])
+      .filter((load) => load.id !== manualLoad.id)
       .reduce((total, load) => total + getLoadOption(load).spaces, 0)
     if (
       targetColumn > 0
       && (
-        layout.columns[targetColumn - 1]?.kind !== 'CARGA'
+        !targetColumnData
+        || !isColumnFillable(targetColumnData)
         || occupiedSpaces + getLoadOption(manualLoad).spaces > PANEL_SPACE_COUNT
       )
     ) {
@@ -441,15 +444,17 @@ function App() {
   }
 
   const selectedManualColumn = Number(manualColumnInput)
-  const selectedManualColumnSpaces = manualLoad
-    ? loads
-      .filter((load) => load.id !== manualLoad.id && load.manualColumn === selectedManualColumn)
+  const selectedManualColumnTarget = layout.columns[selectedManualColumn - 1]
+  const selectedManualColumnSpaces = manualLoad && selectedManualColumnTarget
+    ? selectedManualColumnTarget.loads
+      .filter((load) => load.id !== manualLoad.id)
       .reduce((total, load) => total + getLoadOption(load).spaces, 0)
       + getLoadOption(manualLoad).spaces
     : 0
   const manualSelectionFits = selectedManualColumn === 0
     || (
-      layout.columns[selectedManualColumn - 1]?.kind === 'CARGA'
+      Boolean(selectedManualColumnTarget)
+      && isColumnFillable(selectedManualColumnTarget as PanelColumn)
       && selectedManualColumnSpaces <= PANEL_SPACE_COUNT
     )
 
@@ -831,15 +836,15 @@ function App() {
                 <option value="0">Automatic placement</option>
                 {layout.columns.map((column, index) => {
                   const columnNumber = index + 1
-                  const occupiedSpaces = loads
-                    .filter((load) => load.id !== manualLoad.id && load.manualColumn === columnNumber)
+                  const occupiedSpaces = column.loads
+                    .filter((load) => load.id !== manualLoad.id)
                     .reduce((total, load) => total + getLoadOption(load).spaces, 0)
-                  const fits = column.kind === 'CARGA'
+                  const fits = isColumnFillable(column)
                     && occupiedSpaces + getLoadOption(manualLoad).spaces <= PANEL_SPACE_COUNT
                   return (
                     <option key={columnNumber} value={columnNumber} disabled={!fits}>
                       Column {columnNumber} ({columnLabels[index]})
-                      {column.kind === 'INFRA' ? ' · INFRA (fixed)' : ''}
+                      {!isColumnFillable(column) ? ' · INFRA (fixed)' : column.kind === 'INFRA' ? ' · INFRA' : ''}
                       {occupiedSpaces > 0 ? ` · ${PANEL_SPACE_COUNT - occupiedSpaces} spaces available` : ''}
                     </option>
                   )

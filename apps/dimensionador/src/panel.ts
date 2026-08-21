@@ -292,11 +292,11 @@ function greedyPack(items: PanelLoad[], seedBins: PanelLoad[][]) {
   return bins
 }
 
-function packStandardLoads(items: PanelLoad[], meterLoads: PanelLoad[]) {
+function packStandardLoads(items: PanelLoad[], seedBins: PanelLoad[][]) {
   const sorted = [...items].sort(
     (first, second) => getLoadOption(second).spaces - getLoadOption(first).spaces,
   )
-  const seeds = meterLoads.map((meter) => [meter])
+  const seeds = seedBins
   let best = greedyPack(sorted, seeds)
   let bestMeterWaste = best
     .slice(0, seeds.length)
@@ -398,6 +398,23 @@ export function isRealLoad(load: PanelLoad) {
   return load.typeId !== 'spare' && !INFRA_LOAD_TYPES.includes(load.typeId)
 }
 
+/** A column only stays INFRA-kind while every load inside it is infrastructure (no real load/spare packed in). */
+function binKind(loads: PanelLoad[]): PanelColumnKind {
+  return loads.some((load) => isRealLoad(load) || load.typeId === 'spare') ? 'CARGA' : 'INFRA'
+}
+
+const DEDICATED_COLUMN_ROLES: PanelColumn['role'][] = [
+  'power-in',
+  'generator',
+  'tie-breaker',
+  'tie-bus-transition',
+]
+
+/** Whether a column is a single-purpose bus/breaker column that must never share space with other loads. */
+export function isColumnFillable(column: PanelColumn) {
+  return !DEDICATED_COLUMN_ROLES.includes(column.role)
+}
+
 function dedicatedColumn(load: PanelLoad): PanelColumn {
   const role = load.typeId === 'power-in' || load.typeId === 'generator'
     ? load.typeId
@@ -407,16 +424,6 @@ function dedicatedColumn(load: PanelLoad): PanelColumn {
     role,
     kind: 'INFRA',
     widthIn: getLoadOption(load).widthIn ?? POWER_COLUMN_WIDTH_IN,
-    loads: [load],
-  }
-}
-
-function meteringColumn(load: PanelLoad): PanelColumn {
-  return {
-    id: `meter-column-${load.id}`,
-    role: 'transition',
-    kind: 'INFRA',
-    widthIn: TRANSITION_COLUMN_WIDTH_IN,
     loads: [load],
   }
 }
@@ -431,26 +438,11 @@ function tieBusTransitionColumn(tieLoad: PanelLoad): PanelColumn {
   }
 }
 
-function packedColumns(loads: PanelLoad[], kind: PanelColumnKind, idPrefix: string) {
-  return packStandardLoads(loads, []).map((bin, index): PanelColumn => ({
-    id: `${idPrefix}-${index}`,
-    role: kind === 'INFRA' ? 'infrastructure' : 'standard',
-    kind,
-    widthIn: STANDARD_COLUMN_WIDTH_IN,
-    loads: bin,
-  }))
-}
-
 function buildAutomaticColumns(loads: PanelLoad[]) {
   const powerLoads = loads.filter((load) => load.typeId === 'power-in')
   const generatorLoads = loads.filter((load) => load.typeId === 'generator')
   const tieLoads = loads.filter((load) => load.typeId === 'tie-breaker')
   const meterLoads = loads.filter((load) => load.typeId === 'metering')
-  const tieAuxiliaryIds = new Set(
-    loads
-      .filter((load) => load.typeId === 'rly-pnl' && tieLoads.some((tie) => tie.id === load.parentLoadId))
-      .map((load) => load.id),
-  )
   const pairedMeterIds = new Set<string>()
   const meterForPower = new Map<string, PanelLoad>()
 
@@ -463,12 +455,89 @@ function buildAutomaticColumns(loads: PanelLoad[]) {
       pairedMeterIds.add(meter.id)
     }
   })
+  const powerIdForMeterId = new Map(
+    Array.from(meterForPower.entries()).map(([powerId, meter]) => [meter.id, powerId]),
+  )
+
+  // Metering (3 SP) rarely fills 12 spaces alone, and a power's relay panels are logically part
+  // of the same equipment group, so seed each metering column with its owning power-in's relay
+  // panels first. Generic packable loads (feeders, VFDs, spares...) then top up whatever space is
+  // still left over — on the metering column, on a tie's relay-panel column, or on a new one —
+  // instead of leaving it permanently empty like a dedicated bus/breaker column.
+  const groupedRlyIds = new Set<string>()
+  const meterSeeds = meterLoads.map((meter) => {
+    const ownerPowerId = powerIdForMeterId.get(meter.id)
+    const ownRlyLoads = ownerPowerId
+      ? loads.filter((load) => load.typeId === 'rly-pnl' && load.parentLoadId === ownerPowerId)
+      : []
+    ownRlyLoads.forEach((load) => groupedRlyIds.add(load.id))
+    return [meter, ...ownRlyLoads]
+  })
+  const tieSeedEntries = tieLoads
+    .map((tie): [string, PanelLoad[]] => [
+      tie.id,
+      loads.filter((load) => load.typeId === 'rly-pnl' && load.parentLoadId === tie.id),
+    ])
+    .filter(([, auxiliaryLoads]) => auxiliaryLoads.length > 0)
+  tieSeedEntries.forEach(([, auxiliaryLoads]) =>
+    auxiliaryLoads.forEach((load) => groupedRlyIds.add(load.id)),
+  )
+
+  const seedBins: PanelLoad[][] = [
+    ...meterSeeds,
+    ...tieSeedEntries.map(([, auxiliaryLoads]) => [...auxiliaryLoads]),
+  ]
+  const pool = loads.filter((load) =>
+    load.typeId !== 'power-in'
+    && load.typeId !== 'generator'
+    && load.typeId !== 'tie-breaker'
+    && load.typeId !== 'metering'
+    && !groupedRlyIds.has(load.id),
+  )
+  const packedBins = packStandardLoads(pool, seedBins)
+
+  const meteringColumnByMeterId = new Map<string, PanelColumn>()
+  meterLoads.forEach((meter, index) => {
+    const bin = packedBins[index]
+    meteringColumnByMeterId.set(meter.id, {
+      id: `meter-column-${meter.id}`,
+      role: 'transition',
+      kind: binKind(bin),
+      widthIn: TRANSITION_COLUMN_WIDTH_IN,
+      loads: bin,
+    })
+  })
+  const tieAuxiliaryColumnByTieId = new Map<string, PanelColumn>()
+  tieSeedEntries.forEach(([tieId], index) => {
+    const bin = packedBins[meterLoads.length + index]
+    tieAuxiliaryColumnByTieId.set(tieId, {
+      id: `tie-auxiliary-${tieId}`,
+      role: 'tie-auxiliary',
+      kind: binKind(bin),
+      widthIn: STANDARD_COLUMN_WIDTH_IN,
+      loads: bin,
+    })
+  })
+  const newLoadColumns = packedBins
+    .slice(meterLoads.length + tieSeedEntries.length)
+    .map((bin, index): PanelColumn => {
+      const kind = binKind(bin)
+      return {
+        id: `load-column-${index}`,
+        role: kind === 'CARGA' ? 'standard' : 'infrastructure',
+        kind,
+        widthIn: STANDARD_COLUMN_WIDTH_IN,
+        loads: bin,
+      }
+    })
 
   const powerPair = (powerLoad: PanelLoad, reverse = false) => {
     const pair = [dedicatedColumn(powerLoad)]
-    const meter = meterForPower.get(powerLoad.id)
-    if (meter) {
-      pair.push(meteringColumn(meter))
+    const meterColumn = meterForPower.has(powerLoad.id)
+      ? meteringColumnByMeterId.get((meterForPower.get(powerLoad.id) as PanelLoad).id)
+      : undefined
+    if (meterColumn) {
+      pair.push(meterColumn)
     }
     return reverse ? pair.reverse() : pair
   }
@@ -478,36 +547,18 @@ function buildAutomaticColumns(loads: PanelLoad[]) {
   const extraPowerColumns = powerLoads.slice(2).flatMap((powerLoad) => powerPair(powerLoad))
   const unpairedMeterColumns = meterLoads
     .filter((meter) => !pairedMeterIds.has(meter.id))
-    .map(meteringColumn)
+    .map((meter) => meteringColumnByMeterId.get(meter.id))
+    .filter((column): column is PanelColumn => Boolean(column))
 
-  const infrastructureLoads = loads.filter((load) =>
-    INFRA_LOAD_TYPES.includes(load.typeId)
-    && !['power-in', 'generator', 'metering', 'tie-breaker'].includes(load.typeId)
-    && !tieAuxiliaryIds.has(load.id),
-  )
-  const realLoadColumns = packedColumns(
-    loads.filter((load) => isRealLoad(load) || load.typeId === 'spare'),
-    'CARGA',
-    'load-column',
-  )
-  const infrastructureColumns = packedColumns(infrastructureLoads, 'INFRA', 'infra-column')
   const middleColumns: PanelColumn[] = [
     ...extraPowerColumns,
     ...generatorLoads.map(dedicatedColumn),
     ...unpairedMeterColumns,
-    ...infrastructureColumns,
-    ...realLoadColumns,
+    ...newLoadColumns,
   ]
   const tieColumns = tieLoads.flatMap((tieLoad): PanelColumn[] => {
-    const auxiliaryLoads = loads.filter((load) => load.parentLoadId === tieLoad.id && load.typeId === 'rly-pnl')
-    const auxiliaryColumn: PanelColumn[] = auxiliaryLoads.length > 0 ? [{
-      id: `tie-auxiliary-${tieLoad.id}`,
-      role: 'tie-auxiliary',
-      kind: 'INFRA',
-      widthIn: STANDARD_COLUMN_WIDTH_IN,
-      loads: auxiliaryLoads,
-    }] : []
-    return [...auxiliaryColumn, dedicatedColumn(tieLoad), tieBusTransitionColumn(tieLoad)]
+    const auxiliaryColumn = tieAuxiliaryColumnByTieId.get(tieLoad.id)
+    return [...(auxiliaryColumn ? [auxiliaryColumn] : []), dedicatedColumn(tieLoad), tieBusTransitionColumn(tieLoad)]
   })
 
   middleColumns.splice(Math.ceil(middleColumns.length / 2), 0, ...tieColumns)
@@ -515,7 +566,7 @@ function buildAutomaticColumns(loads: PanelLoad[]) {
 }
 
 function manualColumn(loads: PanelLoad[], columnNumber: number): PanelColumn {
-  const kind = loads.some((load) => isRealLoad(load) || load.typeId === 'spare') ? 'CARGA' : 'INFRA'
+  const kind = binKind(loads)
   return {
     id: `manual-column-${columnNumber}`,
     role: kind === 'CARGA' ? 'standard' : 'infrastructure',
@@ -622,7 +673,7 @@ function addAutomaticSpares(columns: PanelColumn[]) {
         columnIndex,
         free: PANEL_SPACE_COUNT - columnUsedSpaces(column.loads),
       }))
-      .filter(({ column, free }) => column.kind === 'CARGA' && free >= size)
+      .filter(({ column, free }) => isColumnFillable(column) && free >= size)
       .sort((first, second) => first.free - second.free)
     let targetColumn = candidates[0]?.column
     if (!targetColumn) {
@@ -772,19 +823,27 @@ export function buildPanelLayout(loads: PanelLoad[], options: PanelLayoutOptions
       const columnNumber = load.manualColumn as number
       manualGroups.set(columnNumber, [...(manualGroups.get(columnNumber) ?? []), load])
     })
-    const slots: Array<PanelColumn | undefined> = []
+    // Keep every automatic column pinned to its natural position; a manual pick tops up
+    // whatever is already there (e.g. metering, a relay panel) instead of displacing it.
+    const slots: Array<PanelColumn | undefined> = automaticColumns.map((column) => ({
+      ...column,
+      loads: [...column.loads],
+    }))
     manualGroups.forEach((manualLoads, columnNumber) => {
-      slots[columnNumber - 1] = manualColumn(manualLoads, columnNumber)
-    })
-    let slotIndex = 0
-    automaticBlocks(automaticColumns).forEach((block) => {
-      while (block.some((_, offset) => slots[slotIndex + offset])) {
-        slotIndex += 1
+      const index = columnNumber - 1
+      const target = slots[index]
+      if (target && isColumnFillable(target)) {
+        target.loads = [...target.loads, ...manualLoads]
+        target.kind = binKind(target.loads)
+        if (target.role === 'infrastructure' && target.kind === 'CARGA') {
+          target.role = 'standard'
+        }
+      } else if (!target) {
+        slots[index] = manualColumn(manualLoads, columnNumber)
+      } else {
+        // Never displace a dedicated bus/breaker column; fall back to the end of the lineup.
+        slots.push(manualColumn(manualLoads, columnNumber))
       }
-      block.forEach((column, offset) => {
-        slots[slotIndex + offset] = column
-      })
-      slotIndex += block.length
     })
     columns = slots.map((column, index) => column ?? emptyLoadColumn(`empty-column-${index + 1}`))
   }
