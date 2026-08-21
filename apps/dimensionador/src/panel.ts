@@ -93,6 +93,13 @@ export const LOAD_TYPES: LoadType[] = [
     label: 'Power In',
     shortLabel: 'POWER IN',
     options: [
+       {
+        id: '1600a',
+        label: '1600 A',
+        shortLabel: '1600 A',
+        spaces: 12,
+        widthIn: POWER_COLUMN_WIDTH_IN,
+      },
       {
         id: '2000a',
         label: '2000 A',
@@ -106,15 +113,8 @@ export const LOAD_TYPES: LoadType[] = [
         shortLabel: '2500 A',
         spaces: 12,
         widthIn: POWER_COLUMN_WIDTH_IN,
-      },
-            {
-        id: '1600a',
-        label: '1600 A',
-        shortLabel: '1600 A',
-        spaces: 12,
-        widthIn: POWER_COLUMN_WIDTH_IN,
-      },
-    ],
+      }
+   ],
   },
   {
     id: 'generator',
@@ -171,8 +171,8 @@ export const LOAD_TYPES: LoadType[] = [
       { id: '25hp-n2', label: '25 HP · NEMA 2', shortLabel: '25 HP · N2', spaces: 2 },
       { id: '40hp-n3', label: '40 HP · NEMA 3', shortLabel: '40 HP · N3', spaces: 3 },
       { id: '50hp-n3', label: '50 HP · NEMA 3', shortLabel: '50 HP · N3', spaces: 3 },
-      { id: '200hp-n5-42', label: '200 HP · NEMA 5', shortLabel: '200 HP · N5', spaces: 6 },
-      { id: '200hp-n5-48', label: '200 HP · NEMA 5', shortLabel: '200 HP · N5', spaces: 6 },
+      { id: '200hp-n5', label: '200 HP · NEMA 5', shortLabel: '200 HP · N5', spaces: 6 },
+     
       { id: '300hp-n6', label: '300 HP · NEMA 6', shortLabel: '300 HP · N6', spaces: 9 },
       { id: '400hp-n6', label: '400 HP · NEMA 6', shortLabel: '400 HP · N6', spaces: 11 },
     ],
@@ -184,6 +184,7 @@ export const LOAD_TYPES: LoadType[] = [
     options: [
       { id: '30a', label: '30 A', shortLabel: '30 A', spaces: 2 },
       { id: '50a', label: '50 A', shortLabel: '50 A', spaces: 2 },
+      { id: '70a', label: '70 A', shortLabel: '70 A', spaces: 2 },
       { id: '80a', label: '80 A', shortLabel: '80 A', spaces: 2 },
       { id: '150a', label: '150 A', shortLabel: '150 A', spaces: 3 },
       { id: '225a', label: '225 A', shortLabel: '225 A', spaces: 3 },

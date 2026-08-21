@@ -1,0 +1,1623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lightning Risk — Detailed Assessment | Engineering Tools Hub</title>
+<link rel="icon" href="../../assets/favicon.svg">
+<link rel="stylesheet" href="../../shared/theme.css">
+<style>
+*{margin:0;padding:0}
+/* ---------- tokens (mapped onto the hub's shared palette, shared/theme.css) ---------- */
+:root{
+  --ground: var(--bg); --surface: var(--panel); --surface2:#eef1f4; --sunken:#e6eaed;
+  --ink2:#3a4550; --faint:#93a0aa;
+  --line: var(--steel); --line2:#dde3e8;
+  --accent-soft: var(--accent-wash); --accent-ink: var(--accent-dark);
+  --copper:#A85E27; --copper-soft:#F6E8DC;
+  --pass: var(--ok); --pass-soft:#dcefe3;
+  --warn-soft: var(--warn-wash);
+  --fail: var(--bad); --fail-soft:#f7e1de;
+  --shadow:0 1px 2px rgba(19,31,41,.05),0 8px 24px -12px rgba(19,31,41,.18);
+  --radius:4px;
+}
+
+
+/* ---------- base ---------- */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--ui);
+  font-size:15px; line-height:1.5; font-synthesis-weight:none;
+}
+h1,h2,h3,h4{font-family:var(--ui);text-wrap:balance;margin:0;letter-spacing:-.015em}
+p{margin:0}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.prose{font-family:var(--ui);font-size:16px;line-height:1.55;color:var(--ink2);max-width:68ch}
+.prose strong{color:var(--ink);font-weight:600}
+.prose em{color:var(--copper);font-style:italic}
+.mono,code,.num{font-family:var(--data);font-variant-numeric:tabular-nums}
+code{background:var(--sunken);padding:.08em .35em;border-radius:3px;font-size:.88em}
+
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* ---------- layout ---------- */
+.wrap{display:grid;grid-template-columns:248px minmax(0,1fr);gap:0;min-height:100vh}
+.rail{
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  background:var(--surface);border-right:1px solid var(--line);
+  padding:20px 0 24px;display:flex;flex-direction:column;gap:18px;
+}
+.main{padding:0 0 120px;min-width:0}
+.col{max-width:940px;margin:0 auto;padding:0 32px}
+@media(max-width:1000px){
+  .wrap{grid-template-columns:1fr}
+  .rail{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
+  .col{padding:0 18px}
+}
+
+/* rail */
+.brand{padding:0 18px;display:flex;flex-direction:column;gap:2px}
+.brand .bt{font-size:15px;font-weight:700;letter-spacing:-.02em}
+.brand .bs{font-size:11px;color:var(--muted);letter-spacing:.04em}
+.steps{display:flex;flex-direction:column;gap:1px;padding:0 10px}
+.steplink{
+  display:grid;grid-template-columns:22px 1fr;gap:9px;align-items:baseline;
+  padding:7px 8px;border-radius:var(--radius);color:var(--ink2);
+  font-size:13px;text-decoration:none;border-left:2px solid transparent;cursor:pointer;
+  background:none;border-top:0;border-right:0;border-bottom:0;text-align:left;width:100%;font-family:inherit;
+}
+.steplink:hover{background:var(--surface2);color:var(--ink)}
+.steplink.on{background:var(--accent-soft);color:var(--accent-ink);border-left-color:var(--accent);font-weight:600}
+.steplink .n{font-family:var(--data);font-size:11px;color:var(--faint)}
+.steplink.on .n{color:var(--accent)}
+.railbox{margin:0 12px;padding:12px;background:var(--surface2);border:1px solid var(--line2);border-radius:var(--radius)}
+.railbox h4{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.rrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:3px 0;font-size:12px;border-top:1px solid var(--line2)}
+.rrow:first-of-type{border-top:0}
+.rrow .k{color:var(--muted)}
+.rrow .v{font-family:var(--data);font-size:11.5px;font-variant-numeric:tabular-nums}
+.rrow .v.ok{color:var(--pass)} .rrow .v.no{color:var(--fail);font-weight:600}
+
+/* ---------- hero ---------- */
+.hero{border-bottom:1px solid var(--line);background:var(--surface);padding:52px 0 40px;position:relative;overflow:hidden}
+.hero .col{position:relative}
+.hero h1{font-size:clamp(30px,4.4vw,46px);font-weight:700;line-height:1.04;letter-spacing:-.03em;margin:12px 0 14px;max-width:20ch}
+.hero .lede{max-width:62ch}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:22px}
+.badge{font-size:11px;letter-spacing:.03em;padding:4px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);background:var(--surface2)}
+
+/* ---------- sections ---------- */
+.sec{padding:44px 0 8px;scroll-margin-top:12px}
+.sechead{display:flex;gap:14px;align-items:baseline;border-top:2px solid var(--ink);padding-top:12px;margin-bottom:16px}
+.sechead .snum{font-family:var(--data);font-size:12px;color:var(--copper);font-weight:600;letter-spacing:.06em;padding-top:3px}
+.sechead h2{font-size:26px;font-weight:700;letter-spacing:-.025em;flex:1}
+.sechead .stag{font-size:11px;color:var(--muted);white-space:nowrap;padding-top:5px}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin:16px 0}
+.card > .ch{padding:14px 18px;border-bottom:1px solid var(--line2);display:flex;justify-content:space-between;align-items:center;gap:12px}
+.card > .ch h3{font-size:14px;font-weight:700;letter-spacing:-.005em}
+.card > .cb{padding:18px}
+.card.tight > .cb{padding:0}
+
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 var(--radius) var(--radius) 0;margin:14px 0}
+.note.warnb{border-left-color:var(--warn);background:var(--warn-soft)}
+.note.copperb{border-left-color:var(--copper);background:var(--copper-soft)}
+.note p{font-family:var(--ui);font-size:15.5px;line-height:1.55;color:var(--ink2)}
+.note .nt{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--accent-ink);margin-bottom:5px;font-family:var(--ui)}
+.note.warnb .nt{color:var(--warn)} .note.copperb .nt{color:var(--copper)}
+
+/* ---------- fields ---------- */
+.fieldset{display:flex;flex-direction:column}
+.field{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px 24px;padding:15px 18px;border-top:1px solid var(--line2);align-items:start}
+.field:first-child{border-top:0}
+.field:hover{background:var(--surface2)}
+@media(max-width:760px){.field{grid-template-columns:1fr}}
+.flabel{display:flex;flex-direction:column;gap:5px;min-width:0}
+.flabel .lt{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.sym{font-family:var(--data);font-size:12px;color:var(--copper);background:var(--copper-soft);padding:1px 6px;border-radius:3px;font-weight:600}
+.flabel .lh{font-size:13px;color:var(--muted);line-height:1.45;max-width:56ch}
+.fctl{display:flex;flex-direction:column;gap:6px}
+select,input[type=text],input[type=number],textarea{
+  width:100%;padding:8px 10px;background:var(--surface);color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--radius);font-family:var(--data);
+  font-size:13px;line-height:1.35;
+}
+select{font-family:var(--ui);font-size:13px;cursor:pointer}
+textarea{min-height:110px;resize:vertical;font-size:12px}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.unit{font-size:11px;color:var(--faint);letter-spacing:.04em}
+.valout{font-family:var(--data);font-size:12px;color:var(--accent-ink);background:var(--accent-soft);padding:4px 8px;border-radius:3px;display:inline-block}
+.inline2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* help disclosure */
+.howto{margin-top:2px}
+.howto summary{
+  cursor:pointer;font-size:12px;color:var(--accent);list-style:none;display:inline-flex;gap:5px;align-items:center;
+  font-weight:600;letter-spacing:.01em;padding:2px 0;
+}
+.howto summary::-webkit-details-marker{display:none}
+.howto summary::before{content:"▸";font-size:10px;transition:transform .15s}
+.howto[open] summary::before{transform:rotate(90deg)}
+.howto .hb{
+  margin-top:8px;padding:11px 13px;background:var(--sunken);border-radius:var(--radius);
+  font-family:var(--ui);font-size:14.5px;line-height:1.55;color:var(--ink2);max-width:62ch;
+}
+.howto .hb ul{margin:7px 0 0;padding-left:18px}
+.howto .hb li{margin:4px 0}
+.howto .hb b{color:var(--ink)}
+
+/* tooltip */
+.tip{position:relative;display:inline-flex}
+.tipb{
+  width:15px;height:15px;border-radius:50%;border:1px solid var(--line);background:var(--surface2);
+  color:var(--muted);font-size:10px;font-weight:700;cursor:help;display:grid;place-items:center;padding:0;
+  font-family:var(--ui);line-height:1;
+}
+.tipb:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.tipc{
+  position:absolute;left:0;top:calc(100% + 7px);z-index:60;width:min(390px,78vw);
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:0 12px 34px -10px rgba(0,0,0,.35);padding:12px 14px;display:none;
+  font-family:var(--ui);font-size:14px;line-height:1.5;color:var(--ink2);
+}
+.tip.open .tipc{display:block}
+.tipc .th{font-family:var(--ui);font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px}
+.tipc .dflt{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);font-family:var(--ui);font-size:12.5px;color:var(--ink2)}
+.tipc .dflt b{color:var(--copper)}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:8px 12px;border-top:1px solid var(--line2);vertical-align:top}
+thead th{
+  border-top:0;border-bottom:1px solid var(--line);font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);font-weight:700;white-space:nowrap;background:var(--surface2);
+  position:sticky;top:0;
+}
+td.n,th.n{text-align:right;font-family:var(--data);font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody tr:hover{background:var(--surface2)}
+tr.tot td{border-top:2px solid var(--ink);font-weight:700;background:var(--surface2)}
+
+/* ---------- results ---------- */
+.rgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+.rcard{border:1px solid var(--line);border-radius:var(--radius);padding:14px 15px;background:var(--surface);position:relative;overflow:hidden}
+.rcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--faint)}
+.rcard.ok::before{background:var(--pass)} .rcard.no::before{background:var(--fail)} .rcard.off::before{background:var(--line)}
+.rcard .rl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.rcard .rn{font-family:var(--data);font-size:23px;font-weight:600;margin:7px 0 2px;letter-spacing:-.02em}
+.rcard.ok .rn{color:var(--pass)} .rcard.no .rn{color:var(--fail)} .rcard.off .rn{color:var(--faint)}
+.rcard .rd{font-size:12px;color:var(--muted);line-height:1.4}
+.chip{display:inline-block;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;padding:2px 7px;border-radius:999px;margin-top:9px}
+.chip.ok{background:var(--pass-soft);color:var(--pass)} .chip.no{background:var(--fail-soft);color:var(--fail)}
+.chip.off{background:var(--sunken);color:var(--faint)}
+.bar{height:7px;background:var(--sunken);border-radius:999px;overflow:hidden;margin-top:10px;position:relative}
+.bar i{display:block;height:100%;border-radius:999px;background:var(--pass);transition:width .3s}
+.bar i.no{background:var(--fail)}
+.bar .tick{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.65}
+
+/* buttons */
+.btn{
+  font-family:var(--ui);font-size:13px;font-weight:600;padding:8px 14px;border-radius:var(--radius);
+  border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;letter-spacing:.01em;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn.sec{background:var(--surface);color:var(--accent);border-color:var(--line)}
+.btn.sec:hover{border-color:var(--accent);background:var(--accent-soft)}
+.btn.sm{font-size:12px;padding:6px 11px}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* math trace */
+.trace{background:var(--sunken);border-radius:var(--radius);padding:13px 15px;font-family:var(--data);font-size:12px;line-height:1.75;overflow-x:auto;color:var(--ink2)}
+.trace .tl{display:block;white-space:pre}
+.trace .tk{color:var(--copper)}
+.trace .tr{color:var(--accent-ink);font-weight:600}
+.trace .tc{color:var(--faint)}
+
+.pill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:var(--copper-soft);color:var(--copper)}
+.hr{height:1px;background:var(--line);margin:26px 0}
+.stack{display:flex;flex-direction:column;gap:12px}
+.small{font-size:12px;color:var(--muted)}
+
+/* ---------- print ---------- */
+@media print{
+  :root{--ground:#fff;--surface:#fff;--surface2:#fff;--sunken:#f4f6f7;--line:#bbb;--line2:#ddd;--shadow:none}
+  .rail,.howto,.tipb,.btnrow,#ngpanel{display:none!important}
+  .wrap{grid-template-columns:1fr}
+  .main{padding:0}
+  .col{max-width:none;padding:0 12px}
+  .sec{page-break-inside:auto;padding-top:18px}
+  .card{break-inside:avoid;border:1px solid #ccc}
+  .hero{padding:18px 0;border-bottom:2px solid #000}
+  a{color:#000;text-decoration:none}
+  body{font-size:11pt}
+}
+
+</style>
+</head>
+<body>
+
+<header class="eh-header">
+  <div>
+    <h1>Lightning Risk Assessment — Detailed</h1>
+    <div class="eh-sub">NFPA 780-2020 &middot; Annex L &middot; §L.6 detailed method</div>
+  </div>
+  <a class="eh-back" href="../../index.html">&larr; Hub</a>
+</header>
+
+<div class="wrap">
+
+<nav class="rail">
+  <div class="brand">
+    <span class="bt">Lightning Risk Bench</span>
+    <span class="bs">NFPA 780-2020 · Annex L · §L.6</span>
+  </div>
+  <div class="steps" id="nav"></div>
+  <div class="railbox">
+    <h4>Live result</h4>
+    <div class="rrow"><span class="k">N<sub>g</sub></span><span class="v" id="lv-ng">—</span></div>
+    <div class="rrow"><span class="k">R<sub>1</sub> life</span><span class="v" id="lv-r1">—</span></div>
+    <div class="rrow"><span class="k">R<sub>2</sub> service</span><span class="v" id="lv-r2">—</span></div>
+    <div class="rrow"><span class="k">R<sub>3</sub> heritage</span><span class="v" id="lv-r3">—</span></div>
+    <div class="rrow"><span class="k">R<sub>4</sub> economic</span><span class="v" id="lv-r4">—</span></div>
+  </div>
+</nav>
+
+<main class="main">
+
+<header class="hero">
+  <div class="col">
+    <span class="eyebrow">Detailed risk assessment — not the simplified method</span>
+    <h1>Does this structure actually need lightning protection?</h1>
+    <p class="prose lede">NFPA 780 Annex L answers that question twice. Section L.5 is a
+      one-page screening test. Section&nbsp;L.6 — the one this page implements — is the real
+      calculation: eight separate risk components, four kinds of loss, and about forty inputs.
+      It is worth doing properly, and it is entirely doable once somebody tells you
+      <em>what each input means and where to find it</em>. That is what every panel below does.</p>
+    <div class="badges">
+      <span class="badge">Every input has a tooltip and a "how do I get this" note</span>
+      <span class="badge">Defaults tuned for a non-flammable industrial-gas plant</span>
+      <span class="badge">N<sub>g</sub> from NOAA NLDN data</span>
+      <span class="badge">Full arithmetic shown at every step</span>
+    </div>
+  </div>
+</header>
+
+<div class="col">
+
+<!-- ===================== ORIENTATION ============================= -->
+<section class="sec" id="s0">
+  <div class="sechead"><span class="snum">00</span><h2>Read this first</h2><span class="stag">5 minutes</span></div>
+
+  <p class="prose">Lightning risk is not "how often will this building be struck". It is
+    <strong>how often something bad happens because of lightning</strong>, expressed as a
+    probability per year, and compared against a tolerable level. NFPA 780 builds that number
+    from three ingredients, multiplied together, eight times over:</p>
+
+  <div class="card"><div class="cb">
+    <div class="tw"><table>
+      <thead><tr><th style="width:9%">Symbol</th><th style="width:20%">Ingredient</th><th>What it means in plain language</th></tr></thead>
+      <tbody>
+        <tr><td class="n"><b>N</b></td><td>Threat of occurrence</td><td>How many lightning events per year land somewhere that matters — on the building, near it, on a cable coming in, or near that cable.</td></tr>
+        <tr><td class="n"><b>P</b></td><td>Probability of damage</td><td>Given that event, the chance it actually causes the damage in question. This is where your protection measures earn their keep — an LPS, SPDs, bonding, shielding all push P down.</td></tr>
+        <tr><td class="n"><b>L</b></td><td>Loss</td><td>Given that damage, the fraction of the "value at stake" that is lost — lives, service continuity, heritage, or money.</td></tr>
+      </tbody>
+    </table></div>
+  </div></div>
+
+  <p class="prose">Multiply them and you get a risk component: <code>R<sub>X</sub> = N<sub>X</sub> · P<sub>X</sub> · L<sub>X</sub></code>
+    (§L.6.6). There are eight of them, and they are grouped by <em>where the lightning hit</em>
+    and <em>what it broke</em>:</p>
+
+  <div class="card"><div class="cb">
+    <div class="tw"><table>
+      <thead><tr><th style="width:8%">Comp.</th><th style="width:26%">Lightning hits…</th><th>…and causes</th></tr></thead>
+      <tbody>
+        <tr><td class="n"><b>R<sub>A</sub></b></td><td>the structure</td><td>injury or death from touch and step voltages</td></tr>
+        <tr><td class="n"><b>R<sub>B</sub></b></td><td>the structure</td><td>physical damage — usually fire — to the structure</td></tr>
+        <tr><td class="n"><b>R<sub>C</sub></b></td><td>the structure</td><td>failure of internal electrical / electronic systems</td></tr>
+        <tr><td class="n"><b>R<sub>M</sub></b></td><td>the ground <i>near</i> the structure</td><td>failure of internal systems, by induction</td></tr>
+        <tr><td class="n"><b>R<sub>U</sub></b></td><td>an incoming service (cable, line)</td><td>injury from touch voltage on that service</td></tr>
+        <tr><td class="n"><b>R<sub>V</sub></b></td><td>an incoming service</td><td>physical damage where the surge enters</td></tr>
+        <tr><td class="n"><b>R<sub>W</sub></b></td><td>an incoming service</td><td>failure of internal systems</td></tr>
+        <tr><td class="n"><b>R<sub>Z</sub></b></td><td>the ground <i>near</i> a service</td><td>failure of internal systems, by induction on the line</td></tr>
+      </tbody>
+    </table></div>
+  </div></div>
+
+  <p class="prose">Those eight components are then added into four <strong>risks</strong>, each with
+    its own tolerable limit from Table L.6.2. If a risk exceeds its limit, protection is
+    recommended — and the component breakdown tells you exactly which measure will fix it.</p>
+
+  <div class="note"><div class="nt">What you should collect before you start</div>
+    <p>A plot plan with building length, width and height · the site coordinates · a single-line
+      diagram showing every cable and line entering the structure, with route lengths · whether
+      an HV/LV transformer sits upstream · cable types (shielded? in conduit? buried?) · the
+      impulse withstand rating of the most fragile equipment inside (your DCS or PLC I/O cards) ·
+      the structural column or rebar spacing · what fire detection and suppression exists ·
+      roughly how many people are inside and for how many hours a year.</p></div>
+
+  <div class="note copperb"><div class="nt">Honest note about the 2020 edition</div>
+    <p>The printed worksheet in Figure L.6.8 contradicts the body text in three places — it writes
+      A<sub>I</sub> and C<sub>D</sub> into the N<sub>L</sub> formula, and it defines A<sub>DJ</sub>
+      as 40·L<sub>L</sub>. This page follows the <b>body text of §L.6.6.1</b>, which is
+      dimensionally correct and matches Figure L.6.6.1.2. Each place it happens is flagged again
+      where it matters, so you can defend the choice in a report.</p></div>
+</section>
+
+<!-- ===================== 01  Ng ================================== -->
+<section class="sec" id="s1">
+  <div class="sechead"><span class="snum">01</span><h2>Lightning flash density, N<sub>g</sub></h2><span class="stag">§L.2</span></div>
+
+  <p class="prose">Every one of the eight risk components is proportional to <strong>N<sub>g</sub></strong>,
+    the number of cloud-to-ground flashes per square kilometre per year. Annex L points you at a
+    Vaisala map printed at page size (Figure L.2), which is fine for a screening test and hopeless
+    for a defensible number. The map is built from NOAA's <strong>National Lightning Detection
+    Network</strong>, and NOAA publishes the underlying counts for free — so this page goes to the
+    source instead of reading a contour off a picture.</p>
+
+  <div class="note"><div class="nt">The method, in one line</div>
+    <p>NOAA's NCEI aggregates every detected flash into fixed <b>0.1° × 0.1°</b> tiles — about
+      11 km north-south by 9 km east-west, roughly 100 km². Ask it for the daily flash count in
+      your tile over ten years, add them up, divide by the tile's area and by ten. That is
+      N<sub>g</sub>, traceable to a public dataset with a URL you can paste into a report.</p></div>
+
+  <div class="card"><div class="ch"><h3>Where the plant is</h3><span class="small">decimal degrees, WGS-84</span></div>
+    <div class="cb"><div class="fieldset" data-fields="loc"></div></div></div>
+
+  <div class="card"><div class="ch"><h3>Pull the NOAA data</h3><span class="small" id="ngtilelbl">—</span></div>
+    <div class="cb">
+      <p class="prose" style="font-size:15.5px;margin-bottom:14px">The page will try to fetch this
+        automatically. Published artifacts are sandboxed away from outside servers, so the fetch
+        will normally be blocked — in that case use the manual route below, which takes about
+        fifteen seconds and leaves you holding the raw evidence.</p>
+      <div class="btnrow" style="margin-bottom:6px">
+        <button class="btn" id="ngmanual" type="button">Show the NOAA query</button>
+        <button class="btn sec" id="ngfetch" type="button">Try automatic fetch first</button>
+        <span class="small" id="ngstatus"></span>
+      </div>
+      <div id="ngpanel"></div>
+    </div>
+  </div>
+
+  <div class="card"><div class="ch"><h3>Result</h3><span class="small">§L.2 · flashes/km²/year</span></div>
+    <div class="cb"><div id="ngresult"><p class="small">Enter coordinates and pull the data, or type a value in by hand below.</p></div>
+      <div class="hr" style="margin:16px 0"></div>
+      <div class="fieldset" data-fields="ngman"></div>
+    </div></div>
+</section>
+
+<!-- ===================== 02  STRUCTURE =========================== -->
+<section class="sec" id="s2">
+  <div class="sechead"><span class="snum">02</span><h2>The structure</h2><span class="stag">§L.4, §L.6.6.1.1–.2</span></div>
+
+  <p class="prose">A building does not only catch the flashes aimed at its footprint. It reaches
+    outward and intercepts flashes that would otherwise have hit the ground nearby — the standard
+    models that reach as a 1-in-3 slope from the top of the structure down to grade, so the
+    catchment extends <strong>3H</strong> in every direction. That is the equivalent collection
+    area <b>A<sub>D</sub></b>, and because H appears squared, height matters far more than
+    footprint.</p>
+
+
+  <figure class="card" style="margin:16px 0"><div class="cb">
+  <div class="tw"><svg role="img" viewBox="0 0 920 470" style="width:100%;min-width:660px;height:auto;color:var(--ink2)"
+     aria-label="Plan view showing the four places lightning can strike — the structure, the ground within 500 metres, an incoming service, and the ground near that service — and the risk components each one produces.">
+    <defs>
+      <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <polygon points="0,1 10,5 0,9" fill="currentColor"/>
+      </marker>
+    </defs>
+    <rect x="392" y="150" width="470" height="200" rx="4" fill="var(--accent-soft)" opacity=".5" stroke="currentColor" stroke-dasharray="3 5" stroke-opacity=".45"/>
+    <text x="404" y="170" font-size="12.5" fill="currentColor" opacity=".75">A<tspan baseline-shift="sub" font-size="9.5">I</tspan> = 4000 · L<tspan baseline-shift="sub" font-size="9.5">L</tspan> — flashes near the service</text>
+    <ellipse cx="212" cy="250" rx="178" ry="150" fill="var(--accent-soft)" opacity=".5" stroke="currentColor" stroke-dasharray="3 5" stroke-opacity=".45"/>
+    <text x="212" y="120" font-size="12.5" text-anchor="middle" fill="currentColor" opacity=".75">A<tspan baseline-shift="sub" font-size="9.5">M</tspan> — 500 m beyond the perimeter</text>
+    <rect x="392" y="234" width="470" height="32" rx="3" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+    <text x="404" y="288" font-size="12.5" fill="currentColor" opacity=".8">A<tspan baseline-shift="sub" font-size="9.5">L</tspan> = 40 · L<tspan baseline-shift="sub" font-size="9.5">L</tspan></text>
+    <rect x="138" y="198" width="150" height="104" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+    <text x="213" y="324" font-size="12.5" text-anchor="middle" fill="currentColor" opacity=".8">A<tspan baseline-shift="sub" font-size="9.5">D</tspan> — footprint extended by 3H</text>
+    <rect x="181" y="232" width="64" height="36" fill="var(--surface2)" stroke="currentColor" stroke-width="1.6"/>
+    <text x="213" y="255" font-size="12" text-anchor="middle" fill="currentColor" font-weight="600">structure</text>
+    <line x1="245" y1="250" x2="846" y2="250" stroke="currentColor" stroke-width="1.6"/>
+    <text x="452" y="196" font-size="12.5" text-anchor="middle" fill="currentColor" opacity=".85">incoming service, route length L<tspan baseline-shift="sub" font-size="9.5">L</tspan></text>
+    <rect x="846" y="232" width="52" height="36" fill="var(--surface2)" stroke="currentColor" stroke-width="1.6"/>
+    <text x="872" y="255" font-size="11" text-anchor="middle" fill="currentColor">adjacent</text>
+    <polyline points="213,26 205,54 218,54 207,86 220,86 213,114" fill="none" stroke="#C77B3A" stroke-width="2.2"/>
+    <line x1="213" y1="114" x2="213" y2="226" stroke="#C77B3A" stroke-width="1.4" marker-end="url(#ah)" opacity=".85"/>
+    <text x="232" y="46" font-size="12.5" fill="#C77B3A" font-weight="600">N<tspan baseline-shift="sub" font-size="9.5">D</tspan> → R<tspan baseline-shift="sub" font-size="9.5">A</tspan>, R<tspan baseline-shift="sub" font-size="9.5">B</tspan>, R<tspan baseline-shift="sub" font-size="9.5">C</tspan></text>
+    <polyline points="86,152 79,172 91,172 82,194 93,194 86,212" fill="none" stroke="currentColor" stroke-width="2"/>
+    <line x1="86" y1="212" x2="86" y2="252" stroke="currentColor" stroke-width="1.2" marker-end="url(#ah)" opacity=".7"/>
+    <text x="86" y="142" font-size="12.5" text-anchor="middle" fill="currentColor">N<tspan baseline-shift="sub" font-size="9.5">M</tspan> → R<tspan baseline-shift="sub" font-size="9.5">M</tspan></text>
+    <polyline points="596,150 589,170 601,170 592,192 603,192 596,210" fill="none" stroke="#C77B3A" stroke-width="2.2"/>
+    <line x1="596" y1="210" x2="596" y2="244" stroke="#C77B3A" stroke-width="1.4" marker-end="url(#ah)" opacity=".85"/>
+    <text x="596" y="140" font-size="12.5" text-anchor="middle" fill="#C77B3A" font-weight="600">N<tspan baseline-shift="sub" font-size="9.5">L</tspan> → R<tspan baseline-shift="sub" font-size="9.5">U</tspan>, R<tspan baseline-shift="sub" font-size="9.5">V</tspan>, R<tspan baseline-shift="sub" font-size="9.5">W</tspan></text>
+    <polyline points="722,300 715,318 727,318 718,336 729,336 722,352" fill="none" stroke="currentColor" stroke-width="2"/>
+    <line x1="716" y1="352" x2="662" y2="262" stroke="currentColor" stroke-width="1.2" marker-end="url(#ah)" opacity=".7" stroke-dasharray="4 3"/>
+    <text x="888" y="382" font-size="12.5" text-anchor="end" fill="currentColor">N<tspan baseline-shift="sub" font-size="9.5">I</tspan> − N<tspan baseline-shift="sub" font-size="9.5">L</tspan> → R<tspan baseline-shift="sub" font-size="9.5">Z</tspan>, induced on the line</text>
+    <polyline points="872,152 865,170 877,170 868,190 879,190 872,208" fill="none" stroke="currentColor" stroke-width="2"/>
+    <line x1="872" y1="208" x2="872" y2="226" stroke="currentColor" stroke-width="1.2" marker-end="url(#ah)" opacity=".7"/>
+    <line x1="840" y1="214" x2="262" y2="214" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ah)" opacity=".7"/>
+    <line x1="872" y1="228" x2="872" y2="216" stroke="currentColor" stroke-width="1.2" opacity=".7"/>
+    <text x="872" y="142" font-size="12.5" text-anchor="middle" fill="currentColor">N<tspan baseline-shift="sub" font-size="9.5">DJ</tspan></text>
+    <text x="548" y="230" font-size="11.5" text-anchor="middle" fill="currentColor" opacity=".72">surge travels down the shared cable</text>
+    <line x1="30" y1="428" x2="890" y2="428" stroke="currentColor" stroke-opacity=".25"/>
+    <text x="30" y="450" font-size="11.5" fill="currentColor" opacity=".62">Plan view, schematic — A<tspan baseline-shift="sub" font-size="9.5">M</tspan> is about seventy-five times A<tspan baseline-shift="sub" font-size="9.5">D</tspan> for a building of these proportions.</text>
+  </svg></div>
+  <figcaption class="small" style="margin-top:10px;font-family:var(--ui);font-size:14.5px;line-height:1.55">
+    Four places a flash can land, and the risk components each one feeds. Steps 02 and 03 exist to size these areas;
+    Step 04 exists to stop the energy that arrives through them.</figcaption>
+  </div></figure>
+
+  <div class="card"><div class="cb"><div class="trace" id="adtrace"></div></div></div>
+
+  <div class="card"><div class="ch"><h3>Dimensions and surroundings</h3><span class="small">Table L.4.2</span></div>
+    <div class="cb"><div class="fieldset" data-fields="struct"></div></div></div>
+
+  <div class="note warnb"><div class="nt">A second, much larger circle</div>
+    <p>Flashes that miss the building can still induce surges in the wiring inside it. §L.6.6.1.2
+      counts those as N<sub>M</sub>, using a collection area <b>A<sub>M</sub></b> that extends
+      <b>500 m</b> beyond the perimeter — around 0.9 km² even for a small building, so
+      N<sub>M</sub> is almost always far larger than N<sub>D</sub>. It only turns into risk if
+      your internal systems are poorly shielded, which is what Step 04 is about.</p></div>
+
+  <div class="card"><div class="ch"><h3>An adjacent structure at the far end of a cable</h3><span class="small">§L.6.6.1.4</span></div>
+    <div class="cb"><div class="fieldset" data-fields="adj"></div></div></div>
+</section>
+
+<!-- ===================== 03  SERVICES ============================ -->
+<section class="sec" id="s3">
+  <div class="sechead"><span class="snum">03</span><h2>Incoming services</h2><span class="stag">§L.6.6.1.3–.5</span></div>
+
+  <p class="prose">Every conductor entering the structure is a lightning path. The standard treats
+    each as a strip of ground: <b>A<sub>L</sub> = 40 · L<sub>L</sub></b> is the strip in which a
+    flash hits the line directly, and <b>A<sub>I</sub> = 4000 · L<sub>L</sub></b> is the much wider
+    band in which a flash to earth induces a surge onto it. Add one entry per service — typically
+    the incoming power feeder and one signal or telecom line.</p>
+
+  <div class="note"><div class="nt">If you do not know the route length</div>
+    <p>§L.6.6.1.3 tells you to assume <b>L<sub>L</sub> = 1000 m</b>. That is the honest default and
+      the one loaded here. Measuring the real route is one of the highest-value refinements in the
+      whole assessment, because N<sub>L</sub> and N<sub>I</sub> scale directly with it.</p></div>
+
+  <div id="svclist"></div>
+  <div class="btnrow" style="margin:12px 0 6px">
+    <button class="btn sec" id="addsvc" type="button">+ Add another service</button>
+  </div>
+</section>
+
+<!-- ===================== 04  PROTECTION ========================== -->
+<section class="sec" id="s4">
+  <div class="sechead"><span class="snum">04</span><h2>Protection already in place</h2><span class="stag">§L.6.6.2, Tables L.6.7.2–.8</span></div>
+
+  <p class="prose">This is the half of the calculation you control. Every entry here is a
+    probability between 0 and 1 that multiplies a threat count. Start by describing the structure
+    <em>as it is today</em> — if the risk comes out acceptable, you are done; if not, come back and
+    see which measure buys the reduction you need.</p>
+
+  <div class="card"><div class="ch"><h3>Direct-strike protection</h3><span class="small">P<sub>A</sub>, P<sub>B</sub>, P<sub>C</sub></span></div>
+    <div class="cb"><div class="fieldset" data-fields="prot"></div></div></div>
+
+  <div class="note copperb"><div class="nt">Induced surges: the K<sub>S</sub> chain</div>
+    <p>P<sub>M</sub> — failure of internal systems from a <i>nearby</i> flash — is not read off a
+      table directly. You build a shielding factor <b>K<sub>S</sub> = K<sub>S1</sub> · K<sub>S2</sub>
+      · K<sub>S3</sub> · K<sub>S4</sub></b> out of four things: how well the outer structure
+      screens the field, whether there is an inner screened room, how the internal cabling is run,
+      and how tough the equipment is. Table L.6.7.5 then converts K<sub>S</sub> into
+      P<sub>M</sub>, and it is brutally steep — K<sub>S</sub> of 0.4 gives P<sub>M</sub> = 1,
+      while 0.013 gives 0.0001. Four orders of magnitude hang on cable routing and column spacing.</p></div>
+
+  <div class="card"><div class="ch"><h3>Shielding and internal wiring</h3><span class="small">K<sub>S1</sub>–K<sub>S4</sub></span></div>
+    <div class="cb"><div class="fieldset" data-fields="ks"></div></div></div>
+
+  <div class="card"><div class="ch"><h3>K<sub>S</sub> chain — live arithmetic</h3></div>
+    <div class="cb"><div class="trace" id="kstrace"></div></div></div>
+</section>
+
+<!-- ===================== 05  LOSSES ============================== -->
+<section class="sec" id="s5">
+  <div class="sechead"><span class="snum">05</span><h2>Consequences</h2><span class="stag">§L.6.6.3, Tables L.6.7.9–.13</span></div>
+
+  <p class="prose">The loss factors answer: <em>if the damage happens, how much of what is at stake
+    is actually lost?</em> They are fractions, and they are small — a fire in an industrial building
+    is assumed to cost 5 % of the total value at risk (L<sub>F</sub> = 5×10⁻²), and lightning
+    kills someone inside a building in one case out of a hundred thousand (L<sub>T</sub> = 10⁻⁵).
+    Then four modifiers push those numbers up or down for your specific site.</p>
+
+  <div class="card"><div class="ch"><h3>Base loss values</h3><span class="small">Table L.6.7.9</span></div>
+    <div class="cb"><div class="fieldset" data-fields="loss"></div></div></div>
+
+  <div class="card"><div class="ch"><h3>Modifying factors</h3><span class="small">Tables L.6.7.10–.13</span></div>
+    <div class="cb"><div class="fieldset" data-fields="lossf"></div></div></div>
+
+  <div class="card"><div class="ch"><h3>Loss factors — live arithmetic</h3></div>
+    <div class="cb"><div class="trace" id="losstrace"></div></div></div>
+</section>
+
+<!-- ===================== 06  APPLICABILITY ======================= -->
+<section class="sec" id="s6">
+  <div class="sechead"><span class="snum">06</span><h2>Which risks apply to you</h2><span class="stag">§L.6.3–.4</span></div>
+
+  <p class="prose">Not every risk is relevant to every structure, and Annex L is explicit about it.
+    Answering these four questions correctly is worth more than any amount of precision elsewhere —
+    switching R<sub>1</sub> to its explosion-risk form can raise it by an order of magnitude.</p>
+
+  <div class="card"><div class="cb"><div class="fieldset" data-fields="apply"></div></div></div>
+</section>
+
+<!-- ===================== 07  RESULTS ============================= -->
+<section class="sec" id="s7">
+  <div class="sechead"><span class="snum">07</span><h2>Result</h2><span class="stag">Table L.6.2</span></div>
+  <div id="verdict"></div>
+  <div class="rgrid" id="rcards" style="margin-top:14px"></div>
+
+  <div class="card"><div class="ch"><h3>Threat of occurrence — N</h3><span class="small">events/year</span></div>
+    <div class="cb tw" id="ntable"></div></div>
+  <div class="card"><div class="ch"><h3>Probability of damage — P</h3><span class="small">dimensionless</span></div>
+    <div class="cb tw" id="ptable"></div></div>
+  <div class="card"><div class="ch"><h3>Loss — L</h3><span class="small">dimensionless</span></div>
+    <div class="cb tw" id="ltable"></div></div>
+  <div class="card"><div class="ch"><h3>Risk components — R = N · P · L</h3><span class="small">per year</span></div>
+    <div class="cb tw" id="rtable"></div></div>
+  <div class="card"><div class="ch"><h3>What each measure would buy you</h3><span class="small">R<sub>1</sub> recomputed with one change</span></div>
+    <div class="cb tw" id="whatif"></div></div>
+
+  <div class="btnrow" style="margin:18px 0 0">
+    <button class="btn" id="printbtn" type="button">Print / save as PDF</button>
+    <button class="btn sec" id="resetbtn" type="button">Reset to industrial-gas defaults</button>
+  </div>
+</section>
+
+<!-- ===================== APPENDIX ================================ -->
+<section class="sec" id="s8">
+  <div class="sechead"><span class="snum">08</span><h2>Every table, reproduced</h2><span class="stag">reference</span></div>
+  <p class="prose">The values this page uses, so you can check any number against your own copy of
+    the standard without leaving the page.</p>
+  <div id="apx"></div>
+</section>
+
+<div style="height:60px"></div>
+</div>
+</main>
+</div>
+
+<script type="module">
+import { computeDetailedRisk } from './js/detailed-lra-calc.js';
+/* =====================================================================
+   NFPA 780-2020, Annex L, Section L.6 — DETAILED RISK ASSESSMENT
+   Every numeric value below is transcribed from the 2020 edition.
+   The table number in `ref` is the clause you can cite in your report.
+   ===================================================================== */
+const T = {
+
+RT: { R1:1e-5, R2:1e-3, R3:1e-3 },      /* Table L.6.2 */
+
+CD: { ref:"Table L.4.2", name:"Location factor C_D", rows:[
+  {v:0.25, t:"Structure surrounded by TALLER structures or trees within 3H"},
+  {v:0.5,  t:"Structure surrounded by structures of EQUAL or LESSER height within 3H"},
+  {v:1,    t:"ISOLATED structure — nothing else within 3H"},
+  {v:2,    t:"Isolated structure ON A HILLTOP"}
+]},
+
+CE: { ref:"Table L.6.7.1", name:"Service environmental coefficient C_E", rows:[
+  {v:0.01, t:"Urban with buildings exceeding 20 m (66 ft) high"},
+  {v:0.1,  t:"Urban — population greater than 50,000"},
+  {v:0.5,  t:"Suburban — residential on the outskirts of cities"},
+  {v:1,    t:"Rural — settled areas outside towns and cities"}
+]},
+
+CT: { ref:"L.6.6.1.3", name:"HV/LV transformer factor C_T", rows:[
+  {v:1,   t:"No transformer between the point of strike and the structure"},
+  {v:0.2, t:"HV/LV transformer between the point of strike and the structure"}
+]},
+
+PA: { ref:"Table L.6.7.2", name:"P_A — shock from touch & step voltage", rows:[
+  {v:1,    t:"No protection measures"},
+  {v:0.1,  t:"Warning notices"},
+  {v:0.01, t:"Electrical insulation / isolation of exposed down conductor"},
+  {v:0.01, t:"Effective soil equipotentialization"},
+  {v:1e-6, t:"Structural steel frame used as the down conductor system"}
+], note:"If more than one measure is taken, P_A is the PRODUCT of the applicable values." },
+
+PB: { ref:"Table L.6.7.3", name:"P_B — physical damage from a direct strike", rows:[
+  {v:1,     t:"No protection provided"},
+  {v:0.1,   t:"LPS based on 45 m (150 ft) striking distance"},
+  {v:0.05,  t:"LPS based on 30 m (100 ft) striking distance"},
+  {v:0.001, t:"Metal roof per 4.6.1.4 + continuous metal as natural down conductor, bonded & grounded per NFPA 780"},
+  {v:0.001, t:"Metal roof per 4.6.1.4 + reinforced concrete frame bonded to down conductors, per NFPA 780"}
+]},
+
+PC: { ref:"Table L.6.7.4", name:"P_C — internal system failure, direct strike", rows:[
+  {v:1,    t:"No SPD protection"},
+  {v:0.03, t:"SPDs provided in accordance with NFPA 780 Section 4.20"}
+], note:"SPDs reduce P_C only in a structure that has an LPS, or a continuous metal / reinforced-concrete frame meeting the bonding and grounding rules of 4.20." },
+
+/* Table L.6.7.5 — K_S to P_M, descending */
+PM_KS: { ref:"Table L.6.7.5", rows:[
+  {ks:0.4,   pm:1,      t:"K_S > 0.4"},
+  {ks:0.15,  pm:0.9},
+  {ks:0.07,  pm:0.5},
+  {ks:0.035, pm:0.1},
+  {ks:0.021, pm:0.01},
+  {ks:0.016, pm:0.005},
+  {ks:0.015, pm:0.003},
+  {ks:0.014, pm:0.001},
+  {ks:0.013, pm:0.0001, t:"K_S < 0.013"}
+]},
+
+KS3: { ref:"Table L.6.7.6", name:"K_S3 — internal wiring", rows:[
+  {v:1,      t:"Unshielded cable — no routing precaution to avoid loops"},
+  {v:0.2,    t:"Unshielded cable — routing precaution to avoid large loops"},
+  {v:0.02,   t:"Unshielded cable — routing precaution to avoid loops up to 10 m²"},
+  {v:0.001,  t:"Shielded cable, shield resistance 20 > R_S > 5 Ω/km"},
+  {v:0.0002, t:"Shielded cable, shield resistance 5 > R_S > 1 Ω/km"},
+  {v:0.0001, t:"Shielded cable, shield resistance 1 Ω/km > R_S"}
+], note:"Shielded cable includes conductors installed inside a metallic raceway. For wiring in continuous metallic conduit properly bonded to the LPS grounding system, multiply the table value by 0.1." },
+
+/* Table L.6.7.7 — P_U rows x U_W columns */
+UW: [1, 1.5, 2.5, 4, 6],
+PU: { ref:"Table L.6.7.7", rows:[
+  {k:"unsh", t:"Aerial or buried line, UNSHIELDED — or shielded but the shield is NOT bonded to the same bonding bar as the equipment", p:[1,1,1,1,1]},
+  {k:"s20",  t:"Shielded aerial or buried line, shield bonded to the same bonding bar as equipment — 5 Ω/km < R_S < 20 Ω/km", p:[1,1,0.95,0.9,0.8]},
+  {k:"s5",   t:"Shielded aerial or buried line, shield bonded to the same bonding bar as equipment — 1 Ω/km < R_S < 5 Ω/km", p:[0.9,0.8,0.6,0.3,0.1]},
+  {k:"s1",   t:"Shielded aerial or buried line, shield bonded to the same bonding bar as equipment — R_S ≤ 1 Ω/km", p:[0.6,0.4,0.2,0.04,0.02]}
+]},
+
+PZ: { ref:"Table L.6.7.8", rows:[
+  {k:"power",   t:"Power lines",   p:[1,0.6,0.3,0.16,0.1]},
+  {k:"telecom", t:"Telecom lines", p:[1,0.5,0.2,0.08,0.04]}
+]},
+
+/* Table L.6.7.9 — typical mean values of losses */
+LT: { ref:"Table L.6.7.9", rows:[
+  {v:1e-5, t:"Persons INSIDE the building"},
+  {v:1e-3, t:"Persons OUTSIDE the building"}
+]},
+LFLO: { ref:"Table L.6.7.9", rows:[
+  {k:"hospital",  t:"Hospitals",                          lf:1e-1,   lo:1e-3},
+  {k:"hotel",     t:"Hotels, civil buildings",            lf:1e-1,   lo:1e-6},
+  {k:"industrial",t:"Industrial, commercial, school",     lf:5e-2,   lo:1e-6},
+  {k:"public",    t:"Public entertainment, churches, museums", lf:2e-2, lo:1e-6},
+  {k:"other",     t:"Others",                             lf:1e-2,   lo:1e-6},
+  {k:"explosion", t:"Risk of explosion",                  lf:1e-1,   lo:1e-6}
+]},
+
+rt: { ref:"Table L.6.7.10", name:"r_t — surface of soil or floor", rows:[
+  {v:1e-2, t:"Soil, concrete — contact resistance < 1 kΩ"},
+  {v:1e-3, t:"Marble, ceramic — 1–10 kΩ"},
+  {v:1e-4, t:"Gravel, carpets — 10–100 kΩ"},
+  {v:1e-5, t:"Asphalt, linoleum, wood — > 100 kΩ"}
+]},
+
+rp: { ref:"Table L.6.7.11", name:"r_p — fire-consequence provisions", rows:[
+  {v:1,   t:"No provisions — or the structure contains a risk of explosion"},
+  {v:0.5, t:"Fixed manually operated extinguishing installations, manual alarm, hydrants, fireproof compartments, and/or protected escape routes"},
+  {v:0.2, t:"Protected against overvoltages and other damage, OR fire fighters can arrive in under 10 minutes, OR fixed automatic extinguishing or automatic alarm installed"}
+], note:"If more than one provision has been taken, r_p is the LOWEST of the relevant values." },
+
+rf: { ref:"Table L.6.7.12", name:"r_f — risk of fire", rows:[
+  {v:1,     t:"Explosion — explosive mixtures of gases, dusts or materials"},
+  {v:0.1,   t:"High — large quantities of combustibles / flammable and combustible liquids"},
+  {v:0.01,  t:"Ordinary — moderate combustibles, minor storage, no flammable liquids"},
+  {v:0.001, t:"Low — limited combustibles, generally noncombustible construction"},
+  {v:0,     t:"None — noncombustible construction with no exposed combustible contents"}
+]},
+
+hZ: { ref:"Table L.6.7.13", name:"h_Z — special hazard", rows:[
+  {v:1,  t:"No special hazard"},
+  {v:2,  t:"Low level of panic — ≤ 2 floors and ≤ 100 people"},
+  {v:5,  t:"Average level of panic — cultural/sporting events, 100 to 1000 people"},
+  {v:5,  t:"Difficulty of evacuation — immobilized people, e.g. hospitals"},
+  {v:10, t:"High level of panic — cultural/sporting events, > 1000 people"},
+  {v:20, t:"Hazard to the surrounding area or environment"},
+  {v:50, t:"Contamination of the surrounding area or environment"}
+]}
+};
+
+/* =====================================================================
+   Ng MODULE — ground flash density from NOAA / NCEI SWDI "NLDN tiles"
+   ---------------------------------------------------------------------
+   NOAA's National Lightning Detection Network (NLDN) raw strike data is
+   licensed, but NCEI publishes a free aggregate through the SWDI web
+   service: the number of detected cloud-to-ground flashes falling inside
+   each 0.1 deg x 0.1 deg tile, per day.
+
+     https://www.ncei.noaa.gov/swdiws/csv/nldn/<start>:<end>?stat=tilesum:<lon>,<lat>
+
+   Ng = (total flashes in tile) / (tile area, km2) / (years of record)
+   ===================================================================== */
+const NG = (() => {
+  const R = 6371.0088;                 // mean Earth radius, km  (IUGG)
+  const D2R = Math.PI / 180;
+
+  /* snap a coordinate to the centre of its 0.1 deg SWDI tile */
+  const snap = v => Math.round(v * 10) / 10;
+
+  /* exact spherical area of a lat/lon cell, km2
+     A = R^2 * dLambda * (sin(phi2) - sin(phi1))                        */
+  function tileArea(latC) {
+    const p1 = (latC - 0.05) * D2R, p2 = (latC + 0.05) * D2R;
+    return R * R * (0.1 * D2R) * (Math.sin(p2) - Math.sin(p1));
+  }
+
+  function url(lonC, latC, y0, y1) {
+    return `https://www.ncei.noaa.gov/swdiws/csv/nldn/${y0}0101:${y1}1231`
+         + `?stat=tilesum:${lonC.toFixed(1)},${latC.toFixed(1)}`;
+  }
+
+  /* parse the CSV the service returns: DAY,CENTERLAT,CENTERLON,FCOUNT   */
+  function parseCSV(text) {
+    const out = { flashes: 0, days: 0, lat: null, lon: null, bad: 0, first: null, last: null };
+    if (!text) return out;
+    text.split(/\r?\n/).forEach(raw => {
+      const line = raw.trim();
+      if (!line || /^DAY/i.test(line) || /^#/.test(line)) return;
+      const p = line.split(',');
+      if (p.length < 4) { out.bad++; return; }
+      const n = parseInt(p[3], 10);
+      if (!isFinite(n)) { out.bad++; return; }
+      out.flashes += n; out.days++;
+      if (out.lat === null) { out.lat = parseFloat(p[1]); out.lon = parseFloat(p[2]); }
+      if (!out.first || p[0] < out.first) out.first = p[0];
+      if (!out.last  || p[0] > out.last)  out.last  = p[0];
+    });
+    return out;
+  }
+
+  function compute(tiles, y0, y1) {
+    const years = y1 - y0 + 1;
+    let flashes = 0, area = 0, days = 0, filled = 0;
+    tiles.forEach(t => {
+      if (t.parsed) { flashes += t.parsed.flashes; days += t.parsed.days; filled++; }
+      area += tileArea(t.lat);
+    });
+    if (!filled) return null;
+    /* only count the area of tiles that actually have data pasted in */
+    let usedArea = 0;
+    tiles.forEach(t => { if (t.parsed) usedArea += tileArea(t.lat); });
+    return {
+      flashes, days, years, filled, tiles: tiles.length,
+      area: usedArea,
+      ng: flashes / usedArea / years
+    };
+  }
+
+  return { snap, tileArea, url, parseCSV, compute };
+})();
+
+/* =====================================================================
+   ENGINE ADAPTER — resolves T-table row lookups (shield/type -> PU/PZ rows)
+   into plain arrays, then hands everything to the tested, isomorphic engine
+   in js/detailed-lra-calc.js. The engine itself knows nothing about T.
+   ===================================================================== */
+function compute(s){
+  const services = s.services.map(v => ({
+    ...v,
+    puRow: T.PU.rows.find(x => x.k === v.shield).p,
+    pzRow: T.PZ.rows.find(x => x.k === v.type).p,
+  }));
+  return computeDetailedRisk({ ...s, services });
+}
+
+/* =====================================================================
+   FIELD DEFINITIONS — label, meaning, how to obtain it, sensible default
+   for a non-flammable industrial-gas (air separation) plant.
+   ===================================================================== */
+const opt = (key, extra) => T[key].rows.map(r => ({v:r.v, label:(extra?extra(r):"")+r.t}));
+
+const F = {
+
+/* ---------------- 01  location ------------------------------------ */
+loc:[
+ {id:"coords", sym:"φ, λ", type:"text", def:"33.7785168991309, -112.15658438996515",
+  label:"Plant coordinates", help:"Latitude first, then longitude, separated by a comma. West longitudes are negative.",
+  tip:{what:"The position of the structure you are assessing — not the site gate, not the office. Lightning density can change measurably over 20 km.",
+       how:"In Google Maps, right-click the building and click the coordinate pair at the top of the menu; it copies in exactly this format. A GPS reading, or UTM from a plot plan converted to WGS-84, works equally well. Three decimals (about 100 m) is more than enough — the data tile is 11 km across.",
+       dflt:"There is no generic default. Flash density varies by a factor of thirty across the United States, so this input has to be real."}},
+ {id:"ngYears", sym:"—", type:"select", def:10, num:true,
+  label:"Years of record to average", help:"NOAA data starts in 1986. A longer window smooths out freak seasons.",
+  tip:{what:"Lightning is violently variable year to year — a single season can be double or half the long-term mean. Averaging over a decade is what turns a weather statistic into a design value.",
+       how:"Nothing to look up. Ten complete calendar years is normal engineering practice and matches the ten-year window Vaisala used for the map printed in Figure L.2.",
+       dflt:"<b>10 years.</b> Use 20 only if you are trying to reproduce an older published map."},
+  options:[{v:5,label:"5 years"},{v:10,label:"10 years — recommended"},{v:15,label:"15 years"},{v:20,label:"20 years"}]},
+ {id:"ngTiles", sym:"—", type:"select", def:1, num:true,
+  label:"Area to average over", help:"One NOAA tile is 0.1° × 0.1° — about 11 km × 9 km, roughly 100 km².",
+  tip:{what:"NOAA sums flash counts into fixed 0.1-degree tiles. You can use the single tile your plant sits in, or the 3 × 3 block around it (about 900 km²) for a statistically steadier number.",
+       how:"Nothing to look up. Use the 3 × 3 block if the single tile records fewer than roughly 200 flashes over the whole period — below that the sample is too thin to trust.",
+       dflt:"<b>Single tile</b> for a first pass; widen it if the count comes back small."},
+  options:[{v:1,label:"Single tile (~100 km²) — most site-specific"},{v:9,label:"3 × 3 tile block (~900 km²) — steadier"}]}
+],
+
+ngman:[
+ {id:"Ng", sym:"N_g", type:"number", def:0.57, unit:"flashes/km²/yr", step:"0.01",
+  label:"N_g used in the calculation", help:"Filled in automatically when you pull NOAA data. Override it here if you have a better source.",
+  tip:{what:"Ground flash density: cloud-to-ground flashes striking each square kilometre per year, averaged over the record period.",
+       how:"Three legitimate sources, in descending order of defensibility: (1) the NOAA tile count above; (2) a purchased Vaisala NLDN dataset at 2 km resolution, which is what §L.2 points to; (3) reading a contour off the map in Figure L.2. Outside the United States, use your national detection network or IEC 62305-2 national annexes.",
+       dflt:"Whatever the NOAA pull returns for your coordinates. Typical values: Florida 12–16, US Gulf Coast 8–12, Midwest 4–8, Arizona 0.5–3, Pacific Northwest under 0.5."}}
+],
+
+/* ---------------- 02  structure ----------------------------------- */
+struct:[
+ {id:"L", sym:"L", type:"number", def:60, unit:"m", step:"0.5",
+  label:"Length", help:"The longer plan dimension of the structure footprint.",
+  tip:{what:"One side of the smallest rectangle that encloses the structure. The A_D formula in §L.4.1.1 assumes a rectangular box.",
+       how:"Scale it off the plot plan or the architectural general-arrangement drawing. For an open process block with no walls — a cold box, a compressor bay — use the footprint of the structural steel. For a genuinely complex shape, §L.4.1.2 lets you build A_D graphically instead; a bounding rectangle is the conservative shortcut.",
+       dflt:"Measure it. For reference: an air-separation cold box structure is typically 15–25 m on a side, a control/MCC building 20–40 m."}},
+ {id:"W", sym:"W", type:"number", def:25, unit:"m", step:"0.5",
+  label:"Width", help:"The shorter plan dimension of the same rectangle.",
+  tip:{what:"The other side of the enclosing rectangle.",
+       how:"Same source as the length — plot plan, GA drawing, or a measurement off georeferenced imagery.",
+       dflt:"Measure it."}},
+ {id:"H", sym:"H", type:"number", def:12, unit:"m", step:"0.5",
+  label:"Height", help:"Grade to the highest point of the structure. This term dominates A_D.",
+  tip:{what:"Height enters A_D three times, once squared, so it drives the answer. A tall slim object collects far more lightning than a low broad one of the same footprint.",
+       how:"Elevation drawing, or the equipment datasheet for a cold box or column. If one slender element towers over the rest — a vent stack, a relief header, a mast — do not average: either assess it as its own structure, or, if it is structurally part of the same object, use §L.4.1.2 and Figure L.4.1.2(b) rather than a single H.",
+       dflt:"Measure it. Air-separation cold box 25–45 m; compressor house 10–15 m; control building 5–8 m."}},
+ {id:"CD", sym:"C_D", type:"select", def:1, num:true, table:"CD",
+  label:"Location factor — what stands around it",
+  help:"Whether neighbouring objects intercept flashes before they reach you. Judged within a radius of 3H.",
+  tip:{what:"A structure alone in an open field catches everything inside its collection area. One hemmed in by taller neighbours has most flashes intercepted first. C_D scales A_D to account for that, from 0.25 to 2.",
+       how:"Stand at the structure and look around within roughly three times its height. Anything taller — buildings, process structures, mature trees? That is 0.25. Neighbours of similar or lower height? 0.5. Flat open ground with nothing within 3H? 1. On a ridge or hill crest, exposed on all sides? 2.",
+       dflt:"For the tallest object on a flat industrial site — which the cold box usually is — <b>1 (isolated)</b>. For a low control building standing among taller process structures, <b>0.25</b>."}}
+],
+
+adj:[
+ {id:"adj", sym:"—", type:"select", def:1, num:true,
+  label:"Is a service shared with a separate structure?",
+  help:"A flash to a neighbouring building travels to you along the cable you share.",
+  tip:{what:"If a power or signal cable runs between your structure and a second one, lightning striking that second structure injects current into the shared conductor and into your building. §L.6.6.1.4 counts those events as N_DJ and adds them to N_L.",
+       how:"Read the single-line diagram and the cable schedule. Anything fed from, or feeding, a separate building on site counts — a substation, an e-house, an admin block, a neighbouring plant's switchroom. A feeder arriving from the utility grid with no identifiable building at the far end does not.",
+       dflt:"<b>Yes</b> for most industrial-gas plants: the process block is normally fed from an on-site substation or e-house. Answer No if your incomer comes straight off a utility pole line."},
+  options:[{v:0,label:"No — every service comes from the utility, not a building"},{v:1,label:"Yes — at least one service runs to a separate structure"}]},
+ {id:"adjL", sym:"L_J", type:"number", def:20, unit:"m", step:"0.5", showIf:"adj",
+  label:"Adjacent structure — length", help:"Plan dimension of the building at the far end.",
+  tip:{what:"Used to build that structure's own collection area A_DJ with the same 3H formula.",
+       how:"Plot plan; for a packaged e-house or substation skid, the skid drawing.",
+       dflt:"A typical on-site e-house or unit substation is 12–20 m long."}},
+ {id:"adjW", sym:"W_J", type:"number", def:10, unit:"m", step:"0.5", showIf:"adj",
+  label:"Adjacent structure — width", help:"Its other plan dimension.",
+  tip:{what:"The second plan dimension of the adjacent structure.", how:"Plot plan or skid drawing.", dflt:"E-house: 4–10 m."}},
+ {id:"adjH", sym:"H_J", type:"number", def:6, unit:"m", step:"0.5", showIf:"adj",
+  label:"Adjacent structure — height", help:"Its height to the highest structural point.",
+  tip:{what:"Height of the adjacent structure, which again dominates its collection area.", how:"Elevation drawing.", dflt:"E-house or unit substation building: 4–6 m."}},
+ {id:"adjCD", sym:"C_DJ", type:"select", def:0.5, num:true, table:"CD", showIf:"adj",
+  label:"Adjacent structure — location factor", help:"The same question as before, asked about the far-end building.",
+  tip:{what:"Location factor applied to A_DJ in the N_DJ equation.",
+       how:"Same judgement, made standing at the other building.",
+       dflt:"An e-house tucked among taller process structures: <b>0.5</b>."}}
+],
+
+/* ---------------- 04  protection ---------------------------------- */
+prot:[
+ {id:"PA", sym:"P_A", type:"select", def:1, num:true, table:"PA",
+  label:"Touch and step voltage protection",
+  help:"What stops a person standing near a down conductor from being part of the circuit.",
+  tip:{what:"When lightning current runs down a conductor to earth, it raises the potential of that conductor and of the ground around it. Someone touching the conductor, or standing with feet apart nearby, gets a fraction of that across their body. P_A is the probability that a strike produces a dangerous touch or step voltage.",
+       how:"Walk the perimeter. Are down conductors exposed at head height with no barrier? That is no protection. Signs warning people off? Insulating sleeve over the conductor for the first few metres? A ground grid that equalises the surface potential? A steel building frame carrying the current instead of a discrete conductor — the single most effective case, at 10⁻⁶. If several apply, Table L.6.7.2 says multiply them.",
+       dflt:"For a baseline assessment of an unprotected plant, <b>no protection measures (1)</b>. For a welded structural-steel process frame with a bonded ground grid, the last row applies and this term essentially disappears."}},
+ {id:"PB", sym:"P_B", type:"select", def:1, num:true, table:"PB",
+  label:"Lightning protection system installed",
+  help:"How good the air terminations, down conductors and grounding are.",
+  tip:{what:"P_B is the probability that a direct flash to the structure causes physical damage despite the LPS. NFPA classifies LPS by rolling-sphere striking distance rather than by IEC class — 45 m (150 ft) is the ordinary case, 30 m (100 ft) the enhanced one.",
+       how:"Ask for the LPS design drawings and the UL 96A or LPI certificate. No certificate and no air terminals means no protection. If the roof is metal per 4.6.1.4 and the frame is continuous metal or bonded rebar acting as a natural down conductor, you get the 0.001 rows — worth checking for, because it is a hundred times better than a 45 m system.",
+       dflt:"<b>No protection provided (1)</b> for the as-is assessment. The whole point of the exercise is to find out whether you need to move off this row."}},
+ {id:"PC", sym:"P_C", type:"select", def:1, num:true, table:"PC",
+  label:"Surge protective devices at the service entrance",
+  help:"SPDs per NFPA 780 §4.20 on power, signal and communication entries.",
+  tip:{what:"P_C is the probability that a direct flash to the structure destroys internal electronics. A compliant SPD system takes it from 1 to 0.03.",
+       how:"Look at the service entrance: is there a Type 1 or Type 2 SPD at the main switchboard (§4.20.5), and SPDs on every signal, data and communication entry (§4.20.2.2, §4.20.6)? Partial coverage does not count — a power SPD alone with unprotected instrument cables is still row one.",
+       dflt:"<b>No SPD protection (1)</b> as the baseline. Note the catch in Table L.6.7.4: SPDs only earn the 0.03 if the structure also has an LPS or a continuous metal / reinforced-concrete frame meeting the bonding rules — SPDs on an unbonded building do not reduce P_C."}}
+],
+
+ks:[
+ {id:"UW", sym:"U_W", type:"select", def:1.5, num:true,
+  label:"Impulse withstand voltage of the weakest equipment",
+  help:"The lowest rated withstand among the components you are protecting — not the average.",
+  tip:{what:"U_W is the surge voltage the equipment survives. It sets K_S4 = 1.5/U_W and it picks the column in the P_U and P_Z tables, so it moves several numbers at once. §L.6.6.2.4 adds a hard rule: if U_W is unknown or below 1.5 kV, P_M is fixed at 1.",
+       how:"Read the datasheet of the most fragile thing on the network — normally a DCS or PLC analogue input card, an Ethernet switch, or a VFD control board — and look for the rated impulse withstand or the 1.2/50 µs rating. If you cannot get it, Table L.6.7.7 note 3 gives typical values: computer equipment 1.5 kV, business/hotel/hospital 2.5 kV, light industrial 4 kV, heavy industrial 6 kV, default 1.5 kV.",
+       dflt:"<b>1.5 kV.</b> An air-separation plant is heavy industrial in construction, but the number that governs is the DCS I/O card, and those sit at 1.5 kV. Only claim 4 or 6 kV if you have datasheets for everything on the network."},
+  options:T.UW.map(v=>({v:v,label:v+" kV"+(v===1.5?"  — Annex L default":v===4?"  — typical light industrial":v===6?"  — typical heavy industrial":v===2.5?"  — typical business/hospital":"  — very sensitive electronics")}))},
+ {id:"spdCoord", sym:"—", type:"select", def:0, num:true,
+  label:"Coordinated SPDs at the utilization equipment?",
+  help:"Not the service entrance — SPDs at the loads themselves, coordinated with the entrance devices.",
+  tip:{what:"§L.6.6.2.4 and the Figure L.6.8 worksheet agree that without a coordinated SPD system at the equipment, P_M = 1 regardless of how well shielded the building is. With one, P_M becomes the lower of P_C and the K_S-derived value.",
+       how:"A coordinated system means SPDs at the entrance AND at sub-distribution AND at the sensitive load, selected so the let-through of the upstream device is inside the withstand of the downstream one. Ask whether the SPD selection was done as a coordinated study or device by device.",
+       dflt:"<b>No</b> for a baseline assessment. Very few existing plants have a documented coordinated system; installing one is a common outcome of this assessment."},
+  options:[{v:0,label:"No — entrance SPDs only, or none"},{v:1,label:"Yes — coordinated SPD system down to the equipment"}]},
+ {id:"ks1mode", sym:"K_S1", type:"select", def:"mesh",
+  label:"Outer shielding of the structure", help:"How the building envelope screens the magnetic field.",
+  tip:{what:"K_S1 describes the screening at the outside boundary. Steel columns, bonded rebar or a mesh act as a coarse Faraday cage: the closer the conductors, the better. §L.6.6.2.4 gives K_S1 = 0.12·W_M with W_M the spacing in metres.",
+       how:"Two possibilities. Either the structure is a grid of steel — measure the column grid, or the rebar spacing if the bars are interconnected and grounded — in which case use the spacing option. Or it has a genuine continuous metal skin 0.1 to 0.5 mm thick, which the standard values at 10⁻⁴ to 10⁻⁵.",
+       dflt:"<b>Spacing-based.</b> A steel-framed process structure or a metal-clad building on a steel frame is a grid, not a continuous shield."},
+  options:[{v:"mesh",label:"Grid of steel / bonded rebar — use spacing"},{v:"metal",label:"Continuous metal shield, 0.1–0.5 mm"}]},
+ {id:"WM1", sym:"W_M", type:"number", def:5, unit:"m", step:"0.1", showIf:"ks1mode=mesh",
+  label:"Grid spacing at the outer boundary", help:"Column spacing, down-conductor spacing, mesh size, or rebar spacing.",
+  tip:{what:"W_M is whichever conducting grid is smallest and continuous: the structural column grid, the spacing between LPS down conductors, the mesh of a shielding grid, or — if the reinforcing bars are interconnected and terminated on grounding electrodes — the rebar spacing.",
+       how:"Structural drawings for the column grid; the LPS drawing for down-conductor spacing (NFPA 780 typically puts these at 30 m or less around the perimeter); the rebar schedule for reinforcement. Take the largest spacing in the grid, not the smallest.",
+       dflt:"<b>5 m</b> — a typical structural-steel column bay in a process building. If you have no metal grid at all, this route does not apply and K_S1 should be 1; enter a spacing of 8.33 m or more and the formula caps it there."}},
+ {id:"ks1metal", sym:"K_S1", type:"select", def:1e-4, num:true, showIf:"ks1mode=metal",
+  label:"Continuous shield value", help:"Scaled linearly between 10⁻⁴ at 0.1 mm and 10⁻⁵ at 0.5 mm.",
+  tip:{what:"For a genuinely continuous metal skin the standard skips the spacing formula and assigns a value directly.",
+       how:"Measure or specify the sheet thickness. 0.1 mm gives 10⁻⁴, 0.5 mm gives 10⁻⁵, in between scale linearly.",
+       dflt:"10⁻⁴ unless you can show a thicker skin."},
+  options:[{v:1e-4,label:"10⁻⁴  (about 0.1 mm)"},{v:5e-5,label:"5 × 10⁻⁵  (about 0.3 mm)"},{v:1e-5,label:"10⁻⁵  (0.5 mm or thicker)"}]},
+ {id:"ks1close", sym:"×2", type:"select", def:0, num:true,
+  label:"Is equipment closer to the wall than W_M?", help:"§L.6.6.2.4 doubles K_S1 if it is.",
+  tip:{what:"The screening formula assumes equipment sits at least one grid spacing away from the boundary. Nearer than that and the field is stronger, so the standard doubles the factor.",
+       how:"Look at where the cabinets actually are. A marshalling panel bolted to an outside wall is closer than a 5 m column bay.",
+       dflt:"<b>Yes</b> is the safe answer for most industrial buildings, where panels sit against walls. Answer No only if you have checked."},
+  options:[{v:0,label:"No — equipment is further than W_M from the boundary"},{v:1,label:"Yes — double K_S1 (conservative default)"}]},
+ {id:"ks2mode", sym:"K_S2", type:"select", def:"none",
+  label:"Internal shielded zone", help:"A screened room or shielded enclosure inside the building.",
+  tip:{what:"K_S2 is the screening of a second boundary inside the first — a shielded control room, a screened cabinet room. With no inner boundary K_S2 = 1 and this term does nothing. Where several inner boundaries exist, multiply their K_S2 values.",
+       how:"Ask whether the control room or rack room has a bonded metallic screen — a mesh in the walls, a bonded raised floor plus ceiling grid, or shielded enclosures. An ordinary drywall control room is not a shielded zone.",
+       dflt:"<b>None (K_S2 = 1)</b>. Shielded rooms are rare outside data centres and substations."},
+  options:[{v:"none",label:"No internal shielded zone — K_S2 = 1"},{v:"mesh",label:"Internal grid / mesh — use spacing"},{v:"metal",label:"Continuous internal metal shield"}]},
+ {id:"WM2", sym:"W_M2", type:"number", def:2, unit:"m", step:"0.1", showIf:"ks2mode=mesh",
+  label:"Internal grid spacing", help:"Mesh size of the inner screen, in metres.",
+  tip:{what:"Same 0.12·W_M relationship, applied to the inner boundary.", how:"From the screened-room specification or the mesh drawing.", dflt:"2 m for a coarse bonded mesh; 0.5 m or less for a proper screened room."}},
+ {id:"ks2metal", sym:"K_S2", type:"select", def:1e-4, num:true, showIf:"ks2mode=metal",
+  label:"Internal continuous shield value", help:"Same 10⁻⁴ to 10⁻⁵ scale as the outer shield.",
+  tip:{what:"Direct assignment for a continuous inner metal shield.", how:"Sheet thickness from the enclosure specification.", dflt:"10⁻⁴."},
+  options:[{v:1e-4,label:"10⁻⁴"},{v:5e-5,label:"5 × 10⁻⁵"},{v:1e-5,label:"10⁻⁵"}]},
+ {id:"ks2close", sym:"×2", type:"select", def:0, num:true, showIf:"ks2mode=mesh",
+  label:"Equipment closer than W_M2 to the inner boundary?", help:"Doubles K_S2 if yes.",
+  tip:{what:"Same proximity rule as for the outer boundary.", how:"Check where the racks sit relative to the screen.", dflt:"Yes, unless verified otherwise."},
+  options:[{v:0,label:"No"},{v:1,label:"Yes — double K_S2"}]},
+ {id:"KS3", sym:"K_S3", type:"select", def:0.2, num:true, table:"KS3",
+  label:"Internal wiring", help:"How signal and power cabling is routed inside — the cheapest factor to improve.",
+  tip:{what:"A cable pair that encloses a large loop area behaves like a pickup antenna for the magnetic field of a nearby strike. K_S3 spans four orders of magnitude between careless routing and a properly bonded shielded cable, which makes it the single best value-for-money term in the whole assessment.",
+       how:"Walk the cable trays. Do signal cables run alongside their return, or wander off on separate routes enclosing big loops? Are instrument cables screened, and is the screen bonded? Is anything in continuous metallic conduit bonded to the LPS grounding system — if so, Table L.6.7.6 lets you multiply the table value by a further 0.1. Shield resistance comes from the cable manufacturer's datasheet, in Ω/km.",
+       dflt:"<b>0.2 — unshielded cable with routing precautions to avoid large loops.</b> That describes a competently built plant with cables in common trays. If your instrument cables are screened with the screen bonded at both ends, you can claim 0.001 and the improvement is dramatic."}},
+ {id:"ks3conduit", sym:"×0.1", type:"select", def:0, num:true,
+  label:"Wiring in bonded continuous metallic conduit?", help:"Table L.6.7.6 note — multiplies K_S3 by 0.1.",
+  tip:{what:"Continuous metallic conduit properly bonded to the lightning protection grounding system gives a further factor of ten beyond the table row.",
+       how:"Check that the conduit is continuous — no plastic couplings, no isolated sections — and bonded to the LPS ground, not merely to the electrical safety ground.",
+       dflt:"<b>No.</b> Cable tray is not conduit, and conduit bonded only for equipment grounding does not qualify."},
+  options:[{v:0,label:"No"},{v:1,label:"Yes — apply the 0.1 multiplier"}]}
+],
+
+/* ---------------- 05  losses -------------------------------------- */
+loss:[
+ {id:"lossMode", sym:"—", type:"select", def:"typical",
+  label:"How to establish the loss values",
+  help:"Use the standard's typical means, or compute from headcount and occupancy hours.",
+  tip:{what:"§L.6.6.3 lets you derive the loss from the actual population: (n_Z/n_T) × (t_Z/8760), the fraction of people at risk times the fraction of the year they are there. Table L.6.7.9 gives typical means for when that is uncertain — which is the route the printed worksheet takes.",
+       how:"Use typical values unless you have a real headcount and a real occupancy schedule. If you do use the headcount route, remember it multiplies the table values rather than replacing them, which keeps the result consistent with IEC 62305-2, the source of this method.",
+       dflt:"<b>Typical values.</b> An unattended or lightly attended process plant is well served by the table, and the result is easier to defend."},
+  options:[{v:"typical",label:"Typical mean values from Table L.6.7.9"},{v:"persons",label:"Scale by actual headcount and occupancy hours"}]},
+ {id:"LT", sym:"L_T", type:"select", def:1e-5, num:true, table:"LT",
+  label:"Loss of life — base value", help:"Whether the people at risk are inside or outside the structure.",
+  tip:{what:"L_T is the mean fraction of people lost when the touch/step-voltage damage occurs. Being outdoors during a strike is a hundred times worse than being indoors — hence 10⁻³ against 10⁻⁵.",
+       how:"Ask where people actually are during a storm. In a manned control room, the indoor value governs. On an outdoor process structure with operators on the platforms, or at a truck-loading bay, the outdoor value is the honest one.",
+       dflt:"<b>10⁻⁵ (persons inside)</b> for a plant where operators shelter indoors during storms. Switch to 10⁻³ if you have routine outdoor work, and expect R₁ to jump by two orders of magnitude."}},
+ {id:"occ", sym:"L_F, L_O", type:"select", def:"industrial", table:"LFLO",
+  label:"Structure category", help:"Sets both the physical-damage loss and the internal-systems loss.",
+  tip:{what:"One choice sets two numbers: L_F, the fraction lost to physical damage, and L_O, the fraction lost when internal systems fail. Table L.6.7.9 pairs them by occupancy.",
+       how:"Pick by what the building actually is, not what it is called. Note the last row: if the structure carries a risk of explosion — flammable gas, explosive dust, explosive atmosphere — that row overrides the occupancy and takes L_F to 10⁻¹.",
+       dflt:"<b>Industrial, commercial, school</b> (L_F = 5×10⁻², L_O = 10⁻⁶). An air-separation plant handles oxygen, nitrogen and argon: an oxidiser and two inerts, none of them flammable, so the explosion row does not apply. It does apply to an adjacent hydrogen or acetylene unit."}}
+],
+
+lossf:[
+ {id:"rt", sym:"r_t", type:"select", def:1e-2, num:true, table:"rt",
+  label:"Surface of the ground or floor", help:"How much resistance stands between a person's feet and true earth.",
+  tip:{what:"r_t reduces the touch/step loss according to how insulating the walking surface is. Asphalt is a thousand times better than bare soil.",
+       how:"Look at what people stand on where the down conductors and grounded structures are. Outdoor concrete apron or bare compacted earth is the first row. An asphalt-paved area, or wooden or linoleum flooring indoors, is the last. Take the worst surface where people actually go, not the best.",
+       dflt:"<b>Soil or concrete, 10⁻²</b>. Concrete paving is standard around process equipment, and the standard groups it with bare soil."}},
+ {id:"rp", sym:"r_p", type:"select", def:0.5, num:true, table:"rp",
+  label:"Fire protection provisions", help:"What reduces the consequences once a fire starts.",
+  tip:{what:"r_p reduces the physical-damage loss by a factor of up to five depending on detection and suppression. Note the sting in the first row: a structure with a risk of explosion gets no credit at all, r_p = 1.",
+       how:"Inventory the fire protection: extinguishers and hydrants and fire compartments give 0.5; automatic detection or automatic suppression, or a fire brigade that can be on scene in under ten minutes, gives 0.2. If more than one applies, Table L.6.7.11 says take the LOWEST value, not the product.",
+       dflt:"<b>0.5</b> for a typical plant with hydrants, extinguishers and manual alarms. Claim 0.2 if you have addressable automatic detection in the electrical rooms, or a documented brigade response under ten minutes."}},
+ {id:"rf", sym:"r_f", type:"select", def:0.001, num:true, table:"rf",
+  label:"Risk of fire", help:"How much there is to burn. The footnotes in Table L.6.7.12 are worth reading.",
+  tip:{what:"r_f spans a factor of a thousand, from explosion (1) to noncombustible with no combustible contents (0). It multiplies straight into L_B and L_V, so it is one of the most consequential single choices in the assessment.",
+       how:"The standard's own footnotes: Explosion means explosive mixtures of gases, dusts or materials. High means significant combustible storage or flammable liquids. Ordinary means moderate combustibles with no flammable liquids. Low means limited combustibles and generally noncombustible construction. None means noncombustible construction with no exposed combustible contents.",
+       dflt:"<b>Low, 0.001</b> for an air-separation plant: steel and concrete construction, cryogenic non-flammable products, with combustibles limited to compressor lube oil, cable insulation and perlite insulation. Do not be tempted by 'None' — cable trays and lube oil are exposed combustible contents. If there is a hydrogen, acetylene or LPG unit inside the same fire area, you are on the Explosion row instead."}},
+ {id:"hZ", sym:"h_Z", type:"select", def:1, num:true, table:"hZ",
+  label:"Special hazard", help:"Multiplies the physical-damage loss, by up to fifty.",
+  tip:{what:"h_Z inflates L_B and L_V where the consequences reach beyond the building — panic in a crowd, difficult evacuation, or harm to the surrounding area or environment. The top two rows, 20 and 50, are where process plants can end up.",
+       how:"Two separate questions. First, people: a crowd, or occupants who cannot self-evacuate? Second, the surroundings: would a lightning-initiated event harm or contaminate the area beyond the fence — a toxic release, a large flammable release, a spill reaching water?",
+       dflt:"<b>1 — no special hazard</b> for a standard air-separation unit. Oxygen, nitrogen and argon are not toxic and disperse; a cryogenic spill is a local hazard, not a community one. Move to 20 if the same fire area holds ammonia, chlorine, or a large flammable inventory, and expect the result to change character."}},
+ {id:"nZ", sym:"n_Z", type:"number", def:6, step:"1", showIf:"lossMode=persons",
+  label:"People at risk", help:"How many people could be affected in the dangerous location.",
+  tip:{what:"n_Z is the number of people exposed in the zone under consideration.",
+       how:"From the manning schedule: operators, maintenance, contractors normally present in that part of the plant.",
+       dflt:"An air-separation unit runs with a small crew — 4 to 8 people on shift is typical."}},
+ {id:"nT", sym:"n_T", type:"number", def:20, step:"1", showIf:"lossMode=persons",
+  label:"Total people in the facility", help:"The denominator: everyone in the facility.",
+  tip:{what:"n_T is the expected total number of people in the structure or facility.",
+       how:"Site headcount including administration, laboratory and shipping.",
+       dflt:"Depends entirely on the site. 20 is a plausible total for a mid-size merchant plant."}},
+ {id:"tZ", sym:"t_Z", type:"number", def:8760, step:"1", showIf:"lossMode=persons",
+  label:"Hours per year people are present", help:"Out of 8760 hours in a year.",
+  tip:{what:"t_Z is the number of hours per year for which people are in the dangerous place.",
+       how:"Continuous manning is 8760. A day-shift-only operation is roughly 2000. Count only the hours in the dangerous location, not hours on site.",
+       dflt:"<b>8760</b> for a continuously manned plant; 2080 for day shift only."}}
+],
+
+/* ---------------- 06  applicability -------------------------------- */
+apply:[
+ {id:"r1extra", sym:"R₁*", type:"select", def:0, num:true,
+  label:"Does failure of internal systems immediately endanger life?",
+  help:"Adds R_C, R_M, R_W and R_Z into R₁. Usually the biggest single switch in the assessment.",
+  tip:{what:"The asterisks in §L.6.5 say R_C, R_M, R_W and R_Z belong in R₁ only for structures with a risk of explosion, structures with life-critical electrical equipment such as hospitals, or any other structure where failure of internal systems immediately endangers human life.",
+       how:"Ask one question: if the control system froze or lost its outputs right now, would anyone be in danger within minutes — before an operator could intervene? Not 'would production stop', not 'could it eventually become unsafe'. If safety instrumented functions are independent of the DCS and fail safe on loss of power, the answer is usually No.",
+       dflt:"<b>No</b> for a conventional air-separation unit: no explosive atmosphere, and safety functions are hardwired SIS with fail-safe action. Answer Yes if the plant feeds medical oxygen directly to a hospital without buffer storage, or if it shares a fire area with an explosive process."},
+  options:[{v:0,label:"No — conventional industrial plant"},{v:1,label:"Yes — explosion risk, life-critical equipment, or immediate danger"}]},
+ {id:"useR2", sym:"R₂", type:"select", def:0, num:true,
+  label:"Does this structure provide a service to the public?",
+  help:"R₂ covers loss of a public service — power, telephone, water and the like.",
+  tip:{what:"R₂ measures the risk of interrupting a service that other people depend on. Its tolerable limit is 10⁻³, a hundred times looser than the limit for life.",
+       how:"Ask whether an outage here interrupts a service to parties outside the fence. A merchant plant filling cylinders and trucks has customers, but that is a commercial loss, counted in R₄. A plant piping oxygen directly into a hospital or a municipal water works is providing a service.",
+       dflt:"<b>No</b> for a merchant industrial-gas plant. Yes if you are on a dedicated pipeline to a hospital, or if the site also hosts a public utility function."},
+  options:[{v:0,label:"No — commercial supply, counted in R₄ instead"},{v:1,label:"Yes — the structure provides a public service"}]},
+ {id:"useR3", sym:"R₃", type:"select", def:0, num:true,
+  label:"Does the structure hold irreplaceable heritage?",
+  help:"R₃ covers loss of historical significance.",
+  tip:{what:"R₃ = R_B + R_V — physical damage only, since heritage is lost by fire and not by a failed PLC. Tolerable limit 10⁻³ in the 2020 edition.",
+       how:"Listed building, museum collection, archive, irreplaceable records or artefacts?",
+       dflt:"<b>No</b> for an industrial plant."},
+  options:[{v:0,label:"No"},{v:1,label:"Yes — irreplaceable cultural or historical content"}]},
+ {id:"animals", sym:"R₄**", type:"select", def:0, num:true,
+  label:"Could animals be lost?",
+  help:"Adds R_A and R_U into R₄, per the double asterisk in §L.6.5.",
+  tip:{what:"Touch and step voltages kill livestock readily — animals bridge a larger step distance than people do. Where animals are present, the standard folds those components into the economic risk.",
+       how:"Relevant to barns, stables, dairies and stockyards.",
+       dflt:"<b>No</b> for an industrial plant."},
+  options:[{v:0,label:"No"},{v:1,label:"Yes — livestock present"}]}
+]
+};
+
+/* =====================================================================
+   UI — state, rendering, live arithmetic
+   ===================================================================== */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const el = (t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!==undefined)e.innerHTML=h; return e;};
+
+/* ---- number formatting ------------------------------------------- */
+function sci(x, d){
+  if (x === 0) return "0";
+  if (x === undefined || x === null || !isFinite(x)) return "—";
+  const e = Math.floor(Math.log10(Math.abs(x)));
+  if (e >= -3 && e < 5) return (+x.toPrecision(d||3)).toLocaleString('en-US',{maximumSignificantDigits:d||3});
+  const m = x / Math.pow(10,e);
+  return m.toFixed((d||3)-1) + "×10" + sup(e);
+}
+const SUP = {"-":"⁻","0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹"};
+const sup = n => String(n).split("").map(c => SUP[c]||c).join("");
+const fx  = (x,d) => (x===undefined||!isFinite(x)) ? "—" : x.toLocaleString('en-US',{maximumFractionDigits:d===undefined?1:d});
+
+/* ---- state ------------------------------------------------------- */
+const DEF = {};
+Object.values(F).flat().forEach(f => DEF[f.id] = f.def);
+const SVC_DEF = () => ({name:"Incoming power feeder", type:"power", LL:1000, CE:1, CT:0.2,
+                        shield:"unsh", spdEB:0, mesh:0, PAline:1, adjEnd:1});
+let S = Object.assign({}, DEF, {services:[SVC_DEF()]});
+S.services.push(Object.assign(SVC_DEF(), {name:"Telecom / fibre / signal line", type:"telecom", CT:1, adjEnd:0}));
+
+/* ---- service field definitions ----------------------------------- */
+const SVCF = [
+ {id:"name", type:"text", label:"Name of this service", help:"Anything you will recognise in the report.",
+  tip:{what:"A label only — it does not affect the arithmetic.",
+       how:"Use the tag from the single-line diagram: 'Incoming 13.8 kV feeder', 'Fibre to admin building'.",
+       dflt:"One entry for the incoming power feeder, one for signal/telecom."}},
+ {id:"type", type:"select", label:"Line type", help:"Selects the row in Table L.6.7.8 for P_Z.",
+  tip:{what:"Power and telecom lines pick up induced surges differently, so Table L.6.7.8 gives them separate P_Z rows. Telecom is slightly better at every withstand voltage.",
+       how:"Anything carrying mains power is a power line. Instrument, signal, data, fibre-with-metallic-member and telephone are telecom lines. A pure dielectric fibre with no metallic element carries no surge at all — leave it out of the assessment entirely.",
+       dflt:"Power for the feeder, telecom for signal cables."},
+  options:[{v:"power",label:"Power line"},{v:"telecom",label:"Telecom / signal / data line"}]},
+ {id:"LL", type:"number", unit:"m", step:"10", label:"Route length  L_L", help:"Length of the service from its source to the structure.",
+  tip:{what:"L_L sets both collection areas: A_L = 40·L_L for direct strikes to the line, and A_I = 4000·L_L for strikes near it. Risk scales directly with it.",
+       how:"Measure the cable route, not the straight-line distance — from the structure back to the transformer, the utility connection point, or the far-end building. Cable schedules usually carry the length already.",
+       dflt:"<b>1000 m</b> is what §L.6.6.1.3 tells you to assume when the length is unknown. Replacing it with the real length is one of the highest-value refinements available."}},
+ {id:"CE", type:"select", table:"CE", label:"Environment  C_E", help:"How built-up the land the line crosses is.",
+  tip:{what:"Buildings and structures along the route intercept flashes that would otherwise hit the line. C_E spans a factor of a hundred, from open country to a city of tall buildings.",
+       how:"Judge the terrain the line actually crosses, not where the plant is registered. An industrial site on open land outside town is rural even if the postal address says otherwise.",
+       dflt:"<b>Rural (1)</b> for a plant on open industrial land. Suburban (0.5) if the route runs through a developed industrial park."}},
+ {id:"CT", type:"select", table:"CT", label:"HV/LV transformer  C_T", help:"Is there a transformer between the strike point and the structure?",
+  tip:{what:"A transformer between the point of strike and the structure attenuates the surge by a factor of five — C_T = 0.2. It applies only to the line section between the transformer and the structure.",
+       how:"Read the single-line diagram. A plant fed at medium voltage with its own step-down transformer gets 0.2 for the upstream section. A low-voltage feeder straight from a utility pole gets 1. Signal and telecom lines have no transformer, so they get 1.",
+       dflt:"<b>0.2</b> for the incoming power feeder of a plant with its own MV/LV transformer; <b>1</b> for telecom and signal lines."}},
+ {id:"shield", type:"select", label:"Shielding and bonding", help:"Selects the row in Table L.6.7.7 for P_U, P_V and P_W.",
+  tip:{what:"This is where a cable screen earns its money — but only if it is bonded to the SAME bonding bar as the equipment. An unbonded screen counts for nothing: it stays on row one, P = 1 at every withstand voltage.",
+       how:"Two things to verify. First, is there a metallic screen, armour or a continuous metallic raceway? Second — walk to the entry point — is that screen landed on the same bar as the equipment ground, or is it floating, or grounded somewhere else? Then get the shield resistance in Ω/km from the manufacturer's datasheet. Table L.6.7.7 note 2 gives typical cases: LV power in rural areas is unshielded aerial; a buried telecom cable is usually shielded at about 5 Ω/km; an HV buried power line is typically 1 to 5 Ω/km.",
+       dflt:"<b>Unshielded, or shield not bonded to the same bar</b> — the honest baseline for most existing plants. Verify before claiming better; this term reaches directly into R_U, R_V and R_W."},
+  options:T.PU.rows.map(r=>({v:r.k,label:r.t}))},
+ {id:"spdEB", type:"select", label:"SPD for equipotential bonding at this entry", help:"An SPD where this service enters the structure.",
+  tip:{what:"With an SPD at the entry, §L.6.6.2.5–.8 replace P_U, P_V, P_W and P_Z with the lower of P_C and the table value — so the benefit is capped by how good your overall SPD installation is.",
+       how:"Look at the entry point of this specific service. A power SPD at the main board does nothing for an instrument cable entering through a different gland plate. Each service needs its own.",
+       dflt:"<b>No</b> for the baseline. This is one of the most common and cheapest corrective measures if R₁ comes out too high."},
+  options:[{v:0,label:"No SPD at this entry"},{v:1,label:"SPD installed for equipotential bonding"}]},
+ {id:"PAline", type:"select", table:"PA", label:"Touch protection on this service", help:"§L.6.6.2.5 lets you multiply P_U by P_A.",
+  tip:{what:"P_U is a risk to people touching the service or equipment connected to it. The same protection measures that reduce P_A — warning notices, insulation, equipotentialization, a steel frame — reduce P_U by the same factor.",
+       how:"Same walk-around as for P_A, focused on where this service lands: the switchgear room, the marshalling cabinet, the pole riser.",
+       dflt:"<b>No protection measures (1)</b> unless you can point to something specific."}},
+ {id:"mesh", type:"select", label:"Buried under a ground mesh?", help:"§L.6.6.1.3 allows A_L and A_I to be taken as zero.",
+  tip:{what:"A cable run underneath a grounding mesh is screened from both direct strikes and induced surges, and the standard permits A_I — and hence N_L — to be taken as zero for that cable set.",
+       how:"Verify from the grounding drawings that the mesh actually covers the cable route over its whole length. A ground grid under the substation only, with 900 m of cable outside it, does not qualify.",
+       dflt:"<b>No.</b> This is a strong claim; make sure it is true before using it, because it removes four risk components at a stroke."},
+  options:[{v:0,label:"No"},{v:1,label:"Yes — the whole route runs under a ground mesh"}]},
+ {id:"adjEnd", type:"select", label:"Does this service terminate at the adjacent structure?", help:"Determines whether N_DJ is added for this service.",
+  tip:{what:"N_DJ counts flashes to the building at the far end of this cable, which then travel down it into your structure. It is added to N_L in R_U, R_V and R_W.",
+       how:"Follow the cable on the single-line diagram. Does it end at a building you identified in Step 02, or at a utility connection point?",
+       dflt:"<b>Yes</b> for the power feeder from an on-site substation; <b>No</b> for a line coming in from off site."},
+  options:[{v:0,label:"No"},{v:1,label:"Yes"}]}
+];
+
+/* ---- tooltip / field rendering ----------------------------------- */
+function tipNode(f){
+  const w = el("span","tip");
+  const b = el("button","tipb","?"); b.type="button"; b.setAttribute("aria-label","What is this?");
+  const c = el("div","tipc",
+    `<div class="th">What it is</div><p>${f.tip.what}</p>
+     <div class="th" style="margin-top:9px">How to get it</div><p>${f.tip.how}</p>
+     <div class="dflt"><b>Industrial-gas plant default:</b> ${f.tip.dflt}</div>`);
+  b.onclick = e => { e.stopPropagation(); const o=w.classList.contains("open");
+                     $$(".tip.open").forEach(x=>x.classList.remove("open")); if(!o) w.classList.add("open"); };
+  w.appendChild(b); w.appendChild(c); return w;
+}
+document.addEventListener("click", () => $$(".tip.open").forEach(x=>x.classList.remove("open")));
+
+function optionsFor(f){
+  if (f.options) return f.options;
+  if (f.table){
+    const tb = T[f.table];
+    if (f.table==="LFLO") return tb.rows.map(r=>({v:r.k,label:r.t+"  —  L_F = "+sci(r.lf)+", L_O = "+sci(r.lo)}));
+    return tb.rows.map(r=>({v:r.v,label:r.t+"  —  "+sci(r.v)}));
+  }
+  return [];
+}
+
+function fieldNode(f, get, set){
+  const row = el("div","field"); row.dataset.fid = f.id;
+  const lab = el("div","flabel");
+  const lt  = el("div","lt");
+  lt.appendChild(el("span",null,f.label.replace(/_(\w+)/g,"<sub>$1</sub>")));
+  if (f.sym) lt.appendChild(el("span","sym",f.sym.replace(/_(\w+)/g,"<sub>$1</sub>")));
+  lt.appendChild(tipNode(f));
+  lab.appendChild(lt);
+  if (f.help) lab.appendChild(el("div","lh",f.help.replace(/_(\w+)/g,"<sub>$1</sub>")));
+  const d = el("details","howto");
+  d.innerHTML = `<summary>How do I get this?</summary><div class="hb">${f.tip.how}
+     <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)"><b>Default here:</b> ${f.tip.dflt}</div></div>`;
+  lab.appendChild(d);
+
+  const ctl = el("div","fctl");
+  let inp;
+  if (f.type === "select"){
+    inp = el("select");
+    optionsFor(f).forEach(o => {
+      const op = el("option", null, o.label.replace(/_(\w+)/g,"$1").replace(/</g,"&lt;"));
+      op.value = o.v; inp.appendChild(op);
+    });
+    inp.value = get(f.id);
+    inp.onchange = () => { set(f.id, f.num===false ? inp.value : (isNaN(+inp.value)||inp.value==="" ? inp.value : +inp.value)); refresh(); };
+  } else {
+    inp = el("input"); inp.type = f.type==="number" ? "number" : "text";
+    if (f.step) inp.step = f.step;
+    inp.value = get(f.id);
+    inp.oninput = () => { set(f.id, f.type==="number" ? (parseFloat(inp.value)||0) : inp.value); refresh(); };
+  }
+  ctl.appendChild(inp);
+  if (f.unit) ctl.appendChild(el("span","unit",f.unit));
+  row.appendChild(lab); row.appendChild(ctl);
+  return row;
+}
+
+function renderFields(){
+  $$("[data-fields]").forEach(host => {
+    const grp = F[host.dataset.fields]; if(!grp) return;
+    host.innerHTML = "";
+    grp.forEach(f => host.appendChild(fieldNode(f, id=>S[id], (id,v)=>S[id]=v)));
+  });
+}
+function applyVisibility(){
+  $$(".field[data-fid]").forEach(r => {
+    const f = Object.values(F).flat().find(x=>x.id===r.dataset.fid); if(!f||!f.showIf) return;
+    const [k,v] = f.showIf.split("=");
+    r.style.display = (v===undefined ? !!S[k] : String(S[k])===v) ? "" : "none";
+  });
+}
+
+/* ---- services ----------------------------------------------------- */
+function renderServices(){
+  const host = $("#svclist"); host.innerHTML = "";
+  S.services.forEach((v,i) => {
+    const card = el("div","card");
+    const head = el("div","ch",`<h3>Service ${i+1} — ${v.name||"unnamed"}</h3>`);
+    if (S.services.length > 1){
+      const b = el("button","btn sec sm","Remove"); b.type="button";
+      b.onclick = () => { S.services.splice(i,1); renderServices(); refresh(); };
+      head.appendChild(b);
+    }
+    const body = el("div","cb"); const fs = el("div","fieldset");
+    SVCF.forEach(f => {
+      if (f.id==="adjEnd" && !S.adj) return;
+      fs.appendChild(fieldNode(f, id=>v[id], (id,val)=>{ v[id]=val; if(id==="name") head.querySelector("h3").innerHTML=`Service ${i+1} — ${val||"unnamed"}`; }));
+    });
+    body.appendChild(fs);
+    const tr = el("div","trace"); tr.id = "svct"+i; body.appendChild(el("div",null,"")).appendChild(tr);
+    card.appendChild(head); card.appendChild(body); host.appendChild(card);
+  });
+}
+
+/* ---- Ng workflow --------------------------------------------------- */
+let NGTILES = [];
+function parseCoords(str){
+  const m = String(str).split(",").map(x=>parseFloat(x.trim()));
+  if (m.length<2 || !isFinite(m[0]) || !isFinite(m[1])) return null;
+  return {lat:m[0], lon:m[1]};
+}
+function buildTiles(){
+  const c = parseCoords(S.coords); if(!c) return [];
+  const lat0 = NG.snap(c.lat), lon0 = NG.snap(c.lon), out = [];
+  const off = S.ngTiles === 9 ? [-0.1,0,0.1] : [0];
+  off.forEach(dy => off.forEach(dx => out.push({
+    lat: Math.round((lat0+dy)*10)/10, lon: Math.round((lon0+dx)*10)/10, csv:"", parsed:null
+  })));
+  return out;
+}
+function ngWindow(){ const y1 = 2024, y0 = y1 - S.ngYears + 1; return {y0, y1}; }
+
+function renderNgPanel(manual){
+  const host = $("#ngpanel"); host.innerHTML = "";
+  const {y0,y1} = ngWindow();
+  const c = parseCoords(S.coords);
+  $("#ngtilelbl").textContent = c ? `tile centre ${NG.snap(c.lat).toFixed(1)}, ${NG.snap(c.lon).toFixed(1)}` : "enter coordinates";
+  if (!c){ host.appendChild(el("p","small","Coordinates could not be read. Use the format 33.7785, -112.1566.")); return; }
+  if (!manual) return;
+  NGTILES.forEach((t,i) => {
+    const u = NG.url(t.lon, t.lat, y0, y1);
+    const box = el("div","card"); box.style.margin="10px 0";
+    box.appendChild(el("div","ch",
+      `<h3>Tile ${i+1} of ${NGTILES.length} — centre ${t.lat.toFixed(1)}, ${t.lon.toFixed(1)}</h3>
+       <span class="small">area ${NG.tileArea(t.lat).toFixed(1)} km²</span>`));
+    const b = el("div","cb");
+    b.appendChild(el("p","small",
+      `<b>Step 1.</b> Open the NOAA query below in a new tab. <b>Step 2.</b> Select all of the text it returns
+       (Ctrl-A, Ctrl-C). <b>Step 3.</b> Paste it into the box. The page adds up the FCOUNT column for you.`));
+    const a = el("a",null,u); a.href = u; a.target="_blank"; a.rel="noopener";
+    a.style.cssText = "display:block;margin:9px 0;font-family:var(--data);font-size:11.5px;word-break:break-all";
+    b.appendChild(a);
+    const ta = el("textarea"); ta.placeholder = "DAY,CENTERLAT,CENTERLON,FCOUNT\n2015-06-05,33.8,-112.2,4\n…";
+    ta.value = t.csv;
+    ta.oninput = () => { t.csv = ta.value; t.parsed = ta.value.trim() ? NG.parseCSV(ta.value) : null; refresh(); };
+    b.appendChild(ta);
+    const st = el("div","small"); st.style.marginTop="6px";
+    st.innerHTML = t.parsed ? `<span class="valout">${t.parsed.flashes.toLocaleString()} flashes over ${t.parsed.days} active days</span>` : "waiting for data";
+    b.appendChild(st);
+    box.appendChild(b); host.appendChild(box);
+  });
+}
+
+async function tryFetch(){
+  const {y0,y1} = ngWindow();
+  $("#ngstatus").textContent = "contacting NOAA…";
+  let okCount = 0;
+  for (const t of NGTILES){
+    try{
+      const r = await fetch(NG.url(t.lon, t.lat, y0, y1));
+      if (!r.ok) throw new Error("HTTP "+r.status);
+      t.csv = await r.text(); t.parsed = NG.parseCSV(t.csv); okCount++;
+    }catch(e){ /* blocked — fall through to manual */ }
+  }
+  if (okCount === NGTILES.length){
+    $("#ngstatus").innerHTML = `<span style="color:var(--pass)">fetched ${okCount} tile(s) from NOAA</span>`;
+    renderNgPanel(true);
+  } else {
+    $("#ngstatus").innerHTML = `<span style="color:var(--warn)">blocked by the sandbox — use the manual route, it takes 15 seconds</span>`;
+    renderNgPanel(true);
+  }
+  refresh();
+}
+
+let ngLast = null;
+function renderNgResult(){
+  const host = $("#ngresult"); const {y0,y1} = ngWindow();
+  const r = NG.compute(NGTILES, y0, y1);
+  if (!r){ host.innerHTML = `<p class="small">No NOAA data loaded yet — the value below is whatever you last entered by hand.</p>`; return; }
+  if (ngLast !== r.ng){ ngLast = r.ng; S.Ng = r.ng;
+    const inp = $$('.field[data-fid="Ng"] input')[0]; if (inp) inp.value = +r.ng.toFixed(4); }
+  host.innerHTML = `<div class="trace">
+<span class="tl"><span class="tc">// NOAA NCEI · SWDI · NLDN tile sums · ${y0}-01-01 to ${y1}-12-31</span></span>
+<span class="tl">flashes counted   = <span class="tr">${r.flashes.toLocaleString()}</span>   over ${r.days} days with activity</span>
+<span class="tl">tiles used        = ${r.filled} of ${r.tiles}</span>
+<span class="tl">area              = <span class="tr">${r.area.toFixed(2)}</span> km²   <span class="tc">// A = R²·Δλ·(sin φ₂ − sin φ₁), R = 6371.0088 km</span></span>
+<span class="tl">years             = ${r.years}</span>
+<span class="tl"><span class="tk">N_g</span> = ${r.flashes.toLocaleString()} ÷ ${r.area.toFixed(2)} ÷ ${r.years} = <span class="tr">${r.ng.toFixed(3)}</span> flashes/km²/year</span>
+</div>`;
+}
+
+/* ---- live arithmetic traces --------------------------------------- */
+function traces(o){
+  $("#adtrace").innerHTML =
+`<span class="tl"><span class="tc">// §L.4.1.1 — equivalent collection area</span></span>
+<span class="tl"><span class="tk">A_D</span> = LW + 6H(L+W) + 9πH²</span>
+<span class="tl">    = ${fx(S.L)}·${fx(S.W)} + 6·${fx(S.H)}·(${fx(S.L)}+${fx(S.W)}) + 9π·${fx(S.H)}²</span>
+<span class="tl">    = ${fx(S.L*S.W,0)} + ${fx(6*S.H*(S.L+S.W),0)} + ${fx(9*Math.PI*S.H*S.H,0)} = <span class="tr">${fx(o.AD,0)}</span> m²</span>
+<span class="tl"></span>
+<span class="tl"><span class="tc">// §L.3 — annual threat of occurrence, direct strikes</span></span>
+<span class="tl"><span class="tk">N_D</span> = N_g · A_D · C_D · 10⁻⁶ = ${fx(S.Ng,3)} · ${fx(o.AD,0)} · ${S.CD} · 10⁻⁶ = <span class="tr">${sci(o.ND)}</span> events/year</span>
+<span class="tl"><span class="tc">// once every ${fx(1/o.ND,0)} years</span></span>
+<span class="tl"></span>
+<span class="tl"><span class="tc">// §L.6.6.1.2 — flashes near the structure, 500 m band</span></span>
+<span class="tl"><span class="tk">A_M</span> = LW + 2·500·(L+W) + π·500² = <span class="tr">${fx(o.AM,0)}</span> m²</span>
+<span class="tl"><span class="tk">N_M</span> = N_g · (A_M − A_D) · C_D · 10⁻⁶ = <span class="tr">${sci(o.NM)}</span> events/year</span>` +
+(S.adj ? `\n<span class="tl"></span>\n<span class="tl"><span class="tc">// §L.6.6.1.4 — adjacent structure</span></span>
+<span class="tl"><span class="tk">A_DJ</span> = ${fx(S.adjL)}·${fx(S.adjW)} + 6·${fx(S.adjH)}·(…) + 9π·${fx(S.adjH)}² = <span class="tr">${fx(o.ADJ,0)}</span> m²</span>` : "");
+
+  $("#kstrace").innerHTML =
+`<span class="tl"><span class="tc">// §L.6.6.2.4 — shielding chain</span></span>
+<span class="tl"><span class="tk">K_S1</span> = ${S.ks1mode==="metal" ? "continuous metal shield" : `0.12 · ${fx(S.WM1,2)} m${S.ks1close?" · 2 (equipment near boundary)":""}`} = <span class="tr">${sci(o.KS1)}</span></span>
+<span class="tl"><span class="tk">K_S2</span> = ${S.ks2mode==="none" ? "no internal shielded zone" : S.ks2mode==="metal" ? "continuous internal shield" : `0.12 · ${fx(S.WM2,2)} m${S.ks2close?" · 2":""}`} = <span class="tr">${sci(o.KS2)}</span></span>
+<span class="tl"><span class="tk">K_S3</span> = ${sci(S.KS3)}${S.ks3conduit?" · 0.1 (bonded metallic conduit)":""} = <span class="tr">${sci(o.KS3)}</span></span>
+<span class="tl"><span class="tk">K_S4</span> = 1.5 / U_W = 1.5 / ${S.UW} = <span class="tr">${sci(o.KS4)}</span></span>
+<span class="tl"><span class="tk">K_S</span>  = product = <span class="tr">${sci(o.KS,3)}</span>   →  Table L.6.7.5 row "${o.PM_row}"  →  P_M(K_S) = ${sci(o.PM_KS)}</span>
+<span class="tl"><span class="tk">P_M</span>  = <span class="tr">${sci(o.PM)}</span>   <span class="tc">// ${o.PM_why}</span></span>`;
+
+  const f = o.f;
+  $("#losstrace").innerHTML =
+`<span class="tl"><span class="tc">// §L.6.6.3 — loss factors${S.lossMode==="persons"?`; population factor (n_Z/n_T)·(t_Z/8760) = (${S.nZ}/${S.nT})·(${S.tZ}/8760) = ${sci(f)}`:""}</span></span>
+<span class="tl"><span class="tk">L_A</span> = L_U = r_t · L_T${S.lossMode==="persons"?" · f":""} = ${sci(S.rt)} · ${sci(S.LT)}${S.lossMode==="persons"?" · "+sci(f):""} = <span class="tr">${sci(o.LA)}</span></span>
+<span class="tl"><span class="tk">L_B</span> = L_V = r_p · r_f · h_Z · L_F${S.lossMode==="persons"?" · f":""} = ${S.rp} · ${sci(S.rf)} · ${S.hZ} · ${sci(S.LF)}${S.lossMode==="persons"?" · "+sci(f):""} = <span class="tr">${sci(o.LB)}</span></span>
+<span class="tl"><span class="tk">L_C</span> = L_M = L_W = L_Z = L_O${S.lossMode==="persons"?" · f":""} = <span class="tr">${sci(o.LC)}</span></span>`;
+
+  o.svc.forEach((r,i) => {
+    const n = $("#svct"+i); if(!n) return;
+    const v = S.services[i];
+    n.innerHTML =
+`<span class="tl"><span class="tc">// §L.6.6.1.3 / .5 — collection areas of this service</span></span>
+<span class="tl"><span class="tk">A_L</span> = 40 · L_L = <span class="tr">${fx(r.AL,0)}</span> m²      <span class="tk">A_I</span> = 4000 · L_L = <span class="tr">${fx(r.AI,0)}</span> m²${v.mesh?"   <span class=\"tc\">// zeroed: run under a ground mesh</span>":""}</span>
+<span class="tl"><span class="tk">N_L</span> = N_g·A_L·C_E·C_T·10⁻⁶ = <span class="tr">${sci(r.NL)}</span>   <span class="tk">N_I</span> = <span class="tr">${sci(r.NI)}</span>   <span class="tk">N_DJ</span> = <span class="tr">${sci(r.NDJ)}</span></span>
+<span class="tl"><span class="tk">P_U</span> = ${sci(r.PU)}   <span class="tk">P_V</span> = ${sci(r.PV)}   <span class="tk">P_W</span> = ${sci(r.PW)}   <span class="tk">P_Z</span> = ${sci(r.PZ)}   <span class="tc">// Tables L.6.7.7 / .8 at U_W = ${S.UW} kV</span></span>
+<span class="tl"><span class="tk">R_U</span> = ${sci(r.RU)}   <span class="tk">R_V</span> = ${sci(r.RV)}   <span class="tk">R_W</span> = ${sci(r.RW)}   <span class="tk">R_Z</span> = ${sci(r.RZ)}</span>`;
+  });
+}
+
+/* ---- results ------------------------------------------------------ */
+function tbl(head, rows){
+  return `<div class="tw"><table><thead><tr>${head.map((h,i)=>`<th${i?' class="n"':''}>${h}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(r=>`<tr${r.tot?' class="tot"':''}>${r.c.map((c,i)=>`<td${i?' class="n"':''}>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function renderResults(o){
+  const RT = T.RT;
+  const sub = x => String(x).replace(/_(\w+)/g,"<sub>$1</sub>");
+  const cards = [
+    {k:"R1", n:o.R1, t:RT.R1, on:true,     lab:"R₁ · loss of life", d:"R_A + R_B + R_U + R_V" + (S.r1extra ? " + R_C + R_M + R_W + R_Z" : "")},
+    {k:"R2", n:o.R2, t:RT.R2, on:!!S.useR2, lab:"R₂ · loss of service", d:"R_B + R_C + R_M + R_V + R_W + R_Z"},
+    {k:"R3", n:o.R3, t:RT.R3, on:!!S.useR3, lab:"R₃ · historical significance", d:"R_B + R_V"},
+    {k:"R4", n:o.R4, t:null,  on:true,     lab:"R₄ · economic loss", d:"owner's cost–benefit, §L.6.2"}
+  ];
+  $("#rcards").innerHTML = cards.map(c => {
+    if (!c.on) return `<div class="rcard off"><div class="rl">${c.lab}</div><div class="rn">n/a</div>
+        <div class="rd">Not relevant to this structure — see Step 06.</div><span class="chip off">excluded</span></div>`;
+    if (c.t === null) return `<div class="rcard"><div class="rl">${c.lab}</div><div class="rn" style="color:var(--copper)">${sci(c.n)}</div>
+        <div class="rd">${sub(c.d)}. Annex L sets no fixed limit — compare the annual cost of the loss against the annualised cost of protection.</div></div>`;
+    const ok = c.n <= c.t, ratio = Math.min(1, c.n / c.t);
+    return `<div class="rcard ${ok?"ok":"no"}"><div class="rl">${c.lab}</div><div class="rn">${sci(c.n)}</div>
+      <div class="rd">tolerable R<sub>T</sub> = ${sci(c.t)} /year · ${sub(c.d)}</div>
+      <div class="bar"><i class="${ok?"":"no"}" style="width:${(ratio*100).toFixed(1)}%"></i></div>
+      <span class="chip ${ok?"ok":"no"}">${ok ? "within tolerance" : (c.n/c.t).toFixed(1)+" × over"}</span></div>`;
+  }).join("");
+
+  const fails = cards.filter(c => c.on && c.t !== null && c.n > c.t);
+  $("#verdict").innerHTML = fails.length
+    ? `<div class="note" style="border-left-color:var(--fail);background:var(--fail-soft)">
+         <div class="nt" style="color:var(--fail)">Protection is recommended</div>
+         <p>${fails.map(c=>c.lab.split(" · ")[0]).join(" and ")} exceed${fails.length>1?"":"s"} the tolerable risk of
+            Table L.6.2. Under §L.6.5, lightning protection should be provided and the assessment repeated with the
+            protection in place. The component table below shows which term dominates — that is the one worth
+            spending money on.</p></div>`
+    : `<div class="note" style="border-left-color:var(--pass);background:var(--pass-soft)">
+         <div class="nt" style="color:var(--pass)">All relevant risks are within tolerance</div>
+         <p>Every risk relevant to this structure is at or below its Table L.6.2 limit, so §L.6.5 says lightning
+            protection might not be needed. Read §L.1.1 before you close the file: large crowds, continuity of
+            critical services, high flash frequency, a tall isolated structure, explosive or flammable contents,
+            or irreplaceable heritage are all reasons to protect regardless of the arithmetic — and statutory,
+            regulatory and insurance requirements take precedence over this result.</p></div>`;
+
+  const flags = [];
+  if (S.PC < 1 && S.PB === 1) flags.push(
+    "You have claimed SPD protection (P<sub>C</sub> = 0.03) on a structure with no lightning protection system " +
+    "(P<sub>B</sub> = 1). Note 1 to Table L.6.7.4 says SPDs reduce P<sub>C</sub> only where the structure has an LPS, " +
+    "or a continuous metal or reinforced-concrete frame meeting the bonding and grounding rules of §4.20. " +
+    "As entered, this combination is not supported by the standard.");
+  if (S.PC < 1 && !S.services.some(v=>v.spdEB)) flags.push(
+    "SPDs are claimed for the structure but no individual service is marked as having an SPD at its entry, so " +
+    "P<sub>U</sub>, P<sub>V</sub>, P<sub>W</sub> and P<sub>Z</sub> get no benefit. Check Step 03 — a compliant §4.20 " +
+    "installation protects every service entrance.");
+  if (S.rf === 0 && S.rp < 1) flags.push(
+    "With r<sub>f</sub> = 0 the physical-damage loss L<sub>B</sub> is exactly zero, which removes R<sub>B</sub> and " +
+    "R<sub>V</sub> entirely. That is a strong claim — Table L.6.7.12 reserves it for noncombustible construction with " +
+    "no exposed combustible contents at all, which excludes cable insulation and lubricating oil.");
+  if (S.hZ >= 20 && S.rp === 1) flags.push(
+    "A hazard to the surrounding area normally goes with a risk of explosion, and the first row of Table L.6.7.11 " +
+    "then forces r<sub>p</sub> = 1 — which is what you have. Confirm that is deliberate.");
+  $("#verdict").innerHTML += flags.map(f =>
+    `<div class="note warnb"><div class="nt">Check this combination</div><p>${f}</p></div>`).join("");
+
+  $("#ntable").innerHTML = tbl(["Quantity","Value","Unit","Clause"], [
+    {c:["A_D — collection area of the structure", fx(o.AD,0), "m²", "L.4.1.1"]},
+    {c:["A_M — area within 500 m of the perimeter", fx(o.AM,0), "m²", "L.6.6.1.2"]},
+    {c:["A_DJ — collection area of the adjacent structure", S.adj?fx(o.ADJ,0):"—", "m²", "L.6.6.1.4"]},
+    {c:["N_D — direct strikes to the structure", sci(o.ND), "/yr", "L.3"]},
+    {c:["N_M — strikes within 500 m", sci(o.NM), "/yr", "L.6.6.1.2"]},
+    ...o.svc.flatMap((r,i)=>[
+      {c:[`N_L — strikes to “${S.services[i].name}”`, sci(r.NL), "/yr", "L.6.6.1.3"]},
+      {c:[`N_DJ — strikes to the far-end structure of “${S.services[i].name}”`, sci(r.NDJ), "/yr", "L.6.6.1.4"]},
+      {c:[`N_I − N_L — strikes near “${S.services[i].name}”`, sci(r.NIZ), "/yr", "L.6.6.1.5"]}
+    ])
+  ].map(r=>({c:r.c.map((x,i)=>i===0?String(x).replace(/_(\w+)/g,"<sub>$1</sub>"):x)})));
+
+  $("#ptable").innerHTML = tbl(["Probability","Value","Source"], [
+    {c:["P_A — shock, direct strike to the structure", sci(o.PA), "Table L.6.7.2"]},
+    {c:["P_B — physical damage, direct strike", sci(o.PB), "Table L.6.7.3"]},
+    {c:["P_C — internal systems, direct strike", sci(o.PC), "Table L.6.7.4"]},
+    {c:["P_M — internal systems, nearby strike", sci(o.PM), "Table L.6.7.5 via K_S = "+sci(o.KS,3)]},
+    ...o.svc.flatMap((r,i)=>[
+      {c:[`P_U / P_V / P_W — “${S.services[i].name}”`, `${sci(r.PU)} / ${sci(r.PV)} / ${sci(r.PW)}`, "Table L.6.7.7"]},
+      {c:[`P_Z — near “${S.services[i].name}”`, sci(r.PZ), "Table L.6.7.8"]}
+    ])
+  ].map(r=>({c:r.c.map((x,i)=>i===0?String(x).replace(/_(\w+)/g,"<sub>$1</sub>"):x)})));
+
+  $("#ltable").innerHTML = tbl(["Loss factor","Value","Built from"], [
+    {c:["L_A = L_U", sci(o.LA), `r_t (${sci(S.rt)}) × L_T (${sci(S.LT)})`]},
+    {c:["L_B = L_V", sci(o.LB), `r_p (${S.rp}) × r_f (${sci(S.rf)}) × h_Z (${S.hZ}) × L_F (${sci(S.LF)})`]},
+    {c:["L_C = L_M = L_W = L_Z", sci(o.LC), `L_O (${sci(S.LO)})`]}
+  ].map(r=>({c:r.c.map(x=>String(x).replace(/_(\w+)/g,"<sub>$1</sub>"))})));
+
+  const comps = [
+    ["R_A", o.RA, "N_D · P_A · L_A", "injury from touch and step voltage"],
+    ["R_B", o.RB, "N_D · P_B · L_B", "physical damage to the structure"],
+    ["R_C", o.RC, "N_D · P_C · L_C", "internal systems, direct strike"],
+    ["R_M", o.RM, "N_M · P_M · L_M", "internal systems, nearby strike"],
+    ["R_U", o.RU, "(N_L + N_DJ) · P_U · L_U", "injury from a strike to a service"],
+    ["R_V", o.RV, "(N_L + N_DJ) · P_V · L_V", "physical damage from a strike to a service"],
+    ["R_W", o.RW, "(N_L + N_DJ) · P_W · L_W", "internal systems, strike to a service"],
+    ["R_Z", o.RZ, "(N_I − N_L) · P_Z · L_Z", "internal systems, strike near a service"]
+  ];
+  const tot = comps.reduce((a,c)=>a+c[1],0);
+  $("#rtable").innerHTML = tbl(["Component","Per year","Share","Formula","Meaning"],
+    comps.map(c=>({c:[c[0].replace(/_(\w+)/g,"<sub>$1</sub>"), sci(c[1]),
+      tot>0 ? (100*c[1]/tot).toFixed(1)+" %" : "—",
+      `<span class="mono" style="font-size:11.5px">${c[2].replace(/_(\w+)/g,"<sub>$1</sub>")}</span>`, c[3]]}))
+    .concat([{tot:true,c:["sum of all eight", sci(tot), "100 %","",""]}]));
+
+  /* what-if */
+  const base = o.R1;
+  const scen = [
+    ["Install an LPS at 45 m striking distance", s=>{s.PB=0.1;}],
+    ["Install an LPS at 30 m striking distance", s=>{s.PB=0.05;}],
+    ["Use the structural steel frame as the down conductor system", s=>{s.PA=1e-6;}],
+    ["Add SPDs at every service entrance (§4.20)", s=>{s.PC=0.03; s.services.forEach(v=>v.spdEB=1);}],
+    ["Bond every cable screen to the equipment bonding bar (R_S ≤ 1 Ω/km)", s=>{s.services.forEach(v=>v.shield="s1");}],
+    ["Raise equipment withstand to 4 kV", s=>{s.UW=4;}],
+    ["Route internal wiring in bonded shielded cable (K_S3 = 0.001)", s=>{s.KS3=0.001;}],
+    ["Everything above, together", s=>{s.PB=0.05; s.PA=1e-6; s.PC=0.03; s.KS3=0.001; s.UW=4;
+        s.services.forEach(v=>{v.spdEB=1; v.shield="s1";});}]
+  ];
+  $("#whatif").innerHTML = tbl(["Measure","R₁ becomes","Change","Verdict"], scen.map(([lab,fn])=>{
+    const s2 = JSON.parse(JSON.stringify(S)); fn(s2);
+    const r = compute(s2).R1, ok = r <= T.RT.R1;
+    return {c:[lab.replace(/_(\w+)/g,"<sub>$1</sub>"), sci(r),
+      base>0 ? "÷ "+ (base/r).toFixed(1) : "—",
+      `<span class="chip ${ok?"ok":"no"}">${ok?"passes":"still over"}</span>`]};
+  }));
+
+  $("#lv-ng").textContent = fx(S.Ng,2);
+  [["R1",o.R1,T.RT.R1,true],["R2",o.R2,T.RT.R2,S.useR2],["R3",o.R3,T.RT.R3,S.useR3],["R4",o.R4,null,true]]
+    .forEach(([k,v,t,on])=>{
+      const n = $("#lv-"+k.toLowerCase());
+      n.textContent = on ? sci(v,2) : "n/a";
+      n.className = "v" + (on && t!==null ? (v<=t?" ok":" no") : "");
+    });
+}
+
+/* ---- appendix ------------------------------------------------------ */
+function renderAppendix(){
+  const box = [];
+  const simple = (key,title) => {
+    const t = T[key];
+    box.push(`<div class="card"><div class="ch"><h3>${title}</h3><span class="small">${t.ref}</span></div>
+      <div class="cb tw"><table><thead><tr><th>Condition</th><th class="n">Value</th></tr></thead><tbody>
+      ${t.rows.map(r=>`<tr><td>${r.t}</td><td class="n">${sci(r.v)}</td></tr>`).join("")}</tbody></table>
+      ${t.note?`<p class="small" style="padding:10px 12px 2px">${t.note}</p>`:""}</div></div>`);
+  };
+  simple("CD","Location factor C_D");
+  simple("CE","Service environmental coefficient C_E");
+  simple("CT","Transformer factor C_T");
+  simple("PA","P_A — touch and step voltage");
+  simple("PB","P_B — physical damage from a direct strike");
+  simple("PC","P_C — internal systems, direct strike");
+  simple("KS3","K_S3 — internal wiring");
+  simple("rt","r_t — surface of soil or floor");
+  simple("rp","r_p — fire provisions");
+  simple("rf","r_f — risk of fire");
+  simple("hZ","h_Z — special hazard");
+  box.push(`<div class="card"><div class="ch"><h3>P_M as a function of K_S</h3><span class="small">Table L.6.7.5</span></div>
+    <div class="cb tw"><table><thead><tr><th class="n">K_S</th><th class="n">P_M</th></tr></thead><tbody>
+    ${T.PM_KS.rows.map(r=>`<tr><td class="n">${r.t||r.ks}</td><td class="n">${sci(r.pm)}</td></tr>`).join("")}
+    </tbody></table><p class="small" style="padding:10px 12px 2px">This page reads the table as a step function:
+    P_M takes the value of the lowest tabulated K_S row that your computed K_S does not exceed. Table L.6.7.5 is a
+    discrete list, not a curve, so no interpolation is applied.</p></div></div>`);
+  const uwcols = T.UW.map(u=>`<th class="n">${u} kV</th>`).join("");
+  box.push(`<div class="card"><div class="ch"><h3>P_U — strike to a service</h3><span class="small">Table L.6.7.7</span></div>
+    <div class="cb tw"><table><thead><tr><th>Routing, shielding and bonding</th>${uwcols}</tr></thead><tbody>
+    ${T.PU.rows.map(r=>`<tr><td>${r.t}</td>${r.p.map(p=>`<td class="n">${p}</td>`).join("")}</tr>`).join("")}
+    </tbody></table></div></div>`);
+  box.push(`<div class="card"><div class="ch"><h3>P_Z — strike near a service</h3><span class="small">Table L.6.7.8</span></div>
+    <div class="cb tw"><table><thead><tr><th>Line type</th>${uwcols}</tr></thead><tbody>
+    ${T.PZ.rows.map(r=>`<tr><td>${r.t}</td>${r.p.map(p=>`<td class="n">${p}</td>`).join("")}</tr>`).join("")}
+    </tbody></table></div></div>`);
+  box.push(`<div class="card"><div class="ch"><h3>Typical mean values of losses</h3><span class="small">Table L.6.7.9</span></div>
+    <div class="cb tw"><table><thead><tr><th>Type of structure</th><th class="n">L_T</th><th class="n">L_F</th><th class="n">L_O</th></tr></thead><tbody>
+    ${T.LT.rows.map(r=>`<tr><td>${r.t}</td><td class="n">${sci(r.v)}</td><td class="n">—</td><td class="n">—</td></tr>`).join("")}
+    ${T.LFLO.rows.map(r=>`<tr><td>${r.t}</td><td class="n">—</td><td class="n">${sci(r.lf)}</td><td class="n">${sci(r.lo)}</td></tr>`).join("")}
+    </tbody></table></div></div>`);
+  box.push(`<div class="card"><div class="ch"><h3>Tolerable risk R_T</h3><span class="small">Table L.6.2</span></div>
+    <div class="cb tw"><table><thead><tr><th>Type of loss</th><th class="n">R_T /year</th></tr></thead><tbody>
+    <tr><td>Loss of life or injury</td><td class="n">${sci(T.RT.R1)}</td></tr>
+    <tr><td>Loss of service</td><td class="n">${sci(T.RT.R2)}</td></tr>
+    <tr><td>Loss of historical significance</td><td class="n">${sci(T.RT.R3)}</td></tr>
+    <tr><td>Loss of economic value</td><td class="n">owner's cost–benefit</td></tr>
+    </tbody></table></div></div>`);
+  $("#apx").innerHTML = box.join("").replace(/_(\w+)(?=[\s—<])/g,"<sub>$1</sub>");
+}
+
+/* ---- nav, theme, hero canvas --------------------------------------- */
+const STEPS = [["s0","Read this first"],["s1","Flash density N_g"],["s2","The structure"],
+  ["s3","Incoming services"],["s4","Protection in place"],["s5","Consequences"],
+  ["s6","Which risks apply"],["s7","Result"],["s8","Tables"]];
+function renderNav(){
+  $("#nav").innerHTML = STEPS.map((s,i)=>
+    `<button class="steplink" data-t="${s[0]}" type="button"><span class="n">${String(i).padStart(2,"0")}</span>
+     <span>${s[1].replace(/_(\w+)/g,"<sub>$1</sub>")}</span></button>`).join("");
+  $$("#nav .steplink").forEach(b => b.onclick = () =>
+    document.getElementById(b.dataset.t).scrollIntoView({behavior:"smooth",block:"start"}));
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) $$("#nav .steplink").forEach(b =>
+      b.classList.toggle("on", b.dataset.t === e.target.id));
+  }), {rootMargin:"-10% 0px -75% 0px"});
+  STEPS.forEach(s => { const n = document.getElementById(s[0]); if(n) io.observe(n); });
+}
+
+/* ---- refresh loop --------------------------------------------------- */
+function syncDerived(){
+  const r = T.LFLO.rows.find(x=>x.k===S.occ) || T.LFLO.rows[2];
+  S.LF = r.lf; S.LO = r.lo;
+}
+let tileKey = "";
+function refresh(){
+  syncDerived();
+  const k = S.coords+"|"+S.ngYears+"|"+S.ngTiles;
+  if (k !== tileKey){ tileKey = k; NGTILES = buildTiles(); ngLast = null;
+    if ($("#ngpanel").children.length) renderNgPanel(true); else renderNgPanel(false); }
+  applyVisibility();
+  renderNgResult();
+  const o = compute(S);
+  traces(o);
+  renderResults(o);
+}
+function init(){
+  renderNav(); renderFields(); renderServices(); renderAppendix();
+  NGTILES = buildTiles(); renderNgPanel(false);
+  $("#printbtn").onclick = () => window.print();
+  $("#resetbtn").onclick = () => { S = Object.assign({}, DEF, {services:[SVC_DEF(),
+      Object.assign(SVC_DEF(),{name:"Telecom / fibre / signal line", type:"telecom", CT:1, adjEnd:0})]});
+      renderFields(); renderServices(); NGTILES = buildTiles(); renderNgPanel(false); refresh(); };
+  $("#addsvc").onclick = () => { S.services.push(SVC_DEF()); renderServices(); refresh(); };
+  $("#ngfetch").onclick = () => { NGTILES = buildTiles(); tryFetch(); };
+  $("#ngmanual").onclick = () => { NGTILES = buildTiles(); renderNgPanel(true); };
+  refresh();
+}
+init();
+
+</script>
+
+</body>
+</html>
