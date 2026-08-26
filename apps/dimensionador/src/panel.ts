@@ -82,7 +82,8 @@ export const STANDARD_COLUMN_WIDTH_IN = 20.078
 export const POWER_COLUMN_WIDTH_IN = 24.078
 export const TRANSITION_COLUMN_WIDTH_IN = 20.078
 export const TIE_BUS_TRANSITION_COLUMN_WIDTH_IN = TRANSITION_COLUMN_WIDTH_IN
-export const END_SECTION_WIDTH_IN = 4.156
+export const END_SECTION_START_WIDTH_IN = 4.156
+export const END_SECTION_END_WIDTH_IN = 4.078
 export const PANEL_HEIGHT_IN = PANEL_SPACE_COUNT * SPACE_HEIGHT_IN
 export const SPARE_PERCENTAGE = 0.2
 export const VALID_SPARE_SIZES = [12, 6, 3, 2, 1] as const
@@ -802,7 +803,7 @@ function finalizeLayout(
 
   return {
     columns,
-    widthIn: columns.length > 0 ? equipmentWidthIn + END_SECTION_WIDTH_IN * 2 : 0,
+    widthIn: columns.length > 0 ? equipmentWidthIn + END_SECTION_START_WIDTH_IN + END_SECTION_END_WIDTH_IN : 0,
     usedSpaces,
     capacitySpaces,
     usedHeightIn,

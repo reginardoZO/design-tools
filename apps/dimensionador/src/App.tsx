@@ -15,7 +15,8 @@ import {
 import './App.css'
 import {
   buildPanelLayout,
-  END_SECTION_WIDTH_IN,
+  END_SECTION_START_WIDTH_IN,
+  END_SECTION_END_WIDTH_IN,
   getLoadOption,
   getLoadType,
   isColumnFillable,
@@ -175,10 +176,11 @@ function PanelColumnView({
 }
 
 function EndSectionView({ position }: { position: 'start' | 'end' }) {
+  const widthIn = position === 'start' ? END_SECTION_START_WIDTH_IN : END_SECTION_END_WIDTH_IN
   return (
     <div
       className={`end-section end-section-${position}`}
-      style={{ width: `${END_SECTION_WIDTH_IN * 5}px` }}
+      style={{ width: `${widthIn * 5}px` }}
       aria-label={`End section ${position === 'start' ? 'start' : 'end'}`}
     >
       <span>END SECTION</span>
