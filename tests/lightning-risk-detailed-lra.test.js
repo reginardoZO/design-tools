@@ -64,6 +64,41 @@ test('near-structure and service threat frequencies match the reference report (
   closeRel(o.svc[0].NDJ, 0.015, 10);
 });
 
+test('a manual (CAD-measured) A_M overrides the rectangular near-structure equation', () => {
+  const manual = { ...state, AMmanualM2: 300000 };
+  const o = computeDetailedRisk(manual);
+  assert.equal(o.AM, 300000);
+  // N_M = Ng * (A_M - A_D) * C_D * 1e-6, with A_D still from L*W*H
+  const base = computeDetailedRisk(state);
+  closeRel(o.NM, state.Ng * (300000 - base.AD) * state.CD * 1e-6, 0.001);
+  // A_D and the service terms are untouched by the A_M override
+  assert.equal(o.AD, base.AD);
+  assert.equal(o.svc[0].NL, base.svc[0].NL);
+});
+
+test('A_M falls back to the rectangular equation when no manual area is given', () => {
+  const base = computeDetailedRisk(state);
+  for (const AMmanualM2 of [0, undefined]) {
+    assert.equal(computeDetailedRisk({ ...state, AMmanualM2 }).AM, base.AM);
+  }
+});
+
+test('a manual A_M below A_D is raised to A_D, so N_M cannot go negative', () => {
+  const base = computeDetailedRisk(state);
+  const o = computeDetailedRisk({ ...state, AMmanualM2: 100 });
+  assert.equal(o.AM, base.AD);
+  assert.equal(o.NM, 0);
+});
+
+test('a manual (CAD-measured) A_DJ overrides the adjacent-structure equation', () => {
+  const o = computeDetailedRisk(state);
+  assert.equal(o.ADJ, 125856); // fixture uses the vendor CAD area
+  const derived = computeDetailedRisk({
+    ...state, adjManualM2: 0, adjL: 20, adjW: 10, adjH: 6,
+  });
+  assert.equal(derived.ADJ, collectionArea(20, 10, 6));
+});
+
 test('PM factor (KS chain) is forced to 1 without a coordinated SPD system, matching the report', () => {
   const o = computeDetailedRisk(state);
   closeRel(o.KS, 0.48, 3);

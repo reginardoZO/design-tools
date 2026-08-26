@@ -456,12 +456,35 @@ tr.tot td{border-top:2px solid var(--ink);font-weight:700;background:var(--surfa
   <div class="card"><div class="ch"><h3>Dimensions and surroundings</h3><span class="small">Table L.4.2</span></div>
     <div class="cb"><div class="fieldset" data-fields="struct"></div></div></div>
 
-  <div class="note warnb"><div class="nt">A second, much larger circle</div>
-    <p>Flashes that miss the building can still induce surges in the wiring inside it. §L.6.6.1.2
-      counts those as N<sub>M</sub>, using a collection area <b>A<sub>M</sub></b> that extends
-      <b>1,640 ft (500 m)</b> beyond the perimeter — around 0.9 km² even for a small building, so
-      N<sub>M</sub> is almost always far larger than N<sub>D</sub>. It only turns into risk if
-      your internal systems are poorly shielded, which is what Step 04 is about.</p></div>
+  <div class="note warnb"><div class="nt">A second, much larger circle — what A<sub>M</sub> actually is</div>
+    <p><b>A<sub>D</sub></b> is the ground area in which a flash is <i>captured by the structure</i>:
+      the footprint grown outward by 3H, because a tall building reaches sideways for a leader.
+      <b>A<sub>M</sub></b> answers a different question — where can a flash land on open ground,
+      <i>miss</i> the building entirely, and still induce a damaging surge in the wiring inside it?
+      §L.6.6.1.2 fixes that reach at <b>1,640 ft (500 m)</b> beyond the perimeter, regardless of
+      height, and counts those flashes as
+      N<sub>M</sub> = N<sub>g</sub>·(A<sub>M</sub> − A<sub>D</sub>)·C<sub>D</sub>·10⁻⁶ — A<sub>D</sub>
+      is subtracted because a flash that hits the building is already counted in N<sub>D</sub>.
+      The 500 m band alone is about 0.9 km², so A<sub>M</sub> typically runs 50 to 100 times
+      A<sub>D</sub> and N<sub>M</sub> is usually the largest threat frequency in the assessment.
+      It only turns into risk if your internal systems are poorly shielded, which is what Step 04
+      is about.</p>
+    <p>Both areas can be typed in directly in <b>ft²</b> instead of being derived from L, W and H —
+      offset the real footprint by 3H for A<sub>D</sub>, or by 1,640 ft (500 m) for A<sub>M</sub>,
+      in CAD, and enter the enclosed area. L and W stay on screen as long as either area is still
+      being calculated, because they feed both.</p></div>
+
+  <div class="note"><div class="nt">And a third area — what A<sub>DJ</sub> actually is</div>
+    <p><b>A<sub>DJ</sub></b> is not another area around <i>your</i> building. It is the
+      <i>other</i> building's own A<sub>D</sub> — its footprint grown outward by 3H<sub>J</sub> —
+      and it enters your assessment only because a power or signal cable runs between the two.
+      A flash captured by that structure injects current into the shared conductor, which delivers
+      it to your equipment: §L.6.6.1.4 counts those events as
+      N<sub>DJ</sub> = N<sub>g</sub>·A<sub>DJ</sub>·C<sub>DJ</sub>·C<sub>T</sub>·10⁻⁶ and adds them
+      to the strikes on the line itself. Three areas, three questions: a flash hits <b>you</b>
+      (A<sub>D</sub>), a flash lands <b>near you</b> (A<sub>M</sub>), a flash hits the
+      <b>far-end building</b> and is conducted to you (A<sub>DJ</sub>). Like the other two, it takes
+      a CAD-measured area in ft² if the neighbouring footprint is irregular.</p></div>
 
   <div class="card"><div class="ch"><h3>An adjacent structure at the far end of a cable</h3><span class="small">§L.6.6.1.4</span></div>
     <div class="cb"><div class="fieldset" data-fields="adj"></div></div></div>
@@ -809,6 +832,7 @@ function compute(s){
     ...s,
     L: s.L * FT, W: s.W * FT, H: s.H * FT,
     ADmanualM2: s.ADmanualOn ? s.ADval * FT2 : 0,
+    AMmanualM2: s.AMmanualOn ? s.AMval * FT2 : 0,
     radius: RADIUS_M,
     adjL: s.adjL * FT, adjW: s.adjW * FT, adjH: s.adjH * FT,
     adjManualM2: s.adjManualOn ? s.adjManualVal * FT2 : 0,
@@ -858,8 +882,8 @@ ngman:[
 struct:[
  {id:"ADmanualOn", sym:"—", type:"select", def:0, num:true,
   label:"Equivalent collection area A_D",
-  help:"Compute from L, W, H below, or enter a CAD-measured area for an irregular footprint.",
-  tip:{what:"§L.4.1.1 gives A_D for a simple rectangular footprint. §L.4.1.2 explicitly permits building A_D graphically instead for a genuinely irregular structure — offset the true footprint outward by 3H (rounding the corners with radius 3H, per Figure L.4.1.2(b)) and measure the enclosed area.",
+  help:"Ground area in which a flash is captured by the structure itself. Compute from L, W, H below, or enter a CAD-measured area for an irregular footprint.",
+  tip:{what:"A_D is the patch of ground over which a downward leader is close enough to be intercepted by the structure — the footprint grown outward by 3H, because a taller building reaches further sideways for a flash. It feeds N_D, the direct-strike frequency. Contrast it with A_M below (the much larger 500 m ring where a flash <i>misses</i> the building but still induces surges in its wiring). §L.4.1.1 gives A_D for a simple rectangular footprint. §L.4.1.2 explicitly permits building A_D graphically instead for a genuinely irregular structure — offset the true footprint outward by 3H (rounding the corners with radius 3H, per Figure L.4.1.2(b)) and measure the enclosed area.",
        how:"Almost every real plant footprint is irregular. If yours is, draw the 3H-offset boundary in AutoCAD (or any CAD tool) around the actual footprint and read the enclosed area off the drawing, in ft².",
        dflt:"<b>Calculate from L, W, H</b> only works for a genuinely rectangular building. Switch to manual entry and paste in the CAD-measured area for anything else."},
   options:[{v:0,label:"Calculate from L, W, H (rectangular equation, §L.4.1.1)"},{v:1,label:"Enter A_D manually — irregular footprint (§L.4.1.2)"}]},
@@ -868,14 +892,14 @@ struct:[
   tip:{what:"Used directly in N_D = N_g·A_D·C_D·10⁻⁶ in place of the L·W·H rectangular formula. Converted internally to m² for that formula; you always enter ft².",
        how:"From the CAD drawing: offset every edge of the true footprint outward by 3H, round the corners with radius 3H, and measure the area enclosed by that boundary.",
        dflt:"There is no default — enter the CAD-measured value in ft²."}},
- {id:"L", sym:"L", type:"number", def:200, unit:"ft", step:"1", showIf:"ADmanualOn=0",
-  label:"Length", help:"The longer plan dimension of the structure footprint.",
+ {id:"L", sym:"L", type:"number", def:200, unit:"ft", step:"1", showIf:"ADmanualOn=0|AMmanualOn=0",
+  label:"Length", help:"The longer plan dimension of the structure footprint. Feeds both A_D and A_M.",
   tip:{what:"One side of the smallest rectangle that encloses the structure. The A_D formula in §L.4.1.1 assumes a rectangular box and is evaluated internally in metres (converted from the ft you enter here) because N_g is flashes/km²/year.",
        how:"Scale it off the plot plan or the architectural general-arrangement drawing. For an open process block with no walls — a cold box, a compressor bay — use the footprint of the structural steel. For a genuinely complex shape, use the manual A_D entry above instead of forcing a bounding rectangle.",
        dflt:"Measure it. For reference: an air-separation cold box structure is typically 50–80 ft on a side, a control/MCC building 65–130 ft."}},
- {id:"W", sym:"W", type:"number", def:80, unit:"ft", step:"1", showIf:"ADmanualOn=0",
-  label:"Width", help:"The shorter plan dimension of the same rectangle.",
-  tip:{what:"The other side of the enclosing rectangle.",
+ {id:"W", sym:"W", type:"number", def:80, unit:"ft", step:"1", showIf:"ADmanualOn=0|AMmanualOn=0",
+  label:"Width", help:"The shorter plan dimension of the same rectangle. Feeds both A_D and A_M.",
+  tip:{what:"The other side of the enclosing rectangle. It is used twice — once for A_D with the 3H offset, and once for A_M with the flat 500 m offset — so it stays on screen whenever either of those two areas is still being calculated rather than typed in.",
        how:"Same source as the length — plot plan, GA drawing, or a measurement off georeferenced imagery.",
        dflt:"Measure it."}},
  {id:"H", sym:"H", type:"number", def:40, unit:"ft", step:"1", showIf:"ADmanualOn=0",
@@ -888,7 +912,19 @@ struct:[
   help:"Whether neighbouring objects intercept flashes before they reach you. Judged within a radius of 3H.",
   tip:{what:"A structure alone in an open field catches everything inside its collection area. One hemmed in by taller neighbours has most flashes intercepted first. C_D scales A_D to account for that, from 0.25 to 2.",
        how:"Stand at the structure and look around within roughly three times its height. Anything taller — buildings, process structures, mature trees? That is 0.25. Neighbours of similar or lower height? 0.5. Flat open ground with nothing within 3H? 1. On a ridge or hill crest, exposed on all sides? 2.",
-       dflt:"For the tallest object on a flat industrial site — which the cold box usually is — <b>1 (isolated)</b>. For a low control building standing among taller process structures, <b>0.25</b>."}}
+       dflt:"For the tallest object on a flat industrial site — which the cold box usually is — <b>1 (isolated)</b>. For a low control building standing among taller process structures, <b>0.25</b>."}},
+ {id:"AMmanualOn", sym:"—", type:"select", def:0, num:true,
+  label:"Near-structure collection area A_M",
+  help:"The ground around the building, out to 1,640 ft (500 m). Compute it from L and W, or enter a CAD-measured area for an irregular footprint.",
+  tip:{what:"A_M is <b>not</b> where a flash hits the building — that is A_D. A_M is the ground area <i>around</i> the structure, the footprint grown outward by a flat 1,640 ft (500 m) band, inside which a flash to open earth still couples enough magnetic field into the wiring <i>inside</i> the structure to damage connected electronics. §L.6.6.1.2 counts those events as N_M = N_g · (A_M − A_D) · C_D · 10⁻⁶; A_D is subtracted because a flash landing on the building itself is already counted as N_D. The band is fixed by the standard — it does not scale with H — so A_M is typically 50 to 100 times A_D, and N_M is usually the largest threat frequency in the whole assessment.",
+       how:"The rectangular equation A_M = L·W + 2·500·(L+W) + π·500² (metres) needs nothing but the same L and W as A_D. Switch to manual entry for the same reason as A_D: if the real footprint is irregular, offset it outward by 1,640 ft (500 m) in CAD — rounding the corners with a 1,640 ft radius — and read the enclosed area off the drawing in ft². Note that at a 500 m offset the shape of the footprint barely matters: the band and the corner circle dominate the number, so the rectangular equation over a bounding rectangle is defensible for almost any site.",
+       dflt:"<b>Calculate from L and W.</b> Use manual entry when you have entered A_D manually and no honest bounding rectangle exists, or when a site-plan CAD area is what your report has to cite."},
+  options:[{v:0,label:"Calculate from L and W (footprint + 500 m band, §L.6.6.1.2)"},{v:1,label:"Enter A_M manually — CAD-measured 500 m offset"}]},
+ {id:"AMval", sym:"A_M", type:"number", def:0, unit:"ft²", step:"10000", showIf:"AMmanualOn",
+  label:"Manual A_M", help:"CAD-measured area of the footprint offset outward by 1,640 ft (500 m).",
+  tip:{what:"Used directly in N_M = N_g · (A_M − A_D) · C_D · 10⁻⁶ in place of the rectangular formula. Converted internally to m²; you always enter ft². If you enter a value smaller than A_D it is raised to A_D, because the 500 m ring necessarily encloses the structure's own collection area.",
+       how:"From the CAD drawing: offset every edge of the true footprint outward by 1,640 ft (500 m), round the corners with radius 1,640 ft, and measure the area enclosed by that boundary. For scale, a bare 500 m circle alone is about 8,450,000 ft² (0.785 km²) — if your number is far below that, you have measured the wrong boundary.",
+       dflt:"There is no default — enter the CAD-measured value in ft². Left at 0, the calculation falls back to the L and W equation."}}
 ],
 
 adj:[
@@ -901,14 +937,14 @@ adj:[
   options:[{v:0,label:"No — every service comes from the utility, not a building"},{v:1,label:"Yes — at least one service runs to a separate structure"}]},
  {id:"adjManualOn", sym:"—", type:"select", def:0, num:true, showIf:"adj",
   label:"Adjacent structure — collection area A_DJ",
-  help:"Compute from length/width/height below, or enter a CAD-measured area for an irregular footprint.",
-  tip:{what:"Same §L.4.1.2 allowance as the main structure's A_D: a CAD-measured area for an irregular adjacent building instead of the L·W·H rectangular equation.",
-       how:"Draw the adjacent building's 3H-offset boundary in CAD and measure the enclosed area, in ft².",
+  help:"The other building's own A_D — the area in which a flash hits it and travels to you down the shared cable. Compute from its length/width/height, or enter a CAD-measured area.",
+  tip:{what:"A_DJ is exactly the same quantity as A_D, only measured about the <i>other</i> building — its footprint grown outward by 3H_J. It matters to you because the two structures share a service: §L.6.6.1.4 counts flashes captured by that building as N_DJ = N_g · A_DJ · C_DJ · C_T · 10⁻⁶ and adds them to the strikes on the line itself, since the surge arrives at your equipment along the shared conductor. Note the three areas are answering three different questions: A_D — a flash hits <i>you</i>; A_M — a flash lands near you and induces a surge; A_DJ — a flash hits the <i>far-end building</i> and the surge is conducted to you.",
+       how:"Same procedure as A_D, done on the neighbouring building: draw its 3H-offset boundary in CAD and measure the enclosed area, in ft². Use manual entry whenever its footprint is irregular or a vendor CAD area is what you have.",
        dflt:"<b>Calculate from length/width/height</b> unless the adjacent structure's footprint is irregular too."},
   options:[{v:0,label:"Calculate from length/width/height"},{v:1,label:"Enter A_DJ manually — irregular footprint"}]},
  {id:"adjManualVal", sym:"A_DJ", type:"number", def:0, unit:"ft²", step:"100", showIf:"adj,adjManualOn",
-  label:"Manual A_DJ", help:"CAD-measured equivalent collection area for the adjacent structure.",
-  tip:{what:"Used directly for A_DJ in the N_DJ equation, in place of the rectangular formula. Converted internally to m²; you always enter ft².",
+  label:"Manual A_DJ", help:"CAD-measured equivalent collection area for the adjacent structure, in ft².",
+  tip:{what:"Used directly for A_DJ in N_DJ = N_g · A_DJ · C_DJ · C_T · 10⁻⁶, in place of the rectangular formula. Converted internally to m²; you always enter ft². It is the far-end building's collection area, not the distance to it and not the length of the cable — that is L_L, entered per service in Step 03.",
        how:"From the CAD drawing: offset every edge of the adjacent structure's true footprint outward by 3H and measure the enclosed area.",
        dflt:"There is no default — enter the CAD-measured value in ft²."}},
  {id:"adjL", sym:"L_J", type:"number", def:66, unit:"ft", step:"1", showIf:"adj,adjManualOn=0",
@@ -1258,11 +1294,13 @@ function renderFields(){
 function applyVisibility(){
   $$(".field[data-fid]").forEach(r => {
     const f = Object.values(F).flat().find(x=>x.id===r.dataset.fid); if(!f||!f.showIf) return;
-    // comma-separated conditions are AND'ed together, e.g. "adj,adjManualOn=0"
-    const ok = f.showIf.split(",").every(cond => {
-      const [k,v] = cond.split("=");
+    // comma-separated conditions are AND'ed together, e.g. "adj,adjManualOn=0";
+    // pipe-separated alternatives inside one condition are OR'ed, e.g.
+    // "ADmanualOn=0|AMmanualOn=0" (L and W feed A_D and A_M independently)
+    const ok = f.showIf.split(",").every(cond => cond.split("|").some(alt => {
+      const [k,v] = alt.split("=");
       return v===undefined ? !!S[k] : String(S[k])===v;
-    });
+    }));
     r.style.display = ok ? "" : "none";
   });
 }
@@ -1379,13 +1417,16 @@ function renderNgResult(){
 /* ---- live arithmetic traces --------------------------------------- */
 function traces(o){
   const Lm=S.L*FT, Wm=S.W*FT, Hm=S.H*FT;
-  const adLine = S.ADmanualOn
+  const adLine = S.ADmanualOn && S.ADval > 0
     ? `<span class="tl"><span class="tk">A_D</span> = manual CAD entry (\u00a7L.4.1.2) = ${fx(S.ADval,0)} ft\u00b2 = <span class="tr">${fx(o.AD,0)}</span> m\u00b2</span>`
     : `<span class="tl"><span class="tk">A_D</span> = LW + 6H(L+W) + 9\u03c0H\u00b2   <span class="tc">// L, W, H entered in ft; converted internally to m because N_g is flashes/km\u00b2/yr</span></span>
 <span class="tl">    L = ${fx(S.L)} ft = ${fx(Lm,2)} m   W = ${fx(S.W)} ft = ${fx(Wm,2)} m   H = ${fx(S.H)} ft = ${fx(Hm,2)} m</span>
 <span class="tl">    = ${fx(Lm*Wm,0)} + ${fx(6*Hm*(Lm+Wm),0)} + ${fx(9*Math.PI*Hm*Hm,0)} = <span class="tr">${fx(o.AD,0)}</span> m\u00b2 (${fx(o.AD/FT2,0)} ft\u00b2)</span>`;
+  const amLine = S.AMmanualOn && S.AMval > 0
+    ? `<span class="tl"><span class="tk">A_M</span> = manual CAD entry (footprint offset 1,640 ft) = ${fx(S.AMval,0)} ft\u00b2 = <span class="tr">${fx(o.AM,0)}</span> m\u00b2</span>`
+    : `<span class="tl"><span class="tk">A_M</span> = LW + 2\u00b7500\u00b7(L+W) + \u03c0\u00b7500\u00b2 = <span class="tr">${fx(o.AM,0)}</span> m\u00b2 (${fx(o.AM/FT2,0)} ft\u00b2)</span>`;
   const adjLine = !S.adj ? "" : "\n<span class=\"tl\"></span>\n<span class=\"tl\"><span class=\"tc\">// \u00a7L.6.6.1.4 \u2014 adjacent structure</span></span>\n" +
-    (S.adjManualOn
+    (S.adjManualOn && S.adjManualVal > 0
       ? `<span class="tl"><span class="tk">A_DJ</span> = manual CAD entry = ${fx(S.adjManualVal,0)} ft\u00b2 = <span class="tr">${fx(o.ADJ,0)}</span> m\u00b2</span>`
       : `<span class="tl"><span class="tk">A_DJ</span> — L_J = ${fx(S.adjL)} ft, W_J = ${fx(S.adjW)} ft, H_J = ${fx(S.adjH)} ft = <span class="tr">${fx(o.ADJ,0)}</span> m\u00b2 (${fx(o.ADJ/FT2,0)} ft\u00b2)</span>`);
   $("#adtrace").innerHTML =
@@ -1397,7 +1438,7 @@ ${adLine}
 <span class="tl"><span class="tc">// once every ${fx(1/o.ND,0)} years</span></span>
 <span class="tl"></span>
 <span class="tl"><span class="tc">// §L.6.6.1.2 — flashes near the structure, 1,640 ft (500 m) band</span></span>
-<span class="tl"><span class="tk">A_M</span> = LW + 2·500·(L+W) + π·500² = <span class="tr">${fx(o.AM,0)}</span> m² (${fx(o.AM/FT2,0)} ft²)</span>
+${amLine}
 <span class="tl"><span class="tk">N_M</span> = N_g · (A_M − A_D) · C_D · 10⁻⁶ = <span class="tr">${sci(o.NM)}</span> events/year</span>${adjLine}`;
 
   $("#kstrace").innerHTML =
@@ -1477,6 +1518,19 @@ function renderResults(o){
     "(P<sub>B</sub> = 1). Note 1 to Table L.6.7.4 says SPDs reduce P<sub>C</sub> only where the structure has an LPS, " +
     "or a continuous metal or reinforced-concrete frame meeting the bonding and grounding rules of §4.20. " +
     "As entered, this combination is not supported by the standard.");
+  if (S.ADmanualOn && !(S.ADval > 0)) flags.push(
+    "Manual A<sub>D</sub> entry is selected but the value is still 0 ft², so the calculation has fallen back to the " +
+    "L\u00b7W\u00b7H equation with the dimensions above. Enter the CAD-measured area, or switch back to the calculated option.");
+  if (S.AMmanualOn && !(S.AMval > 0)) flags.push(
+    "Manual A<sub>M</sub> entry is selected but the value is still 0 ft², so the calculation has fallen back to the " +
+    "L and W equation with the 1,640 ft (500 m) band. Enter the CAD-measured area, or switch back to the calculated option.");
+  if (S.adj && S.adjManualOn && !(S.adjManualVal > 0)) flags.push(
+    "Manual A<sub>DJ</sub> entry is selected but the value is still 0 ft², so the adjacent structure's collection area " +
+    "has fallen back to its L<sub>J</sub>\u00b7W<sub>J</sub>\u00b7H<sub>J</sub> equation. Enter the CAD-measured area, or switch back to the calculated option.");
+  if (S.AMmanualOn && S.AMval > 0 && S.AMval * FT2 < o.AD) flags.push(
+    "The manual A<sub>M</sub> you entered is smaller than A<sub>D</sub>, which cannot happen \u2014 the 1,640 ft (500 m) ring " +
+    "encloses the structure's own collection area. It has been raised to A<sub>D</sub>, which drives N<sub>M</sub> to zero. " +
+    "Check that the CAD boundary was offset by 1,640 ft (500 m) and not by 3H.");
   if (S.PC < 1 && !S.services.some(v=>v.spdEB)) flags.push(
     "SPDs are claimed for the structure but no individual service is marked as having an SPD at its entry, so " +
     "P<sub>U</sub>, P<sub>V</sub>, P<sub>W</sub> and P<sub>Z</sub> get no benefit. Check Step 03 — a compliant §4.20 " +
@@ -1491,10 +1545,11 @@ function renderResults(o){
   $("#verdict").innerHTML += flags.map(f =>
     `<div class="note warnb"><div class="nt">Check this combination</div><p>${f}</p></div>`).join("");
 
+  const srcOf = manual => manual ? " — manual CAD entry" : "";
   $("#ntable").innerHTML = tbl(["Quantity","Value","Unit","Clause"], [
-    {c:["A_D — collection area of the structure", `${fx(o.AD/FT2,0)} ft² (${fx(o.AD,0)} m²)`, "", "L.4.1.1"]},
-    {c:["A_M — area within 1,640 ft (500 m) of the perimeter", `${fx(o.AM/FT2,0)} ft² (${fx(o.AM,0)} m²)`, "", "L.6.6.1.2"]},
-    {c:["A_DJ — collection area of the adjacent structure", S.adj?`${fx(o.ADJ/FT2,0)} ft² (${fx(o.ADJ,0)} m²)`:"—", "", "L.6.6.1.4"]},
+    {c:[`A_D — where a flash is captured by the structure itself (footprint + 3H)${srcOf(S.ADmanualOn && S.ADval>0)}`, `${fx(o.AD/FT2,0)} ft² (${fx(o.AD,0)} m²)`, "", "L.4.1.1"]},
+    {c:[`A_M — where a flash misses the structure but induces surges inside it (footprint + 500 m)${srcOf(S.AMmanualOn && S.AMval>0)}`, `${fx(o.AM/FT2,0)} ft² (${fx(o.AM,0)} m²)`, "", "L.6.6.1.2"]},
+    {c:[`A_DJ — where a flash is captured by the far-end structure of a shared service${S.adj?srcOf(S.adjManualOn && S.adjManualVal>0):""}`, S.adj?`${fx(o.ADJ/FT2,0)} ft² (${fx(o.ADJ,0)} m²)`:"—", "", "L.6.6.1.4"]},
     {c:["N_D — direct strikes to the structure", sci(o.ND), "/yr", "L.3"]},
     {c:["N_M — strikes within 1,640 ft (500 m)", sci(o.NM), "/yr", "L.6.6.1.2"]},
     ...o.svc.flatMap((r,i)=>[
@@ -1658,13 +1713,20 @@ function generateDetailedReport(){
   const svcTraces = S.services.map((v,i) =>
     `<h3>Service ${i+1} — ${esc(v.name||"unnamed")}</h3><div class="trace">${trace("#svct"+i)}</div>`).join("");
 
-  const structRows = S.ADmanualOn
-    ? `<tr><td>Equivalent collection area A_D</td><td>Manual CAD entry (§L.4.1.2)</td></tr>
-       <tr><td>Manual A_D</td><td>${fx(S.ADval,0)} ft² (${fx(S.ADval*FT2,0)} m²)</td></tr>`
-    : `<tr><td>Length L</td><td>${fx(S.L)} ft (${fx(S.L*FT,2)} m)</td></tr>
-       <tr><td>Width W</td><td>${fx(S.W)} ft (${fx(S.W*FT,2)} m)</td></tr>
-       <tr><td>Height H</td><td>${fx(S.H)} ft (${fx(S.H*FT,2)} m)</td></tr>`;
-  const adjRows = !S.adj ? `<tr><td>Adjacent structure sharing a service</td><td>No</td></tr>` : (S.adjManualOn
+  const ADman = S.ADmanualOn && S.ADval > 0, AMman = S.AMmanualOn && S.AMval > 0;
+  const dimRows =
+    (ADman && AMman ? "" :
+      `<tr><td>Length L</td><td>${fx(S.L)} ft (${fx(S.L*FT,2)} m)</td></tr>
+       <tr><td>Width W</td><td>${fx(S.W)} ft (${fx(S.W*FT,2)} m)</td></tr>`) +
+    (ADman ? "" : `<tr><td>Height H</td><td>${fx(S.H)} ft (${fx(S.H*FT,2)} m)</td></tr>`);
+  const structRows = dimRows +
+    (ADman
+      ? `<tr><td>Equivalent collection area A_D</td><td>Manual CAD entry (§L.4.1.2): ${fx(S.ADval,0)} ft² (${fx(S.ADval*FT2,0)} m²)</td></tr>`
+      : `<tr><td>Equivalent collection area A_D</td><td>Calculated from L, W, H (§L.4.1.1)</td></tr>`) +
+    (AMman
+      ? `<tr><td>Near-structure collection area A_M</td><td>Manual CAD entry, 1,640 ft (500 m) offset: ${fx(S.AMval,0)} ft² (${fx(S.AMval*FT2,0)} m²)</td></tr>`
+      : `<tr><td>Near-structure collection area A_M</td><td>Calculated from L and W with the 1,640 ft (500 m) band (§L.6.6.1.2)</td></tr>`);
+  const adjRows = !S.adj ? `<tr><td>Adjacent structure sharing a service</td><td>No</td></tr>` : (S.adjManualOn && S.adjManualVal > 0
     ? `<tr><td>Adjacent structure — A_DJ</td><td>Manual CAD entry: ${fx(S.adjManualVal,0)} ft² (${fx(S.adjManualVal*FT2,0)} m²)</td></tr>`
     : `<tr><td>Adjacent structure — L_J × W_J × H_J</td><td>${fx(S.adjL)} × ${fx(S.adjW)} × ${fx(S.adjH)} ft</td></tr>`);
 
