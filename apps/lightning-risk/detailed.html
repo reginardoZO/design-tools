@@ -405,7 +405,7 @@ tr.tot td{border-top:2px solid var(--ink);font-weight:700;background:var(--surfa
 
   <figure class="card" style="margin:16px 0"><div class="cb">
   <div class="tw"><svg role="img" viewBox="0 0 920 470" style="width:100%;min-width:660px;height:auto;color:var(--ink2)"
-     aria-label="Plan view showing the four places lightning can strike — the structure, the ground within 500 metres, an incoming service, and the ground near that service — and the risk components each one produces.">
+     aria-label="Plan view showing the four places lightning can strike — the structure, the ground within 1,640 ft (500 metres), an incoming service, and the ground near that service — and the risk components each one produces.">
     <defs>
       <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
         <polygon points="0,1 10,5 0,9" fill="currentColor"/>
@@ -414,7 +414,7 @@ tr.tot td{border-top:2px solid var(--ink);font-weight:700;background:var(--surfa
     <rect x="392" y="150" width="470" height="200" rx="4" fill="var(--accent-soft)" opacity=".5" stroke="currentColor" stroke-dasharray="3 5" stroke-opacity=".45"/>
     <text x="404" y="170" font-size="12.5" fill="currentColor" opacity=".75">A<tspan baseline-shift="sub" font-size="9.5">I</tspan> = 4000 · L<tspan baseline-shift="sub" font-size="9.5">L</tspan> — flashes near the service</text>
     <ellipse cx="212" cy="250" rx="178" ry="150" fill="var(--accent-soft)" opacity=".5" stroke="currentColor" stroke-dasharray="3 5" stroke-opacity=".45"/>
-    <text x="212" y="120" font-size="12.5" text-anchor="middle" fill="currentColor" opacity=".75">A<tspan baseline-shift="sub" font-size="9.5">M</tspan> — 500 m beyond the perimeter</text>
+    <text x="212" y="120" font-size="12.5" text-anchor="middle" fill="currentColor" opacity=".75">A<tspan baseline-shift="sub" font-size="9.5">M</tspan> — 1,640 ft (500 m) beyond the perimeter</text>
     <rect x="392" y="234" width="470" height="32" rx="3" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
     <text x="404" y="288" font-size="12.5" fill="currentColor" opacity=".8">A<tspan baseline-shift="sub" font-size="9.5">L</tspan> = 40 · L<tspan baseline-shift="sub" font-size="9.5">L</tspan></text>
     <rect x="138" y="198" width="150" height="104" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
@@ -459,7 +459,7 @@ tr.tot td{border-top:2px solid var(--ink);font-weight:700;background:var(--surfa
   <div class="note warnb"><div class="nt">A second, much larger circle</div>
     <p>Flashes that miss the building can still induce surges in the wiring inside it. §L.6.6.1.2
       counts those as N<sub>M</sub>, using a collection area <b>A<sub>M</sub></b> that extends
-      <b>500 m</b> beyond the perimeter — around 0.9 km² even for a small building, so
+      <b>1,640 ft (500 m)</b> beyond the perimeter — around 0.9 km² even for a small building, so
       N<sub>M</sub> is almost always far larger than N<sub>D</sub>. It only turns into risk if
       your internal systems are poorly shielded, which is what Step 04 is about.</p></div>
 
@@ -565,7 +565,8 @@ tr.tot td{border-top:2px solid var(--ink);font-weight:700;background:var(--surfa
     <div class="cb tw" id="whatif"></div></div>
 
   <div class="btnrow" style="margin:18px 0 0">
-    <button class="btn" id="printbtn" type="button">Print / save as PDF</button>
+    <button class="btn" id="reportbtn" type="button">Generate PDF report</button>
+    <button class="btn sec" id="printbtn" type="button">Print this page / save as PDF</button>
     <button class="btn sec" id="resetbtn" type="button">Reset to industrial-gas defaults</button>
   </div>
 </section>
@@ -584,7 +585,7 @@ tr.tot td{border-top:2px solid var(--ink);font-weight:700;background:var(--surfa
 </div>
 
 <script type="module">
-import { computeDetailedRisk } from './js/detailed-lra-calc.js';
+import { computeDetailedRisk, FT, FT2 } from './js/detailed-lra-calc.js';
 /* =====================================================================
    NFPA 780-2020, Annex L, Section L.6 — DETAILED RISK ASSESSMENT
    Every numeric value below is transcribed from the 2020 edition.
@@ -791,14 +792,29 @@ const NG = (() => {
    ENGINE ADAPTER — resolves T-table row lookups (shield/type -> PU/PZ rows)
    into plain arrays, then hands everything to the tested, isomorphic engine
    in js/detailed-lra-calc.js. The engine itself knows nothing about T.
+   Also converts every UI distance (always entered in ft/ft²) to the metres/
+   m² the NFPA formulas use internally — the user never sees or enters a
+   metric value. The 500 m near-structure radius (\u00a7L.6.6.1.2, 2020 edition)
+   is a fixed constant of the standard, not a user input.
    ===================================================================== */
+const RADIUS_M = 500;
 function compute(s){
   const services = s.services.map(v => ({
     ...v,
+    LL: v.LL * FT,
     puRow: T.PU.rows.find(x => x.k === v.shield).p,
     pzRow: T.PZ.rows.find(x => x.k === v.type).p,
   }));
-  return computeDetailedRisk({ ...s, services });
+  return computeDetailedRisk({
+    ...s,
+    L: s.L * FT, W: s.W * FT, H: s.H * FT,
+    ADmanualM2: s.ADmanualOn ? s.ADval * FT2 : 0,
+    radius: RADIUS_M,
+    adjL: s.adjL * FT, adjW: s.adjW * FT, adjH: s.adjH * FT,
+    adjManualM2: s.adjManualOn ? s.adjManualVal * FT2 : 0,
+    WM1: s.WM1 * FT, WM2: s.WM2 * FT,
+    services,
+  });
 }
 
 /* =====================================================================
@@ -840,21 +856,33 @@ ngman:[
 
 /* ---------------- 02  structure ----------------------------------- */
 struct:[
- {id:"L", sym:"L", type:"number", def:60, unit:"m", step:"0.5",
+ {id:"ADmanualOn", sym:"—", type:"select", def:0, num:true,
+  label:"Equivalent collection area A_D",
+  help:"Compute from L, W, H below, or enter a CAD-measured area for an irregular footprint.",
+  tip:{what:"§L.4.1.1 gives A_D for a simple rectangular footprint. §L.4.1.2 explicitly permits building A_D graphically instead for a genuinely irregular structure — offset the true footprint outward by 3H (rounding the corners with radius 3H, per Figure L.4.1.2(b)) and measure the enclosed area.",
+       how:"Almost every real plant footprint is irregular. If yours is, draw the 3H-offset boundary in AutoCAD (or any CAD tool) around the actual footprint and read the enclosed area off the drawing, in ft².",
+       dflt:"<b>Calculate from L, W, H</b> only works for a genuinely rectangular building. Switch to manual entry and paste in the CAD-measured area for anything else."},
+  options:[{v:0,label:"Calculate from L, W, H (rectangular equation, §L.4.1.1)"},{v:1,label:"Enter A_D manually — irregular footprint (§L.4.1.2)"}]},
+ {id:"ADval", sym:"A_D", type:"number", def:0, unit:"ft²", step:"100", showIf:"ADmanualOn",
+  label:"Manual A_D", help:"CAD-measured equivalent collection area for the irregular structure.",
+  tip:{what:"Used directly in N_D = N_g·A_D·C_D·10⁻⁶ in place of the L·W·H rectangular formula. Converted internally to m² for that formula; you always enter ft².",
+       how:"From the CAD drawing: offset every edge of the true footprint outward by 3H, round the corners with radius 3H, and measure the area enclosed by that boundary.",
+       dflt:"There is no default — enter the CAD-measured value in ft²."}},
+ {id:"L", sym:"L", type:"number", def:200, unit:"ft", step:"1", showIf:"ADmanualOn=0",
   label:"Length", help:"The longer plan dimension of the structure footprint.",
-  tip:{what:"One side of the smallest rectangle that encloses the structure. The A_D formula in §L.4.1.1 assumes a rectangular box.",
-       how:"Scale it off the plot plan or the architectural general-arrangement drawing. For an open process block with no walls — a cold box, a compressor bay — use the footprint of the structural steel. For a genuinely complex shape, §L.4.1.2 lets you build A_D graphically instead; a bounding rectangle is the conservative shortcut.",
-       dflt:"Measure it. For reference: an air-separation cold box structure is typically 15–25 m on a side, a control/MCC building 20–40 m."}},
- {id:"W", sym:"W", type:"number", def:25, unit:"m", step:"0.5",
+  tip:{what:"One side of the smallest rectangle that encloses the structure. The A_D formula in §L.4.1.1 assumes a rectangular box and is evaluated internally in metres (converted from the ft you enter here) because N_g is flashes/km²/year.",
+       how:"Scale it off the plot plan or the architectural general-arrangement drawing. For an open process block with no walls — a cold box, a compressor bay — use the footprint of the structural steel. For a genuinely complex shape, use the manual A_D entry above instead of forcing a bounding rectangle.",
+       dflt:"Measure it. For reference: an air-separation cold box structure is typically 50–80 ft on a side, a control/MCC building 65–130 ft."}},
+ {id:"W", sym:"W", type:"number", def:80, unit:"ft", step:"1", showIf:"ADmanualOn=0",
   label:"Width", help:"The shorter plan dimension of the same rectangle.",
   tip:{what:"The other side of the enclosing rectangle.",
        how:"Same source as the length — plot plan, GA drawing, or a measurement off georeferenced imagery.",
        dflt:"Measure it."}},
- {id:"H", sym:"H", type:"number", def:12, unit:"m", step:"0.5",
+ {id:"H", sym:"H", type:"number", def:40, unit:"ft", step:"1", showIf:"ADmanualOn=0",
   label:"Height", help:"Grade to the highest point of the structure. This term dominates A_D.",
   tip:{what:"Height enters A_D three times, once squared, so it drives the answer. A tall slim object collects far more lightning than a low broad one of the same footprint.",
-       how:"Elevation drawing, or the equipment datasheet for a cold box or column. If one slender element towers over the rest — a vent stack, a relief header, a mast — do not average: either assess it as its own structure, or, if it is structurally part of the same object, use §L.4.1.2 and Figure L.4.1.2(b) rather than a single H.",
-       dflt:"Measure it. Air-separation cold box 25–45 m; compressor house 10–15 m; control building 5–8 m."}},
+       how:"Elevation drawing, or the equipment datasheet for a cold box or column. If one slender element towers over the rest — a vent stack, a relief header, a mast — do not average: either assess it as its own structure, or use the manual A_D entry above with a CAD-built Figure L.4.1.2(b) boundary rather than a single H.",
+       dflt:"Measure it. Air-separation cold box 80–150 ft; compressor house 33–50 ft; control building 16–26 ft."}},
  {id:"CD", sym:"C_D", type:"select", def:1, num:true, table:"CD",
   label:"Location factor — what stands around it",
   help:"Whether neighbouring objects intercept flashes before they reach you. Judged within a radius of 3H.",
@@ -871,17 +899,29 @@ adj:[
        how:"Read the single-line diagram and the cable schedule. Anything fed from, or feeding, a separate building on site counts — a substation, an e-house, an admin block, a neighbouring plant's switchroom. A feeder arriving from the utility grid with no identifiable building at the far end does not.",
        dflt:"<b>Yes</b> for most industrial-gas plants: the process block is normally fed from an on-site substation or e-house. Answer No if your incomer comes straight off a utility pole line."},
   options:[{v:0,label:"No — every service comes from the utility, not a building"},{v:1,label:"Yes — at least one service runs to a separate structure"}]},
- {id:"adjL", sym:"L_J", type:"number", def:20, unit:"m", step:"0.5", showIf:"adj",
+ {id:"adjManualOn", sym:"—", type:"select", def:0, num:true, showIf:"adj",
+  label:"Adjacent structure — collection area A_DJ",
+  help:"Compute from length/width/height below, or enter a CAD-measured area for an irregular footprint.",
+  tip:{what:"Same §L.4.1.2 allowance as the main structure's A_D: a CAD-measured area for an irregular adjacent building instead of the L·W·H rectangular equation.",
+       how:"Draw the adjacent building's 3H-offset boundary in CAD and measure the enclosed area, in ft².",
+       dflt:"<b>Calculate from length/width/height</b> unless the adjacent structure's footprint is irregular too."},
+  options:[{v:0,label:"Calculate from length/width/height"},{v:1,label:"Enter A_DJ manually — irregular footprint"}]},
+ {id:"adjManualVal", sym:"A_DJ", type:"number", def:0, unit:"ft²", step:"100", showIf:"adj,adjManualOn",
+  label:"Manual A_DJ", help:"CAD-measured equivalent collection area for the adjacent structure.",
+  tip:{what:"Used directly for A_DJ in the N_DJ equation, in place of the rectangular formula. Converted internally to m²; you always enter ft².",
+       how:"From the CAD drawing: offset every edge of the adjacent structure's true footprint outward by 3H and measure the enclosed area.",
+       dflt:"There is no default — enter the CAD-measured value in ft²."}},
+ {id:"adjL", sym:"L_J", type:"number", def:66, unit:"ft", step:"1", showIf:"adj,adjManualOn=0",
   label:"Adjacent structure — length", help:"Plan dimension of the building at the far end.",
   tip:{what:"Used to build that structure's own collection area A_DJ with the same 3H formula.",
        how:"Plot plan; for a packaged e-house or substation skid, the skid drawing.",
-       dflt:"A typical on-site e-house or unit substation is 12–20 m long."}},
- {id:"adjW", sym:"W_J", type:"number", def:10, unit:"m", step:"0.5", showIf:"adj",
+       dflt:"A typical on-site e-house or unit substation is 40–65 ft long."}},
+ {id:"adjW", sym:"W_J", type:"number", def:33, unit:"ft", step:"1", showIf:"adj,adjManualOn=0",
   label:"Adjacent structure — width", help:"Its other plan dimension.",
-  tip:{what:"The second plan dimension of the adjacent structure.", how:"Plot plan or skid drawing.", dflt:"E-house: 4–10 m."}},
- {id:"adjH", sym:"H_J", type:"number", def:6, unit:"m", step:"0.5", showIf:"adj",
+  tip:{what:"The second plan dimension of the adjacent structure.", how:"Plot plan or skid drawing.", dflt:"E-house: 13–33 ft."}},
+ {id:"adjH", sym:"H_J", type:"number", def:20, unit:"ft", step:"1", showIf:"adj,adjManualOn=0",
   label:"Adjacent structure — height", help:"Its height to the highest structural point.",
-  tip:{what:"Height of the adjacent structure, which again dominates its collection area.", how:"Elevation drawing.", dflt:"E-house or unit substation building: 4–6 m."}},
+  tip:{what:"Height of the adjacent structure, which again dominates its collection area.", how:"Elevation drawing.", dflt:"E-house or unit substation building: 13–20 ft."}},
  {id:"adjCD", sym:"C_DJ", type:"select", def:0.5, num:true, table:"CD", showIf:"adj",
   label:"Adjacent structure — location factor", help:"The same question as before, asked about the far-end building.",
   tip:{what:"Location factor applied to A_DJ in the N_DJ equation.",
@@ -928,15 +968,15 @@ ks:[
   options:[{v:0,label:"No — entrance SPDs only, or none"},{v:1,label:"Yes — coordinated SPD system down to the equipment"}]},
  {id:"ks1mode", sym:"K_S1", type:"select", def:"mesh",
   label:"Outer shielding of the structure", help:"How the building envelope screens the magnetic field.",
-  tip:{what:"K_S1 describes the screening at the outside boundary. Steel columns, bonded rebar or a mesh act as a coarse Faraday cage: the closer the conductors, the better. §L.6.6.2.4 gives K_S1 = 0.12·W_M with W_M the spacing in metres.",
+  tip:{what:"K_S1 describes the screening at the outside boundary. Steel columns, bonded rebar or a mesh act as a coarse Faraday cage: the closer the conductors, the better. §L.6.6.2.4 gives K_S1 = 0.12·W_M with W_M the spacing in metres (converted internally from the ft you enter below).",
        how:"Two possibilities. Either the structure is a grid of steel — measure the column grid, or the rebar spacing if the bars are interconnected and grounded — in which case use the spacing option. Or it has a genuine continuous metal skin 0.1 to 0.5 mm thick, which the standard values at 10⁻⁴ to 10⁻⁵.",
        dflt:"<b>Spacing-based.</b> A steel-framed process structure or a metal-clad building on a steel frame is a grid, not a continuous shield."},
   options:[{v:"mesh",label:"Grid of steel / bonded rebar — use spacing"},{v:"metal",label:"Continuous metal shield, 0.1–0.5 mm"}]},
- {id:"WM1", sym:"W_M", type:"number", def:5, unit:"m", step:"0.1", showIf:"ks1mode=mesh",
+ {id:"WM1", sym:"W_M", type:"number", def:16, unit:"ft", step:"0.5", showIf:"ks1mode=mesh",
   label:"Grid spacing at the outer boundary", help:"Column spacing, down-conductor spacing, mesh size, or rebar spacing.",
   tip:{what:"W_M is whichever conducting grid is smallest and continuous: the structural column grid, the spacing between LPS down conductors, the mesh of a shielding grid, or — if the reinforcing bars are interconnected and terminated on grounding electrodes — the rebar spacing.",
-       how:"Structural drawings for the column grid; the LPS drawing for down-conductor spacing (NFPA 780 typically puts these at 30 m or less around the perimeter); the rebar schedule for reinforcement. Take the largest spacing in the grid, not the smallest.",
-       dflt:"<b>5 m</b> — a typical structural-steel column bay in a process building. If you have no metal grid at all, this route does not apply and K_S1 should be 1; enter a spacing of 8.33 m or more and the formula caps it there."}},
+       how:"Structural drawings for the column grid; the LPS drawing for down-conductor spacing (NFPA 780 typically puts these at 98 ft or less around the perimeter); the rebar schedule for reinforcement. Take the largest spacing in the grid, not the smallest.",
+       dflt:"<b>16 ft</b> — a typical structural-steel column bay in a process building. If you have no metal grid at all, this route does not apply and K_S1 should be 1; enter a spacing of 27 ft or more and the formula caps it there."}},
  {id:"ks1metal", sym:"K_S1", type:"select", def:1e-4, num:true, showIf:"ks1mode=metal",
   label:"Continuous shield value", help:"Scaled linearly between 10⁻⁴ at 0.1 mm and 10⁻⁵ at 0.5 mm.",
   tip:{what:"For a genuinely continuous metal skin the standard skips the spacing formula and assigns a value directly.",
@@ -946,7 +986,7 @@ ks:[
  {id:"ks1close", sym:"×2", type:"select", def:0, num:true,
   label:"Is equipment closer to the wall than W_M?", help:"§L.6.6.2.4 doubles K_S1 if it is.",
   tip:{what:"The screening formula assumes equipment sits at least one grid spacing away from the boundary. Nearer than that and the field is stronger, so the standard doubles the factor.",
-       how:"Look at where the cabinets actually are. A marshalling panel bolted to an outside wall is closer than a 5 m column bay.",
+       how:"Look at where the cabinets actually are. A marshalling panel bolted to an outside wall is closer than a 16 ft column bay.",
        dflt:"<b>Yes</b> is the safe answer for most industrial buildings, where panels sit against walls. Answer No only if you have checked."},
   options:[{v:0,label:"No — equipment is further than W_M from the boundary"},{v:1,label:"Yes — double K_S1 (conservative default)"}]},
  {id:"ks2mode", sym:"K_S2", type:"select", def:"none",
@@ -955,9 +995,9 @@ ks:[
        how:"Ask whether the control room or rack room has a bonded metallic screen — a mesh in the walls, a bonded raised floor plus ceiling grid, or shielded enclosures. An ordinary drywall control room is not a shielded zone.",
        dflt:"<b>None (K_S2 = 1)</b>. Shielded rooms are rare outside data centres and substations."},
   options:[{v:"none",label:"No internal shielded zone — K_S2 = 1"},{v:"mesh",label:"Internal grid / mesh — use spacing"},{v:"metal",label:"Continuous internal metal shield"}]},
- {id:"WM2", sym:"W_M2", type:"number", def:2, unit:"m", step:"0.1", showIf:"ks2mode=mesh",
-  label:"Internal grid spacing", help:"Mesh size of the inner screen, in metres.",
-  tip:{what:"Same 0.12·W_M relationship, applied to the inner boundary.", how:"From the screened-room specification or the mesh drawing.", dflt:"2 m for a coarse bonded mesh; 0.5 m or less for a proper screened room."}},
+ {id:"WM2", sym:"W_M2", type:"number", def:6.5, unit:"ft", step:"0.5", showIf:"ks2mode=mesh",
+  label:"Internal grid spacing", help:"Mesh size of the inner screen, in ft.",
+  tip:{what:"Same 0.12·W_M relationship, applied to the inner boundary.", how:"From the screened-room specification or the mesh drawing.", dflt:"6.5 ft for a coarse bonded mesh; 1.5 ft or less for a proper screened room."}},
  {id:"ks2metal", sym:"K_S2", type:"select", def:1e-4, num:true, showIf:"ks2mode=metal",
   label:"Internal continuous shield value", help:"Same 10⁻⁴ to 10⁻⁵ scale as the outer shield.",
   tip:{what:"Direct assignment for a continuous inner metal shield.", how:"Sheet thickness from the enclosure specification.", dflt:"10⁻⁴."},
@@ -1094,7 +1134,7 @@ const fx  = (x,d) => (x===undefined||!isFinite(x)) ? "—" : x.toLocaleString('e
 /* ---- state ------------------------------------------------------- */
 const DEF = {};
 Object.values(F).flat().forEach(f => DEF[f.id] = f.def);
-const SVC_DEF = () => ({name:"Incoming power feeder", type:"power", LL:1000, CE:1, CT:0.2,
+const SVC_DEF = () => ({name:"Incoming power feeder", type:"power", LL:3280, CE:1, CT:0.2,
                         shield:"unsh", spdEB:0, mesh:0, PAline:1, adjEnd:1});
 let S = Object.assign({}, DEF, {services:[SVC_DEF()]});
 S.services.push(Object.assign(SVC_DEF(), {name:"Telecom / fibre / signal line", type:"telecom", CT:1, adjEnd:0}));
@@ -1110,10 +1150,10 @@ const SVCF = [
        how:"Anything carrying mains power is a power line. Instrument, signal, data, fibre-with-metallic-member and telephone are telecom lines. A pure dielectric fibre with no metallic element carries no surge at all — leave it out of the assessment entirely.",
        dflt:"Power for the feeder, telecom for signal cables."},
   options:[{v:"power",label:"Power line"},{v:"telecom",label:"Telecom / signal / data line"}]},
- {id:"LL", type:"number", unit:"m", step:"10", label:"Route length  L_L", help:"Length of the service from its source to the structure.",
-  tip:{what:"L_L sets both collection areas: A_L = 40·L_L for direct strikes to the line, and A_I = 4000·L_L for strikes near it. Risk scales directly with it.",
+ {id:"LL", type:"number", unit:"ft", step:"50", label:"Route length  L_L", help:"Length of the service from its source to the structure.",
+  tip:{what:"L_L sets both collection areas: A_L = 40·L_L for direct strikes to the line, and A_I = 4000·L_L for strikes near it (both evaluated in metres internally). Risk scales directly with it.",
        how:"Measure the cable route, not the straight-line distance — from the structure back to the transformer, the utility connection point, or the far-end building. Cable schedules usually carry the length already.",
-       dflt:"<b>1000 m</b> is what §L.6.6.1.3 tells you to assume when the length is unknown. Replacing it with the real length is one of the highest-value refinements available."}},
+       dflt:"<b>3280 ft (1000 m)</b> is what §L.6.6.1.3 tells you to assume when the length is unknown. Replacing it with the real length is one of the highest-value refinements available."}},
  {id:"CE", type:"select", table:"CE", label:"Environment  C_E", help:"How built-up the land the line crosses is.",
   tip:{what:"Buildings and structures along the route intercept flashes that would otherwise hit the line. C_E spans a factor of a hundred, from open country to a city of tall buildings.",
        how:"Judge the terrain the line actually crosses, not where the plant is registered. An industrial site on open land outside town is rural even if the postal address says otherwise.",
@@ -1218,8 +1258,12 @@ function renderFields(){
 function applyVisibility(){
   $$(".field[data-fid]").forEach(r => {
     const f = Object.values(F).flat().find(x=>x.id===r.dataset.fid); if(!f||!f.showIf) return;
-    const [k,v] = f.showIf.split("=");
-    r.style.display = (v===undefined ? !!S[k] : String(S[k])===v) ? "" : "none";
+    // comma-separated conditions are AND'ed together, e.g. "adj,adjManualOn=0"
+    const ok = f.showIf.split(",").every(cond => {
+      const [k,v] = cond.split("=");
+      return v===undefined ? !!S[k] : String(S[k])===v;
+    });
+    r.style.display = ok ? "" : "none";
   });
 }
 
@@ -1334,26 +1378,32 @@ function renderNgResult(){
 
 /* ---- live arithmetic traces --------------------------------------- */
 function traces(o){
+  const Lm=S.L*FT, Wm=S.W*FT, Hm=S.H*FT;
+  const adLine = S.ADmanualOn
+    ? `<span class="tl"><span class="tk">A_D</span> = manual CAD entry (\u00a7L.4.1.2) = ${fx(S.ADval,0)} ft\u00b2 = <span class="tr">${fx(o.AD,0)}</span> m\u00b2</span>`
+    : `<span class="tl"><span class="tk">A_D</span> = LW + 6H(L+W) + 9\u03c0H\u00b2   <span class="tc">// L, W, H entered in ft; converted internally to m because N_g is flashes/km\u00b2/yr</span></span>
+<span class="tl">    L = ${fx(S.L)} ft = ${fx(Lm,2)} m   W = ${fx(S.W)} ft = ${fx(Wm,2)} m   H = ${fx(S.H)} ft = ${fx(Hm,2)} m</span>
+<span class="tl">    = ${fx(Lm*Wm,0)} + ${fx(6*Hm*(Lm+Wm),0)} + ${fx(9*Math.PI*Hm*Hm,0)} = <span class="tr">${fx(o.AD,0)}</span> m\u00b2 (${fx(o.AD/FT2,0)} ft\u00b2)</span>`;
+  const adjLine = !S.adj ? "" : "\n<span class=\"tl\"></span>\n<span class=\"tl\"><span class=\"tc\">// \u00a7L.6.6.1.4 \u2014 adjacent structure</span></span>\n" +
+    (S.adjManualOn
+      ? `<span class="tl"><span class="tk">A_DJ</span> = manual CAD entry = ${fx(S.adjManualVal,0)} ft\u00b2 = <span class="tr">${fx(o.ADJ,0)}</span> m\u00b2</span>`
+      : `<span class="tl"><span class="tk">A_DJ</span> — L_J = ${fx(S.adjL)} ft, W_J = ${fx(S.adjW)} ft, H_J = ${fx(S.adjH)} ft = <span class="tr">${fx(o.ADJ,0)}</span> m\u00b2 (${fx(o.ADJ/FT2,0)} ft\u00b2)</span>`);
   $("#adtrace").innerHTML =
 `<span class="tl"><span class="tc">// §L.4.1.1 — equivalent collection area</span></span>
-<span class="tl"><span class="tk">A_D</span> = LW + 6H(L+W) + 9πH²</span>
-<span class="tl">    = ${fx(S.L)}·${fx(S.W)} + 6·${fx(S.H)}·(${fx(S.L)}+${fx(S.W)}) + 9π·${fx(S.H)}²</span>
-<span class="tl">    = ${fx(S.L*S.W,0)} + ${fx(6*S.H*(S.L+S.W),0)} + ${fx(9*Math.PI*S.H*S.H,0)} = <span class="tr">${fx(o.AD,0)}</span> m²</span>
+${adLine}
 <span class="tl"></span>
 <span class="tl"><span class="tc">// §L.3 — annual threat of occurrence, direct strikes</span></span>
 <span class="tl"><span class="tk">N_D</span> = N_g · A_D · C_D · 10⁻⁶ = ${fx(S.Ng,3)} · ${fx(o.AD,0)} · ${S.CD} · 10⁻⁶ = <span class="tr">${sci(o.ND)}</span> events/year</span>
 <span class="tl"><span class="tc">// once every ${fx(1/o.ND,0)} years</span></span>
 <span class="tl"></span>
-<span class="tl"><span class="tc">// §L.6.6.1.2 — flashes near the structure, 500 m band</span></span>
-<span class="tl"><span class="tk">A_M</span> = LW + 2·500·(L+W) + π·500² = <span class="tr">${fx(o.AM,0)}</span> m²</span>
-<span class="tl"><span class="tk">N_M</span> = N_g · (A_M − A_D) · C_D · 10⁻⁶ = <span class="tr">${sci(o.NM)}</span> events/year</span>` +
-(S.adj ? `\n<span class="tl"></span>\n<span class="tl"><span class="tc">// §L.6.6.1.4 — adjacent structure</span></span>
-<span class="tl"><span class="tk">A_DJ</span> = ${fx(S.adjL)}·${fx(S.adjW)} + 6·${fx(S.adjH)}·(…) + 9π·${fx(S.adjH)}² = <span class="tr">${fx(o.ADJ,0)}</span> m²</span>` : "");
+<span class="tl"><span class="tc">// §L.6.6.1.2 — flashes near the structure, 1,640 ft (500 m) band</span></span>
+<span class="tl"><span class="tk">A_M</span> = LW + 2·500·(L+W) + π·500² = <span class="tr">${fx(o.AM,0)}</span> m² (${fx(o.AM/FT2,0)} ft²)</span>
+<span class="tl"><span class="tk">N_M</span> = N_g · (A_M − A_D) · C_D · 10⁻⁶ = <span class="tr">${sci(o.NM)}</span> events/year</span>${adjLine}`;
 
   $("#kstrace").innerHTML =
 `<span class="tl"><span class="tc">// §L.6.6.2.4 — shielding chain</span></span>
-<span class="tl"><span class="tk">K_S1</span> = ${S.ks1mode==="metal" ? "continuous metal shield" : `0.12 · ${fx(S.WM1,2)} m${S.ks1close?" · 2 (equipment near boundary)":""}`} = <span class="tr">${sci(o.KS1)}</span></span>
-<span class="tl"><span class="tk">K_S2</span> = ${S.ks2mode==="none" ? "no internal shielded zone" : S.ks2mode==="metal" ? "continuous internal shield" : `0.12 · ${fx(S.WM2,2)} m${S.ks2close?" · 2":""}`} = <span class="tr">${sci(o.KS2)}</span></span>
+<span class="tl"><span class="tk">K_S1</span> = ${S.ks1mode==="metal" ? "continuous metal shield" : `0.12 · ${fx(S.WM1,2)} ft (${fx(S.WM1*FT,2)} m)${S.ks1close?" · 2 (equipment near boundary)":""}`} = <span class="tr">${sci(o.KS1)}</span></span>
+<span class="tl"><span class="tk">K_S2</span> = ${S.ks2mode==="none" ? "no internal shielded zone" : S.ks2mode==="metal" ? "continuous internal shield" : `0.12 · ${fx(S.WM2,2)} ft (${fx(S.WM2*FT,2)} m)${S.ks2close?" · 2":""}`} = <span class="tr">${sci(o.KS2)}</span></span>
 <span class="tl"><span class="tk">K_S3</span> = ${sci(S.KS3)}${S.ks3conduit?" · 0.1 (bonded metallic conduit)":""} = <span class="tr">${sci(o.KS3)}</span></span>
 <span class="tl"><span class="tk">K_S4</span> = 1.5 / U_W = 1.5 / ${S.UW} = <span class="tr">${sci(o.KS4)}</span></span>
 <span class="tl"><span class="tk">K_S</span>  = product = <span class="tr">${sci(o.KS,3)}</span>   →  Table L.6.7.5 row "${o.PM_row}"  →  P_M(K_S) = ${sci(o.PM_KS)}</span>
@@ -1370,8 +1420,8 @@ function traces(o){
     const n = $("#svct"+i); if(!n) return;
     const v = S.services[i];
     n.innerHTML =
-`<span class="tl"><span class="tc">// §L.6.6.1.3 / .5 — collection areas of this service</span></span>
-<span class="tl"><span class="tk">A_L</span> = 40 · L_L = <span class="tr">${fx(r.AL,0)}</span> m²      <span class="tk">A_I</span> = 4000 · L_L = <span class="tr">${fx(r.AI,0)}</span> m²${v.mesh?"   <span class=\"tc\">// zeroed: run under a ground mesh</span>":""}</span>
+`<span class="tl"><span class="tc">// §L.6.6.1.3 / .5 — collection areas of this service (L_L = ${fx(v.LL)} ft = ${fx(v.LL*FT,1)} m)</span></span>
+<span class="tl"><span class="tk">A_L</span> = 40 · L_L = <span class="tr">${fx(r.AL,0)}</span> m² (${fx(r.AL/FT2,0)} ft²)      <span class="tk">A_I</span> = 4000 · L_L = <span class="tr">${fx(r.AI,0)}</span> m² (${fx(r.AI/FT2,0)} ft²)${v.mesh?"   <span class=\"tc\">// zeroed: run under a ground mesh</span>":""}</span>
 <span class="tl"><span class="tk">N_L</span> = N_g·A_L·C_E·C_T·10⁻⁶ = <span class="tr">${sci(r.NL)}</span>   <span class="tk">N_I</span> = <span class="tr">${sci(r.NI)}</span>   <span class="tk">N_DJ</span> = <span class="tr">${sci(r.NDJ)}</span></span>
 <span class="tl"><span class="tk">P_U</span> = ${sci(r.PU)}   <span class="tk">P_V</span> = ${sci(r.PV)}   <span class="tk">P_W</span> = ${sci(r.PW)}   <span class="tk">P_Z</span> = ${sci(r.PZ)}   <span class="tc">// Tables L.6.7.7 / .8 at U_W = ${S.UW} kV</span></span>
 <span class="tl"><span class="tk">R_U</span> = ${sci(r.RU)}   <span class="tk">R_V</span> = ${sci(r.RV)}   <span class="tk">R_W</span> = ${sci(r.RW)}   <span class="tk">R_Z</span> = ${sci(r.RZ)}</span>`;
@@ -1442,11 +1492,11 @@ function renderResults(o){
     `<div class="note warnb"><div class="nt">Check this combination</div><p>${f}</p></div>`).join("");
 
   $("#ntable").innerHTML = tbl(["Quantity","Value","Unit","Clause"], [
-    {c:["A_D — collection area of the structure", fx(o.AD,0), "m²", "L.4.1.1"]},
-    {c:["A_M — area within 500 m of the perimeter", fx(o.AM,0), "m²", "L.6.6.1.2"]},
-    {c:["A_DJ — collection area of the adjacent structure", S.adj?fx(o.ADJ,0):"—", "m²", "L.6.6.1.4"]},
+    {c:["A_D — collection area of the structure", `${fx(o.AD/FT2,0)} ft² (${fx(o.AD,0)} m²)`, "", "L.4.1.1"]},
+    {c:["A_M — area within 1,640 ft (500 m) of the perimeter", `${fx(o.AM/FT2,0)} ft² (${fx(o.AM,0)} m²)`, "", "L.6.6.1.2"]},
+    {c:["A_DJ — collection area of the adjacent structure", S.adj?`${fx(o.ADJ/FT2,0)} ft² (${fx(o.ADJ,0)} m²)`:"—", "", "L.6.6.1.4"]},
     {c:["N_D — direct strikes to the structure", sci(o.ND), "/yr", "L.3"]},
-    {c:["N_M — strikes within 500 m", sci(o.NM), "/yr", "L.6.6.1.2"]},
+    {c:["N_M — strikes within 1,640 ft (500 m)", sci(o.NM), "/yr", "L.6.6.1.2"]},
     ...o.svc.flatMap((r,i)=>[
       {c:[`N_L — strikes to “${S.services[i].name}”`, sci(r.NL), "/yr", "L.6.6.1.3"]},
       {c:[`N_DJ — strikes to the far-end structure of “${S.services[i].name}”`, sci(r.NDJ), "/yr", "L.6.6.1.4"]},
@@ -1591,6 +1641,159 @@ function syncDerived(){
   const r = T.LFLO.rows.find(x=>x.k===S.occ) || T.LFLO.rows[2];
   S.LF = r.lf; S.LO = r.lo;
 }
+
+/* ---- PDF report -----------------------------------------------------
+   Builds a standalone, self-contained report window from the SAME
+   rendered result panels already on the page (#verdict, #rcards,
+   #ntable..#whatif, the math-trace panels) plus a compact "inputs used"
+   summary, then triggers window.print() — no external PDF library,
+   matching the pattern used by apps/lightning-risk/index.html and
+   apps/dimensionador for offline/GitHub-Pages PDF export. */
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+function labelFor(table, value){ const r = T[table].rows.find(x => x.v === value); return r ? r.t : String(value); }
+function generateDetailedReport(){
+  const o = compute(S);
+  const genDate = new Date().toLocaleString('en-US', {dateStyle:'medium', timeStyle:'short'});
+  const trace = id => { const n = $(id); return n ? n.innerHTML : ""; };
+  const svcTraces = S.services.map((v,i) =>
+    `<h3>Service ${i+1} — ${esc(v.name||"unnamed")}</h3><div class="trace">${trace("#svct"+i)}</div>`).join("");
+
+  const structRows = S.ADmanualOn
+    ? `<tr><td>Equivalent collection area A_D</td><td>Manual CAD entry (§L.4.1.2)</td></tr>
+       <tr><td>Manual A_D</td><td>${fx(S.ADval,0)} ft² (${fx(S.ADval*FT2,0)} m²)</td></tr>`
+    : `<tr><td>Length L</td><td>${fx(S.L)} ft (${fx(S.L*FT,2)} m)</td></tr>
+       <tr><td>Width W</td><td>${fx(S.W)} ft (${fx(S.W*FT,2)} m)</td></tr>
+       <tr><td>Height H</td><td>${fx(S.H)} ft (${fx(S.H*FT,2)} m)</td></tr>`;
+  const adjRows = !S.adj ? `<tr><td>Adjacent structure sharing a service</td><td>No</td></tr>` : (S.adjManualOn
+    ? `<tr><td>Adjacent structure — A_DJ</td><td>Manual CAD entry: ${fx(S.adjManualVal,0)} ft² (${fx(S.adjManualVal*FT2,0)} m²)</td></tr>`
+    : `<tr><td>Adjacent structure — L_J × W_J × H_J</td><td>${fx(S.adjL)} × ${fx(S.adjW)} × ${fx(S.adjH)} ft</td></tr>`);
+
+  const svcInputRows = S.services.map(v =>
+    `<tr><td>${esc(v.name||"unnamed")}</td><td>${v.type}</td><td>${fx(v.LL)} ft (${fx(v.LL*FT,0)} m)</td><td>${v.shield}</td></tr>`).join("");
+
+  const cards = [
+    {k:"R1", n:o.R1, t:T.RT.R1, on:true, lab:"R₁ — loss of life"},
+    {k:"R2", n:o.R2, t:T.RT.R2, on:!!S.useR2, lab:"R₂ — loss of service"},
+    {k:"R3", n:o.R3, t:T.RT.R3, on:!!S.useR3, lab:"R₃ — historical significance"},
+    {k:"R4", n:o.R4, t:null, on:true, lab:"R₄ — economic loss"}
+  ];
+  const fails = cards.filter(c => c.on && c.t !== null && c.n > c.t);
+  const verdictOk = !fails.length;
+  const verdictColor = verdictOk ? "#1a7a35" : "#a3231b";
+  const verdictText = verdictOk
+    ? "All relevant risks are within tolerance per Table L.6.2."
+    : `Protection is recommended — ${fails.map(c=>c.lab.split(" — ")[0]).join(" and ")} exceed${fails.length>1?"":"s"} the tolerable risk of Table L.6.2.`;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Lightning Risk Assessment — Detailed Method Report</title>
+<style>
+:root{
+  --ink:#1a1a1a; --ink2:#333; --muted:#666; --faint:#98a2ab; --line:#ccc; --line2:#ddd;
+  --surface:#fff; --surface2:#f4f6f7; --sunken:#eef1f2; --radius:4px;
+  --accent:#2f6fb3; --accent-soft:#e7f0fa; --accent-ink:#1f4f80;
+  --warn:#c98a00; --warn-soft:#fbf1da; --pass:#1a7a35; --pass-soft:#dcefe3;
+  --fail:#a3231b; --fail-soft:#f7e1de; --copper:#a85e27; --copper-soft:#f6e8dc;
+}
+@page{size:portrait;margin:16mm}
+body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);font-size:12px;line-height:1.5;margin:0}
+h1{font-size:19px;margin:0 0 4px}
+h2{font-size:14px;margin:20px 0 8px;border-bottom:2px solid var(--ink);padding-bottom:4px;page-break-after:avoid}
+h3{font-size:12.5px;margin:14px 0 6px;page-break-after:avoid}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:11.5px;margin-top:4px}
+th,td{text-align:left;padding:6px 9px;border-top:1px solid var(--line2);vertical-align:top}
+thead th{border-top:0;border-bottom:1px solid var(--line);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--surface2)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.tot td{border-top:2px solid var(--ink);font-weight:700;background:var(--surface2)}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 var(--radius) var(--radius) 0;margin:10px 0}
+.note.warnb{border-left-color:var(--warn);background:var(--warn-soft)}
+.note .nt{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--accent-ink);margin-bottom:4px}
+.note.warnb .nt{color:var(--warn)}
+.rgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.rcard{border:1px solid var(--line);border-radius:var(--radius);padding:10px 11px;position:relative;overflow:hidden}
+.rcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--faint)}
+.rcard.ok::before{background:var(--pass)} .rcard.no::before{background:var(--fail)} .rcard.off::before{background:var(--line)}
+.rcard .rl{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.rcard .rn{font-size:17px;font-weight:700;margin:5px 0 2px}
+.rcard.ok .rn{color:var(--pass)} .rcard.no .rn{color:var(--fail)} .rcard.off .rn{color:var(--faint)}
+.rcard .rd{font-size:10px;color:var(--muted)}
+.chip{display:inline-block;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;padding:2px 6px;border-radius:999px;margin-top:6px}
+.chip.ok{background:var(--pass-soft);color:var(--pass)} .chip.no{background:var(--fail-soft);color:var(--fail)}
+.chip.off{background:var(--sunken);color:var(--faint)}
+.bar{display:none}
+.trace{background:var(--sunken);border-radius:var(--radius);padding:10px 12px;font-family:"Consolas",monospace;font-size:10px;line-height:1.7;white-space:pre-wrap;page-break-inside:avoid}
+.trace .tl{display:block}
+.trace .tk{color:var(--copper)}
+.trace .tr{color:var(--accent-ink);font-weight:600}
+.trace .tc{color:var(--faint)}
+.verdict-box{margin:10px 0;padding:10px 14px;border:2px solid ${verdictColor};color:${verdictColor};font-weight:bold}
+.sec{page-break-inside:avoid}
+</style></head><body>
+
+<h1>Lightning Risk Assessment — Detailed Method</h1>
+<p style="font-size:11px;color:#555">NFPA 780-2020, Annex L, §L.6 · generated ${genDate} · resolved location ${esc(S.coords||"—")}</p>
+
+<div class="sec">
+<h2>1. Result and verdict</h2>
+<div class="verdict-box">${esc(verdictText)}</div>
+<div class="rgrid">${$("#rcards").innerHTML}</div>
+</div>
+
+<div class="sec">
+<h2>2. Inputs used in this assessment</h2>
+<h3>Location and lightning density</h3>
+<table><tbody>
+<tr><td>Coordinates</td><td>${esc(S.coords||"—")}</td></tr>
+<tr><td>Ground flash density N_g</td><td>${fx(S.Ng,3)} flashes/km²/year</td></tr>
+</tbody></table>
+<h3>Structure geometry</h3>
+<table><tbody>${structRows}
+<tr><td>Location factor C_D</td><td>${labelFor("CD", S.CD)} (C_D = ${S.CD})</td></tr>
+${adjRows}
+${S.adj ? `<tr><td>Adjacent structure — location factor C_DJ</td><td>${labelFor("CD", S.adjCD)} (C_DJ = ${S.adjCD})</td></tr>` : ""}
+</tbody></table>
+<h3>Incoming services</h3>
+<table><thead><tr><th>Name</th><th>Type</th><th>Route length L_L</th><th>Shielding/bonding</th></tr></thead>
+<tbody>${svcInputRows}</tbody></table>
+<h3>Protection already in place</h3>
+<table><tbody>
+<tr><td>P_A — touch/step voltage</td><td>${labelFor("PA", S.PA)}</td></tr>
+<tr><td>P_B — direct-strike physical damage</td><td>${labelFor("PB", S.PB)}</td></tr>
+<tr><td>P_C — internal systems, direct strike</td><td>${labelFor("PC", S.PC)}</td></tr>
+<tr><td>Impulse withstand U_W</td><td>${S.UW} kV</td></tr>
+<tr><td>Coordinated SPDs at utilization equipment</td><td>${S.spdCoord ? "Yes" : "No"}</td></tr>
+</tbody></table>
+<h3>Losses and applicability</h3>
+<table><tbody>
+<tr><td>Structure category (L_F, L_O)</td><td>${esc((T.LFLO.rows.find(r=>r.k===S.occ)||{}).t || S.occ)}</td></tr>
+<tr><td>R₁* — internal-system failure endangers life immediately</td><td>${S.r1extra ? "Yes" : "No"}</td></tr>
+<tr><td>R₂ applicable — public service</td><td>${S.useR2 ? "Yes" : "No"}</td></tr>
+<tr><td>R₃ applicable — heritage</td><td>${S.useR3 ? "Yes" : "No"}</td></tr>
+<tr><td>R₄** — animals present</td><td>${S.animals ? "Yes" : "No"}</td></tr>
+</tbody></table>
+</div>
+
+<div class="sec"><h2>3. Threat of occurrence — N</h2>${$("#ntable").innerHTML}</div>
+<div class="sec"><h2>4. Probability of damage — P</h2>${$("#ptable").innerHTML}</div>
+<div class="sec"><h2>5. Loss — L</h2>${$("#ltable").innerHTML}</div>
+<div class="sec"><h2>6. Risk components — R = N · P · L</h2>${$("#rtable").innerHTML}</div>
+<div class="sec"><h2>7. What each measure would buy you</h2>${$("#whatif").innerHTML}</div>
+
+<div class="sec">
+<h2>8. Supporting arithmetic</h2>
+<h3>Collection areas and direct/near-structure threat</h3>
+<div class="trace">${trace("#adtrace")}</div>
+<h3>Shielding chain (K_S → P_M)</h3>
+<div class="trace">${trace("#kstrace")}</div>
+<h3>Loss factors</h3>
+<div class="trace">${trace("#losstrace")}</div>
+${svcTraces}
+</div>
+
+<script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
+</body></html>`;
+  const win = window.open("", "_blank");
+  if (win){ win.document.open(); win.document.write(html); win.document.close(); }
+}
 let tileKey = "";
 function refresh(){
   syncDerived();
@@ -1606,6 +1809,7 @@ function refresh(){
 function init(){
   renderNav(); renderFields(); renderServices(); renderAppendix();
   NGTILES = buildTiles(); renderNgPanel(false);
+  $("#reportbtn").onclick = generateDetailedReport;
   $("#printbtn").onclick = () => window.print();
   $("#resetbtn").onclick = () => { S = Object.assign({}, DEF, {services:[SVC_DEF(),
       Object.assign(SVC_DEF(),{name:"Telecom / fibre / signal line", type:"telecom", CT:1, adjEnd:0})]});

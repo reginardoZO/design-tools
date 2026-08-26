@@ -15,6 +15,12 @@
 /* Table L.6.2 — tolerable risk */
 export const RT = { R1: 1e-5, R2: 1e-3, R3: 1e-3 };
 
+/* feet -> metres, used by the UI so every distance input stays in ft/ft2
+   while the NFPA formulas (which are metric, N_g is flashes/km2/yr) run
+   internally in metres/m2. */
+export const FT = 0.3048;
+export const FT2 = FT * FT;
+
 /* Table L.6.7.5 — KS -> PM, descending KS breakpoints */
 export const PM_KS_ROWS = [
   { ks: 0.4, pm: 1, t: "K_S > 0.4" },
@@ -67,8 +73,8 @@ export function uwIndex(uw) {
  * Full detailed-method computation, §L.6.6.
  *
  * `s` (state) shape:
- *   Ng, L, W, H, CD, radius (m, 500 for the 2020 edition),
- *   adj, adjL, adjW, adjH, adjCD,
+ *   Ng, L, W, H, CD, radius (m, 500 for the 2020 edition), ADmanualM2 (m2, CAD override),
+ *   adj, adjL, adjW, adjH, adjCD, adjManualM2 (m2, CAD override),
  *   PA, PB, PC,
  *   ks1metal | (WM1, ks1close), ks2mode('none'|'mesh'|'metal'), WM2, ks2close, ks2metal,
  *   KS3, ks3conduit, UW, spdCoord,
@@ -86,7 +92,9 @@ export function computeDetailedRisk(s) {
   const o = {};
   const Ng = s.Ng;
 
-  o.AD = collectionArea(s.L, s.W, s.H);
+  // §L.4.1.2 permits a CAD-measured A_D for an irregular footprint instead
+  // of the L*W*H rectangular equation (mirrors the adjacent-structure override below).
+  o.AD = s.ADmanualM2 > 0 ? s.ADmanualM2 : collectionArea(s.L, s.W, s.H);
   o.AM = nearStructureArea(s.L, s.W, s.radius);
   o.ND = Ng * o.AD * s.CD * 1e-6;
   o.NM = Math.max(0, Ng * (o.AM - o.AD) * s.CD * 1e-6);
