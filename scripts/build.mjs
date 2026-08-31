@@ -34,7 +34,7 @@ const dist = join(root, 'dist');
 const distApps = join(dist, 'apps');
 
 /** Applications with a Vite build step. `dir` is relative to apps/. */
-const VITE_APPS = ['dimensionador', 'panel-router', 'voltage-drop', 'nec-cable-tray'];
+const VITE_APPS = ['dimensionador', 'panel-router', 'voltage-drop', 'nec-cable-tray', 'cable-tray-sizing'];
 
 /** Applications that are already plain static files. */
 const STATIC_APPS = ['neher', 'under-routing', 'conduit-fill', 'calculator', 'duct-sketch', 'egc-sizing', 'ft-in-converter', 'lightning-risk'];

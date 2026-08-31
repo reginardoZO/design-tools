@@ -1,0 +1,7 @@
+/* Shared palette and typography for every tool in the hub. Bundled by Vite so
+   the published page stays self-contained apart from the web-font request. */
+@import "../../../shared/theme.css";
+
+/* The artifact runtime supplied Tailwind implicitly; as a standalone Vite app
+   it is bundled here. */
+@import "tailwindcss";
