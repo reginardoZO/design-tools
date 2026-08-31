@@ -1,0 +1,482 @@
+[
+    {
+        "Load": "Power",
+        "OD": 0.278,
+        "Size": "8 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 77
+    },
+    {
+        "Load": "Power",
+        "OD": 0.342,
+        "Size": "6 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 121
+    },
+    {
+        "Load": "Power",
+        "OD": 0.39,
+        "Size": "4 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 176
+    },
+    {
+        "Load": "Power",
+        "OD": 0.455,
+        "Size": "2 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 262
+    },
+    {
+        "Load": "Power",
+        "OD": 0.536,
+        "Size": "1 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 346
+    },
+    {
+        "Load": "Power",
+        "OD": 0.576,
+        "Size": "1/0 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 421
+    },
+    {
+        "Load": "Power",
+        "OD": 0.622,
+        "Size": "2/0 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 516
+    },
+    {
+        "Load": "Power",
+        "OD": 0.663,
+        "Size": "3/0 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 631
+    },
+    {
+        "Load": "Power",
+        "OD": 0.728,
+        "Size": "4/0 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 780
+    },
+    {
+        "Load": "Power",
+        "OD": 0.836,
+        "Size": "250 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 955
+    },
+    {
+        "Load": "Power",
+        "OD": 0.939,
+        "Size": "350 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 1291
+    },
+    {
+        "Load": "Power",
+        "OD": 1.062,
+        "Size": "500 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 1786
+    },
+    {
+        "Load": "Power",
+        "OD": 1.203,
+        "Size": "600 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 2159
+    },
+    {
+        "Load": "Power",
+        "OD": 1.278,
+        "Size": "750 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 2644
+    },
+    {
+        "Load": "Power",
+        "OD": 1.443,
+        "Size": "1000 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 3464
+    },
+    {
+        "Load": "Power",
+        "OD": 0.724,
+        "Size": "8 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 385
+    },
+    {
+        "Load": "Power",
+        "OD": 0.816,
+        "Size": "6 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 553
+    },
+    {
+        "Load": "Power",
+        "OD": 0.936,
+        "Size": "4 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 802
+    },
+    {
+        "Load": "Power",
+        "OD": 1.123,
+        "Size": "2 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 1214
+    },
+    {
+        "Load": "Power",
+        "OD": 1.279,
+        "Size": "1 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 1527
+    },
+    {
+        "Load": "Power",
+        "OD": 1.357,
+        "Size": "1/0 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 1828
+    },
+    {
+        "Load": "Power",
+        "OD": 1.464,
+        "Size": "2/0 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 2210
+    },
+    {
+        "Load": "Power",
+        "OD": 1.74,
+        "Size": "4/0 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 3369
+    },
+    {
+        "Load": "Power",
+        "OD": 1.939,
+        "Size": "250 KCMIL",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 4006
+    },
+    {
+        "Load": "Power",
+        "OD": 2.202,
+        "Size": "350 KCMIL",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 5420
+    },
+    {
+        "Load": "Power",
+        "OD": 2.464,
+        "Size": "500 KCMIL",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 7386
+    },
+    {
+        "Load": "Power",
+        "OD": 2.79,
+        "Size": "600 KCMIL",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 9439
+    },
+    {
+        "Load": "Power",
+        "OD": 0.986,
+        "Size": "2 AWG",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 635
+    },
+    {
+        "Load": "Power",
+        "OD": 1.016,
+        "Size": "1 AWG",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 670
+    },
+    {
+        "Load": "Power",
+        "OD": 1.054,
+        "Size": "1/0 AWG",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 800
+    },
+    {
+        "Load": "Power",
+        "OD": 1.094,
+        "Size": "2/0 AWG",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 871
+    },
+    {
+        "Load": "Power",
+        "OD": 1.14,
+        "Size": "3/0 AWG",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 1004
+    },
+    {
+        "Load": "Power",
+        "OD": 1.193,
+        "Size": "4/0 AWG",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 1012
+    },
+    {
+        "Load": "Power",
+        "OD": 1.246,
+        "Size": "250 KCMIL",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 1329
+    },
+    {
+        "Load": "Power",
+        "OD": 1.342,
+        "Size": "350 KCMIL",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 1747
+    },
+    {
+        "Load": "Power",
+        "OD": 1.47,
+        "Size": "500 KCMIL",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 2301
+    },
+    {
+        "Load": "Power",
+        "OD": 1.548,
+        "Size": "600 KCMIL",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 2600
+    },
+    {
+        "Load": "Power",
+        "OD": 1.735,
+        "Size": "750 KCMIL",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 3331
+    },
+    {
+        "Load": "Power",
+        "OD": 1.856,
+        "Size": "1000 KCMIL",
+        "Type": "Single",
+        "Voltage": "15kV",
+        "Weight": 4101
+    },
+    {
+        "Load": "VFD",
+        "OD": 0.571,
+        "Size": "14 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 202
+    },
+    {
+        "Load": "VFD",
+        "OD": 0.606,
+        "Size": "12 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 244
+    },
+    {
+        "Load": "VFD",
+        "OD": 0.657,
+        "Size": "10 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 329
+    },
+    {
+        "Load": "VFD",
+        "OD": 0.772,
+        "Size": "8 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 456
+    },
+    {
+        "Load": "VFD",
+        "OD": 0.883,
+        "Size": "6 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 624
+    },
+    {
+        "Load": "VFD",
+        "OD": 0.985,
+        "Size": "4 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 815
+    },
+    {
+        "Load": "VFD",
+        "OD": 1.106,
+        "Size": "2 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 1121
+    },
+    {
+        "Load": "VFD",
+        "OD": 1.38,
+        "Size": "1/0 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 1858
+    },
+    {
+        "Load": "VFD",
+        "OD": 1.471,
+        "Size": "2/0 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 2164
+    },
+    {
+        "Load": "VFD",
+        "OD": 1.579,
+        "Size": "3/0 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 2604
+    },
+    {
+        "Load": "VFD",
+        "OD": 1.736,
+        "Size": "4/0 AWG",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 3202
+    },
+    {
+        "Load": "VFD",
+        "OD": 1.895,
+        "Size": "250 KCMIL",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 3995
+    },
+    {
+        "Load": "VFD",
+        "OD": 2.109,
+        "Size": "350 KCMIL",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 5098
+    },
+    {
+        "Load": "VFD",
+        "OD": 2.379,
+        "Size": "500 KCMIL",
+        "Type": "Multiple",
+        "Voltage": "600V",
+        "Weight": 6767
+    },
+    {
+        "Load": "Power-Tray",
+        "OD": 0.55,
+        "Size": "3/0 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 567
+    },
+    {
+        "Load": "Power-Tray",
+        "OD": 0.6,
+        "Size": "4/0 AWG",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 706
+    },
+    {
+        "Load": "Power-Tray",
+        "OD": 0.66,
+        "Size": "250 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 840
+    },
+    {
+        "Load": "Power-Tray",
+        "OD": 0.76,
+        "Size": "350 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 1157
+    },
+    {
+        "Load": "Power-Tray",
+        "OD": 0.87,
+        "Size": "500 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 1626
+    },
+    {
+        "Load": "Power-Tray",
+        "OD": 1.07,
+        "Size": "750 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 2440
+    },
+    {
+        "Load": "Power-Tray",
+        "OD": 1.22,
+        "Size": "1000 KCMIL",
+        "Type": "Single",
+        "Voltage": "600V",
+        "Weight": 3222
+    }
+]
