@@ -108,6 +108,19 @@ export function arrangementOptions(category) {
       ];
 }
 
+// Restricts the "size" picker to sizes the cable OD database actually has a
+// verified outer diameter for, so a single-conductor selection can never
+// silently resolve to a blank/zero OD. Multiconductor categories always
+// require a manual OD, so their size field is only used for the 392.22(A)
+// size-class threshold and label — no restriction needed there.
+export function availableSizes(category, odDb) {
+  if (!isSingleConductorCategory(category)) return LV_SIZE_ORDER;
+  const db = isMvCategory(category) ? odDb?.mv : odDb?.lv;
+  const keys = db ? Object.keys(db) : [];
+  if (!keys.length) return LV_SIZE_ORDER; // DB still loading — don't block the UI
+  return LV_SIZE_ORDER.filter((s) => keys.includes(s));
+}
+
 // Default label for the quantity field, since it means "conductors" for
 // touching/spaced arrangements but "trefoil groups" (packages of 3) for
 // trefoil grouping — mirrors how a real engineer would specify "1 trefoil of

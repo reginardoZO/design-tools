@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import {
-  LV_SIZE_ORDER, sizeLabel, CATEGORIES,
+  sizeLabel, CATEGORIES,
   isSingleConductorCategory, isVfdCategory, isMvCategory,
-  arrangementOptions, qtyLabel, computeLine, computeTray,
+  arrangementOptions, availableSizes, qtyLabel, computeLine, computeTray,
   suggestWidth, suggestDepth, suggestArrangement, loadCableOdDb,
   STANDARD_WIDTHS_IN, STANDARD_DEPTHS_IN,
   TREFOIL_BUNDLE_MULT, TREFOIL_GROUP_GAP_MULT, AREA1_PER_IN, AREA2_PER_IN,
@@ -117,6 +117,29 @@ function SegBtns({ value, onChange, options }) {
   );
 }
 
+// Stacked (one option per row) picker for long descriptive labels — the
+// horizontal SegBtns wraps mid-word once labels get longer than a couple of
+// words, which is unreadable in a narrow column.
+function VertPicker({ value, onChange, options }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {options.map(([v, l]) => {
+        const on = String(value) === String(v);
+        return (
+          <button key={v} type="button" onClick={() => onChange(v)} style={{
+            ...mono, textAlign: "left", padding: "9px 11px", borderRadius: 4,
+            border: `1px solid ${on ? C.accent : C.line}`,
+            background: on ? C.accent : C.field, color: on ? "#fff" : C.mut,
+            fontWeight: on ? 600 : 400, fontSize: 12.5, lineHeight: 1.4, cursor: "pointer",
+          }}>
+            {l}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* --------------------------- cable line defaults --------------------------- */
 
 let nextIdCounter = 1;
@@ -212,8 +235,8 @@ export default function App() {
   const fmt = (x, d = 2) => (x == null || Number.isNaN(x) ? "—" : Number(x).toFixed(d));
 
   return (
-    <div style={{ ...ui, minHeight: "100vh", background: C.bg, color: C.text, padding: "24px 16px 48px" }}>
-      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+    <div style={{ ...ui, minHeight: "100vh", background: C.bg, color: C.text, padding: "24px clamp(12px, 2.5vw, 36px) 48px" }}>
+      <div style={{ maxWidth: 1760, width: "100%", margin: "0 auto" }}>
 
         {/* Header */}
         <header className="flex flex-wrap items-end justify-between gap-3" style={{ borderBottom: `3px solid ${C.text}`, paddingBottom: 12, marginBottom: 20 }}>
@@ -235,7 +258,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="tool-grid" style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 20, alignItems: "start" }}>
+        <div className="tool-grid" style={{ display: "grid", gridTemplateColumns: "minmax(400px, 30%) 1fr", gap: 24, alignItems: "start" }}>
 
           {/* ------------------------------ INPUTS ----------------------------- */}
           <div style={{ minWidth: 0 }}>
@@ -287,7 +310,7 @@ export default function App() {
                 <div style={{ fontSize: 12, color: C.err, marginBottom: 10 }}>{dbError}</div>
               )}
               {lines.map((l) => (
-                <CableLineEditor key={l.id} line={l} resolved={resolvedLines.find((r) => r.id === l.id)}
+                <CableLineEditor key={l.id} line={l} resolved={resolvedLines.find((r) => r.id === l.id)} odDb={odDb}
                   onChange={(patch) => updateLine(l.id, patch)} onRemove={() => removeLine(l.id)}
                   highlighted={lastOptimized.includes(l.id)} />
               ))}
@@ -399,16 +422,26 @@ export default function App() {
 
 /* ----------------------------- cable line editor --------------------------- */
 
-function CableLineEditor({ line, resolved, onChange, onRemove, highlighted }) {
+function CableLineEditor({ line, resolved, odDb, onChange, onRemove, highlighted }) {
   const single = isSingleConductorCategory(line.category);
   const vfd = isVfdCategory(line.category);
   const calc = resolved ? computeLine(resolved) : { widthIn: 0, depthIn: 0 };
   const arrOpts = arrangementOptions(line.category);
   const qLabel = qtyLabel(line.category, line.arrangement);
+  const sizes = useMemo(() => availableSizes(line.category, odDb), [line.category, odDb]);
+
+  // Keep the selected size valid whenever the category changes or the OD
+  // database finishes loading (it starts empty, so the size list widens
+  // once real data arrives — correct a now-invalid selection automatically
+  // instead of silently resolving to a blank OD).
+  useEffect(() => {
+    if (single && sizes.length && !sizes.includes(line.size)) onChange({ size: sizes[0] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [single, sizes, line.size]);
 
   return (
     <div style={{
-      border: `1px solid ${highlighted ? C.warn : C.lineSoft}`, borderRadius: 5, padding: 12, marginBottom: 10,
+      border: `1px solid ${highlighted ? C.warn : C.lineSoft}`, borderRadius: 5, padding: 14, marginBottom: 12,
       background: highlighted ? C.warnWash : C.field,
     }}>
       <div className="flex items-center gap-2 mb-2">
@@ -422,8 +455,16 @@ function CableLineEditor({ line, resolved, onChange, onRemove, highlighted }) {
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-2">
-        <Sel value={line.category} onChange={(v) => onChange({ category: v, arrangement: isSingleConductorCategory(v) ? "touching" : "auto" })} options={CATEGORIES} />
-        <Sel value={line.size} onChange={(v) => onChange({ size: v })} options={LV_SIZE_ORDER.map((s) => [s, sizeLabel(s)])} />
+        <Sel value={line.category} onChange={(v) => {
+          const nowSingle = isSingleConductorCategory(v);
+          const patch = { category: v, arrangement: nowSingle ? "touching" : "auto" };
+          if (nowSingle) {
+            const newSizes = availableSizes(v, odDb);
+            if (newSizes.length && !newSizes.includes(line.size)) patch.size = newSizes[0];
+          }
+          onChange(patch);
+        }} options={CATEGORIES} />
+        <Sel value={sizes.includes(line.size) ? line.size : (sizes[0] ?? line.size)} onChange={(v) => onChange({ size: v })} options={sizes.map((s) => [s, sizeLabel(s)])} />
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-2">
@@ -455,12 +496,12 @@ function CableLineEditor({ line, resolved, onChange, onRemove, highlighted }) {
       )}
 
       {single && resolved?.odAuto && !line.odManual && (
-        <div style={{ fontSize: 10.5, color: C.faint, margin: "-4px 0 8px" }}>auto from cable database — edit to override</div>
+        <div style={{ fontSize: 10.5, color: C.faint, margin: "-4px 0 8px" }}>from cable OD database (elec.db / apps/neher/data/cables.json) — edit to override</div>
       )}
 
       <label className="block mb-1">
         <Label>Arrangement</Label>
-        <SegBtns value={line.arrangement} onChange={(v) => onChange({ arrangement: v })} options={arrOpts} />
+        <VertPicker value={line.arrangement} onChange={(v) => onChange({ arrangement: v })} options={arrOpts} />
       </label>
 
       <div className="flex items-center justify-between mt-2" style={{ fontSize: 11.5, color: C.mut }}>
@@ -533,16 +574,29 @@ function Legend() {
 
 /* ---------------------------- cross-section drawing -------------------------- */
 
+// Hard cap on individually-drawn items per line, purely to protect the
+// browser from a pathological quantity (e.g. a typo like 5000) — any
+// realistic tray design (a few to a few dozen cables/groups per line) is
+// always drawn in full, one shape per cable/group, never collapsed.
+const MAX_DRAWN_ITEMS = 150;
+
 function TrayCrossSection({ tray, reservePct }) {
-  const { trayWidthIn, usableWidthIn, rows } = tray;
+  const { trayWidthIn, rows, totalWidthIn } = tray;
   if (!(trayWidthIn > 0)) return null;
 
-  const VB_W = 880;
-  const pxPerIn = VB_W / trayWidthIn;
-  const depthPx = Math.min(150, Math.max(70, tray.maxDepthNeededIn * pxPerIn * 0.9 || 90));
+  // The drawing domain covers whichever is larger — the tray itself, or the
+  // cables' actual required width — so an over-fill tray still renders
+  // fully on-canvas (as an "overflow" zone past the tray edge) instead of
+  // drawing off the visible viewBox.
+  const domainIn = Math.max(trayWidthIn, totalWidthIn, 0.01);
+  const VB_W = 960;
+  const pxPerIn = VB_W / domainIn;
+  const trayPxW = trayWidthIn * pxPerIn;
+  const topY = 26;
+  const depthPx = Math.min(220, Math.max(110, tray.maxDepthNeededIn * pxPerIn * 0.95 || 130));
   const railT = 6;
-  const floorY = 24 + depthPx;
-  const VB_H = floorY + 22;
+  const floorY = topY + depthPx;
+  const VB_H = floorY + 30;
 
   let cursorIn = 0;
   const blocks = rows.filter((r) => r.calc.widthIn > 0).map((r) => {
@@ -551,10 +605,10 @@ function TrayCrossSection({ tray, reservePct }) {
     return { r, xPx: xIn * pxPerIn, wPx: r.calc.widthIn * pxPerIn };
   });
   const reserveStartPx = Math.max(0, trayWidthIn - trayWidthIn * (reservePct / 100)) * pxPerIn;
-  const overflow = cursorIn > trayWidthIn;
+  const overflowPxW = Math.max(0, cursorIn - trayWidthIn) * pxPerIn;
 
   return (
-    <svg viewBox={`0 0 ${VB_W} ${VB_H + 10}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+    <svg viewBox={`0 0 ${VB_W} ${VB_H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
       <defs>
         <pattern id="hatch" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(0,0,0,.28)" strokeWidth="2" />
@@ -562,128 +616,136 @@ function TrayCrossSection({ tray, reservePct }) {
         <pattern id="hatchReserve" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="8" stroke={C.faint} strokeWidth="2" opacity="0.5" />
         </pattern>
+        <pattern id="hatchOverflow" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="8" stroke={C.err} strokeWidth="2" opacity="0.45" />
+        </pattern>
       </defs>
 
-      {/* tray body */}
-      <rect x="0" y="24" width={VB_W} height={depthPx} fill={C.panel} stroke={C.line} strokeWidth="1.5" rx="2" />
+      {/* tray body (only as wide as the actual tray — not the full canvas) */}
+      <rect x="0" y={topY} width={trayPxW} height={depthPx} fill={C.panel} stroke={C.line} strokeWidth="1.5" rx="2" />
       {/* rails */}
-      <rect x="0" y="24" width={VB_W} height={railT} fill={C.lineSoft} />
-      <rect x="0" y={floorY - railT} width={VB_W} height={railT} fill={C.lineSoft} />
+      <rect x="0" y={topY} width={trayPxW} height={railT} fill={C.lineSoft} />
+      <rect x="0" y={floorY - railT} width={trayPxW} height={railT} fill={C.lineSoft} />
       {/* rungs */}
       {Array.from({ length: Math.max(2, Math.round(trayWidthIn / 4)) }).map((_, i, arr) => {
-        const x = ((i + 0.5) / arr.length) * VB_W;
-        return <line key={i} x1={x} y1={24 + railT} x2={x} y2={floorY - railT} stroke={C.lineSoft} strokeWidth="3" />;
+        const x = ((i + 0.5) / arr.length) * trayPxW;
+        return <line key={i} x1={x} y1={topY + railT} x2={x} y2={floorY - railT} stroke={C.lineSoft} strokeWidth="3" />;
       })}
 
-      {/* reserve zone */}
+      {/* reserve zone, within the tray */}
       {reservePct > 0 && (
         <>
-          <rect x={reserveStartPx} y="24" width={VB_W - reserveStartPx} height={depthPx} fill="url(#hatchReserve)" opacity="0.9" />
-          <line x1={reserveStartPx} y1="24" x2={reserveStartPx} y2={floorY} stroke={C.mut} strokeDasharray="4 3" strokeWidth="1.5" />
+          <rect x={reserveStartPx} y={topY} width={Math.max(0, trayPxW - reserveStartPx)} height={depthPx} fill="url(#hatchReserve)" opacity="0.9" />
+          <line x1={reserveStartPx} y1={topY} x2={reserveStartPx} y2={floorY} stroke={C.mut} strokeDasharray="4 3" strokeWidth="1.5" />
         </>
       )}
 
-      {/* cable blocks */}
-      {blocks.map(({ r, xPx, wPx }) => (
-        <CableBlock key={r.id} r={r} x={xPx} w={wPx} floorY={floorY} depthPx={depthPx} pxPerIn={pxPerIn} />
-      ))}
-
-      {/* overflow marker */}
-      {overflow && (
-        <rect x="0" y="24" width={VB_W} height={depthPx} fill="none" stroke={C.err} strokeWidth="3" strokeDasharray="6 4" />
+      {/* overflow zone, beyond the tray edge */}
+      {overflowPxW > 0 && (
+        <>
+          <rect x={trayPxW} y={topY} width={overflowPxW} height={depthPx} fill="url(#hatchOverflow)" stroke={C.err} strokeWidth="1.5" strokeDasharray="4 3" />
+          <text x={trayPxW + overflowPxW / 2} y={topY - 8} fontSize="11" fontWeight="700" fill={C.err} textAnchor="middle" fontFamily="IBM Plex Mono, monospace">
+            beyond tray edge
+          </text>
+        </>
       )}
 
+      {/* cable blocks — drawn to true relative scale */}
+      {blocks.map(({ r, xPx, wPx }) => (
+        <CableBlock key={r.id} r={r} x={xPx} w={wPx} floorY={floorY} topY={topY} depthPx={depthPx} pxPerIn={pxPerIn} />
+      ))}
+
       {/* width axis */}
-      <line x1="0" y1={floorY + 14} x2={VB_W} y2={floorY + 14} stroke={C.lineSoft} strokeWidth="1" />
-      <text x="2" y={floorY + 12} fontSize="10" fill={C.faint} fontFamily="IBM Plex Mono, monospace">0 in</text>
-      <text x={VB_W - 2} y={floorY + 12} fontSize="10" fill={C.faint} fontFamily="IBM Plex Mono, monospace" textAnchor="end">{trayWidthIn} in</text>
+      <line x1="0" y1={floorY + 16} x2={Math.max(trayPxW, trayPxW + overflowPxW)} y2={floorY + 16} stroke={C.lineSoft} strokeWidth="1" />
+      <text x="2" y={floorY + 14} fontSize="11" fill={C.faint} fontFamily="IBM Plex Mono, monospace">0 in</text>
+      <text x={trayPxW - 2} y={floorY + 14} fontSize="11" fill={C.faint} fontFamily="IBM Plex Mono, monospace" textAnchor="end">{trayWidthIn} in (tray edge)</text>
     </svg>
   );
 }
 
-function CableBlock({ r, x, w, floorY, depthPx, pxPerIn }) {
+function CableBlock({ r, x, w, floorY, topY, depthPx, pxPerIn }) {
   const color = CAT_COLOR[r.category] || C.accent;
   const isAreaFill = r.calc.cls === "col1" || r.calc.cls === "col2";
   const simpleLabel = `${r.qty}× ${sizeLabel(r.size)}`;
 
+  // Area-fill (randomly stacked) multiconductor cables genuinely aren't a
+  // knowable discrete layout — drawn as one hatched block spanning their
+  // equivalent width, sized against Table 392.22(A).
   if (isAreaFill) {
     return (
       <g>
-        <rect x={x} y={24 + 3} width={Math.max(w, 1)} height={depthPx - 6} fill={color} opacity="0.16" />
-        <rect x={x} y={24 + 3} width={Math.max(w, 1)} height={depthPx - 6} fill="url(#hatch)" opacity="0.5" />
-        <rect x={x} y={24 + 3} width={Math.max(w, 1)} height={depthPx - 6} fill="none" stroke={color} strokeWidth="1.4" strokeDasharray="3 2" />
-        {w > 46 && (
-          <text x={x + w / 2} y={24 + depthPx / 2} fontSize="10.5" fill={C.text} textAnchor="middle" fontFamily="IBM Plex Mono, monospace">
-            {simpleLabel}
+        <rect x={x} y={topY + 3} width={Math.max(w, 1)} height={depthPx - 6} fill={color} opacity="0.16" />
+        <rect x={x} y={topY + 3} width={Math.max(w, 1)} height={depthPx - 6} fill="url(#hatch)" opacity="0.5" />
+        <rect x={x} y={topY + 3} width={Math.max(w, 1)} height={depthPx - 6} fill="none" stroke={color} strokeWidth="1.4" strokeDasharray="3 2" />
+        {w > 60 && (
+          <text x={x + w / 2} y={topY + depthPx / 2} fontSize="11" fill={C.text} textAnchor="middle" fontFamily="IBM Plex Mono, monospace">
+            {simpleLabel} (area fill)
           </text>
         )}
       </g>
     );
   }
 
-  const showIndividual = (r.calc.conductorsTotal || r.qty) <= 12;
-
+  // Everything else is a real, single-layer, physically discrete item —
+  // always drawn one shape per cable/trefoil group, never collapsed into a
+  // plain block, regardless of quantity (capped only against pathological
+  // input counts, see MAX_DRAWN_ITEMS).
   if (r.arrangement === "trefoil") {
-    const bundleOD = (r.odIn || 0) * TREFOIL_BUNDLE_MULT;
-    const bundleW = bundleOD * pxPerIn;
-    const gapW = (r.odIn || 0) * TREFOIL_GROUP_GAP_MULT * pxPerIn;
-    if (showIndividual) {
-      return (
-        <g>
-          {Array.from({ length: r.calc.groups || r.qty }).map((_, gi) => {
-            const gx = x + gi * (bundleW + gapW);
-            const cR = Math.max(2.4, ((r.odIn || 0) * pxPerIn) / 2);
-            const cx0 = gx + bundleW / 2;
-            const cy0 = floorY - bundleW / 2 - 2;
-            return (
-              <g key={gi}>
-                <circle cx={cx0} cy={cy0 - cR * 0.55} r={cR} fill={color} opacity="0.85" />
-                <circle cx={cx0 - cR * 0.95} cy={cy0 + cR * 0.5} r={cR} fill={color} opacity="0.85" />
-                <circle cx={cx0 + cR * 0.95} cy={cy0 + cR * 0.5} r={cR} fill={color} opacity="0.85" />
-              </g>
-            );
-          })}
-        </g>
-      );
-    }
-    return (
-      <g>
-        <rect x={x} y={24 + 3} width={Math.max(w, 1)} height={depthPx - 6} fill={color} opacity="0.14" />
-        <rect x={x} y={24 + 3} width={Math.max(w, 1)} height={depthPx - 6} fill="none" stroke={color} strokeWidth="1.2" />
-        <text x={x + w / 2} y={24 + depthPx / 2} fontSize="10.5" fill={C.text} textAnchor="middle" fontFamily="IBM Plex Mono, monospace">
-          {r.calc.groups || r.qty}× trefoil {sizeLabel(r.size)}
-        </text>
-      </g>
-    );
-  }
-
-  // touching / spaced single-conductor, or "large"/singleLayer multiconductor
-  if (showIndividual) {
     const od = r.odIn || 0;
-    const odPx = od * pxPerIn;
-    const step = r.arrangement === "spaced1" ? odPx * 2 : odPx;
-    const isSingle = od > 0;
+    const bundleOD = od * TREFOIL_BUNDLE_MULT;
+    const bundleW = bundleOD * pxPerIn;
+    const gapW = od * TREFOIL_GROUP_GAP_MULT * pxPerIn;
+    const groups = r.calc.groups || r.qty;
+    const drawn = Math.min(groups, MAX_DRAWN_ITEMS);
+    const cR = Math.max(2.2, (od * pxPerIn) / 2);
     return (
       <g>
-        {Array.from({ length: r.qty }).map((_, i) => {
-          const cx = x + i * step + odPx / 2;
-          const cy = floorY - odPx / 2 - 2;
-          return isSingle && r.calc.cls !== "large" && !r.calc.cls ? (
-            <circle key={i} cx={cx} cy={cy} r={Math.max(2.4, odPx / 2)} fill={color} opacity="0.85" />
-          ) : (
-            <rect key={i} x={x + i * step} y={floorY - odPx - 2} width={Math.max(odPx, 2)} height={odPx} rx="2" fill={color} opacity="0.8" />
+        {Array.from({ length: drawn }).map((_, gi) => {
+          const gx = x + gi * (bundleW + gapW);
+          const cx0 = gx + bundleW / 2;
+          const cyBase = floorY - bundleW / 2 - 2;
+          return (
+            <g key={gi}>
+              <circle cx={cx0} cy={cyBase - cR * 0.55} r={cR} fill={color} stroke="#fff" strokeWidth={Math.max(0.4, cR * 0.12)} opacity="0.92" />
+              <circle cx={cx0 - cR * 0.95} cy={cyBase + cR * 0.5} r={cR} fill={color} stroke="#fff" strokeWidth={Math.max(0.4, cR * 0.12)} opacity="0.92" />
+              <circle cx={cx0 + cR * 0.95} cy={cyBase + cR * 0.5} r={cR} fill={color} stroke="#fff" strokeWidth={Math.max(0.4, cR * 0.12)} opacity="0.92" />
+            </g>
           );
         })}
+        {groups > drawn && (
+          <text x={x + drawn * (bundleW + gapW) + 4} y={floorY - bundleW / 2} fontSize="11" fill={C.mut} fontFamily="IBM Plex Mono, monospace">
+            +{groups - drawn} more
+          </text>
+        )}
       </g>
     );
   }
+
+  // Touching / spaced single-conductor cables (round), or 4/0-and-larger /
+  // forced-single-layer multiconductor cables (jacketed — drawn as a
+  // rounded rectangle rather than a bare-conductor circle).
+  const od = r.odIn || 0;
+  const odPx = od * pxPerIn;
+  const step = r.arrangement === "spaced1" ? odPx * 2 : odPx;
+  const isJacketedMulti = r.calc.cls === "large";
+  const drawn = Math.min(r.qty, MAX_DRAWN_ITEMS);
   return (
     <g>
-      <rect x={x} y={24 + 3} width={Math.max(w, 1)} height={depthPx - 6} fill={color} opacity="0.16" />
-      <rect x={x} y={24 + 3} width={Math.max(w, 1)} height={depthPx - 6} fill="none" stroke={color} strokeWidth="1.2" />
-      <text x={x + w / 2} y={24 + depthPx / 2} fontSize="10.5" fill={C.text} textAnchor="middle" fontFamily="IBM Plex Mono, monospace">
-        {simpleLabel}
-      </text>
+      {Array.from({ length: drawn }).map((_, i) => {
+        const ix = x + i * step;
+        const cx = ix + odPx / 2;
+        const cy = floorY - odPx / 2 - 2;
+        return isJacketedMulti ? (
+          <rect key={i} x={ix} y={floorY - odPx - 2} width={Math.max(odPx, 3)} height={odPx} rx={Math.min(4, odPx * 0.18)} fill={color} stroke="#fff" strokeWidth="0.8" opacity="0.9" />
+        ) : (
+          <circle key={i} cx={cx} cy={cy} r={Math.max(2.2, odPx / 2)} fill={color} stroke="#fff" strokeWidth={Math.max(0.4, odPx * 0.08)} opacity="0.92" />
+        );
+      })}
+      {r.qty > drawn && (
+        <text x={x + drawn * step + 4} y={floorY - odPx / 2} fontSize="11" fill={C.mut} fontFamily="IBM Plex Mono, monospace">
+          +{r.qty - drawn} more
+        </text>
+      )}
     </g>
   );
 }
