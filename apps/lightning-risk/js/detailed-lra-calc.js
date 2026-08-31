@@ -74,6 +74,7 @@ export function uwIndex(uw) {
  *
  * `s` (state) shape:
  *   Ng, L, W, H, CD, radius (m, 500 for the 2020 edition), ADmanualM2 (m2, CAD override),
+ *   AMmanualM2 (m2, CAD override for the near-structure band),
  *   adj, adjL, adjW, adjH, adjCD, adjManualM2 (m2, CAD override),
  *   PA, PB, PC,
  *   ks1metal | (WM1, ks1close), ks2mode('none'|'mesh'|'metal'), WM2, ks2close, ks2metal,
@@ -95,7 +96,12 @@ export function computeDetailedRisk(s) {
   // §L.4.1.2 permits a CAD-measured A_D for an irregular footprint instead
   // of the L*W*H rectangular equation (mirrors the adjacent-structure override below).
   o.AD = s.ADmanualM2 > 0 ? s.ADmanualM2 : collectionArea(s.L, s.W, s.H);
-  o.AM = nearStructureArea(s.L, s.W, s.radius);
+  // A_M (§L.6.6.1.2) is the footprint grown by the flat `radius` band, so the
+  // same graphical allowance applies: an irregular footprint can be offset by
+  // 500 m in CAD and the enclosed area measured, instead of using the
+  // rectangular equation. A manual A_M is never allowed to fall below A_D --
+  // the near-structure ring encloses the structure's own collection area.
+  o.AM = s.AMmanualM2 > 0 ? Math.max(s.AMmanualM2, o.AD) : nearStructureArea(s.L, s.W, s.radius);
   o.ND = Ng * o.AD * s.CD * 1e-6;
   o.NM = Math.max(0, Ng * (o.AM - o.AD) * s.CD * 1e-6);
   o.ADJ = s.adj
