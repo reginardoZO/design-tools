@@ -689,7 +689,13 @@ function CableBlock({ r, x, w, floorY, topY, depthPx, pxPerIn }) {
   // Everything else is a real, single-layer, physically discrete item —
   // always drawn one shape per cable/trefoil group, never collapsed into a
   // plain block, regardless of quantity (capped only against pathological
-  // input counts, see MAX_DRAWN_ITEMS).
+  // input counts, see MAX_DRAWN_ITEMS). Outline is a translucent dark line
+  // (not white — the tray floor/background is itself near-white, so a white
+  // stroke used to vanish exactly where it mattered most) so cable edges
+  // stay visible both against the tray and against a neighbouring cable of
+  // the same colour.
+  const strokeColor = "rgba(15,20,28,0.45)";
+
   if (r.arrangement === "trefoil") {
     const od = r.odIn || 0;
     const bundleOD = od * TREFOIL_BUNDLE_MULT;
@@ -698,22 +704,31 @@ function CableBlock({ r, x, w, floorY, topY, depthPx, pxPerIn }) {
     const groups = r.calc.groups || r.qty;
     const drawn = Math.min(groups, MAX_DRAWN_ITEMS);
     const cR = Math.max(2.2, (od * pxPerIn) / 2);
+    const sw = Math.max(0.6, cR * 0.08);
+    // Three mutually TANGENT (touching, never overlapping) equal circles:
+    // centers of the bottom pair are exactly 2×cR apart (tangent to each
+    // other, resting on the tray floor), and the top circle's center sits
+    // cR×√3 above the line joining them (tangent to both) — real-world
+    // trefoil cables stack like tangent circles/oranges, not overlapping
+    // disks floating above the floor.
+    const SQRT3 = Math.sqrt(3);
     return (
       <g>
         {Array.from({ length: drawn }).map((_, gi) => {
           const gx = x + gi * (bundleW + gapW);
-          const cx0 = gx + bundleW / 2;
-          const cyBase = floorY - bundleW / 2 - 2;
+          const ccx = gx + bundleW / 2;
+          const yBot = floorY - 2 - cR;
+          const yTop = yBot - cR * SQRT3;
           return (
             <g key={gi}>
-              <circle cx={cx0} cy={cyBase - cR * 0.55} r={cR} fill={color} stroke="#fff" strokeWidth={Math.max(0.4, cR * 0.12)} opacity="0.92" />
-              <circle cx={cx0 - cR * 0.95} cy={cyBase + cR * 0.5} r={cR} fill={color} stroke="#fff" strokeWidth={Math.max(0.4, cR * 0.12)} opacity="0.92" />
-              <circle cx={cx0 + cR * 0.95} cy={cyBase + cR * 0.5} r={cR} fill={color} stroke="#fff" strokeWidth={Math.max(0.4, cR * 0.12)} opacity="0.92" />
+              <circle cx={ccx - cR} cy={yBot} r={cR} fill={color} stroke={strokeColor} strokeWidth={sw} />
+              <circle cx={ccx + cR} cy={yBot} r={cR} fill={color} stroke={strokeColor} strokeWidth={sw} />
+              <circle cx={ccx} cy={yTop} r={cR} fill={color} stroke={strokeColor} strokeWidth={sw} />
             </g>
           );
         })}
         {groups > drawn && (
-          <text x={x + drawn * (bundleW + gapW) + 4} y={floorY - bundleW / 2} fontSize="11" fill={C.mut} fontFamily="IBM Plex Mono, monospace">
+          <text x={x + drawn * (bundleW + gapW) + 4} y={floorY - cR} fontSize="11" fill={C.mut} fontFamily="IBM Plex Mono, monospace">
             +{groups - drawn} more
           </text>
         )}
@@ -723,7 +738,8 @@ function CableBlock({ r, x, w, floorY, topY, depthPx, pxPerIn }) {
 
   // Touching / spaced single-conductor cables (round), or 4/0-and-larger /
   // forced-single-layer multiconductor cables (jacketed — drawn as a
-  // rounded rectangle rather than a bare-conductor circle).
+  // rounded rectangle rather than a bare-conductor circle). All rest on the
+  // tray floor, same as the trefoil bundles above.
   const od = r.odIn || 0;
   const odPx = od * pxPerIn;
   const step = r.arrangement === "spaced1" ? odPx * 2 : odPx;
@@ -736,9 +752,9 @@ function CableBlock({ r, x, w, floorY, topY, depthPx, pxPerIn }) {
         const cx = ix + odPx / 2;
         const cy = floorY - odPx / 2 - 2;
         return isJacketedMulti ? (
-          <rect key={i} x={ix} y={floorY - odPx - 2} width={Math.max(odPx, 3)} height={odPx} rx={Math.min(4, odPx * 0.18)} fill={color} stroke="#fff" strokeWidth="0.8" opacity="0.9" />
+          <rect key={i} x={ix} y={floorY - odPx - 2} width={Math.max(odPx, 3)} height={odPx} rx={Math.min(4, odPx * 0.18)} fill={color} stroke={strokeColor} strokeWidth={Math.max(0.6, odPx * 0.06)} />
         ) : (
-          <circle key={i} cx={cx} cy={cy} r={Math.max(2.2, odPx / 2)} fill={color} stroke="#fff" strokeWidth={Math.max(0.4, odPx * 0.08)} opacity="0.92" />
+          <circle key={i} cx={cx} cy={cy} r={Math.max(2.2, odPx / 2)} fill={color} stroke={strokeColor} strokeWidth={Math.max(0.6, odPx * 0.06)} />
         );
       })}
       {r.qty > drawn && (
