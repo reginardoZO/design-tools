@@ -32,3 +32,36 @@ test('reports fit against the allowable 40 percent fill area', () => {
   assert.ok(result.fits);
   assert.ok(result.remainingArea > 0);
 });
+
+test('handles 1 multiconductor cable under NEC Note 9 with 53 percent fill limit', () => {
+  const conduit3 = NEC_PVC_SCH40_CONDUITS['3'];
+  const result = calculateConduitFill(conduit3, [
+    { quantity: 1, diameter: 1.74, type: 'multiconductor', cores: 3 },
+  ]);
+
+  assert.equal(result.cableCount, 1);
+  assert.equal(result.totalConductors, 3);
+  assert.equal(result.fillFactor, 0.53);
+  assert.ok(result.fits);
+});
+
+test('detects critical jamming risk for 3 single conductors with ratio between 2.8 and 3.2', () => {
+  // Conduit 2": ID = 2.067 in. Cable OD = 0.689 in -> J = 2.067 / 0.689 = 3.00 (Critical)
+  const result = calculateConduitFill(NEC_PVC_SCH40_CONDUITS['2'], [
+    { quantity: 3, diameter: 0.689, type: 'single', cores: 1 },
+  ]);
+
+  assert.equal(result.jamming.applies, true);
+  assert.equal(result.jamming.status, 'critical');
+  assert.ok(result.jamming.ratio >= 2.8 && result.jamming.ratio <= 3.2);
+});
+
+test('detects safe jamming condition when ratio is outside critical zone', () => {
+  // Conduit 4": ID = 4.030 in. Cable OD = 0.500 in -> J = 8.06 (Safe)
+  const result = calculateConduitFill(NEC_PVC_SCH40_CONDUITS['4'], [
+    { quantity: 3, diameter: 0.500, type: 'single', cores: 1 },
+  ]);
+
+  assert.equal(result.jamming.applies, true);
+  assert.equal(result.jamming.status, 'safe');
+});

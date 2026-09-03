@@ -22,18 +22,32 @@
     <section class="work-area" aria-label="Cable inputs">
       <div class="section-heading"><div><div class="eyebrow">Conductors</div><h2>Cables in conduit</h2></div><button class="add-row" id="add-row" type="button">+ Add cable</button></div>
       <div class="cable-table" role="region" aria-label="Cable list" tabindex="0">
-        <div class="cable-head"><span>Quantity</span><span>Cable</span><span>Outside diameter</span><span></span></div>
+        <div class="cable-head"><span>Qty</span><span>Cable selection</span><span>Construction</span><span>Outside Ø</span><span></span></div>
         <div id="cable-rows"></div>
       </div>
-      <p class="helper">Outside diameters are loaded from the hub cable database. GND options are green copper THHN/THWN-2 conductors. Add as many rows as needed; there is no quantity limit per row.</p>
+      <p class="helper">
+        <strong>NEC Chapter 9, Note 9 Rule:</strong> Multiconductor cables (3/C) count as <em>1 cable</em> for percentage conduit fill. For 3 single conductors (1/C in trefoil/parallel), specify <em>Quantity = 3</em> (40% max fill).
+      </p>
       <div class="rule-card">
-        <div class="eyebrow">NEC 2023, Chapter 9, Table 1</div>
-        <div class="rule-values"><div><strong>1 cable</strong><span>53% maximum fill</span></div><div><strong>2 cables</strong><span>31% maximum fill</span></div><div><strong>3 or more</strong><span>40% maximum fill</span></div></div>
+        <div class="eyebrow">NEC 2023, Chapter 9, Table 1 &amp; Note 9</div>
+        <div class="rule-values">
+          <div><strong>1 cable / 1 multiconductor</strong><span>53% maximum fill</span></div>
+          <div><strong>2 cables</strong><span>31% maximum fill</span></div>
+          <div><strong>3 or more single cables</strong><span>40% maximum fill</span></div>
+        </div>
+      </div>
+      <div class="jamming-info-card">
+        <div class="eyebrow">Jamming Risk (Informational Annex C / IEEE)</div>
+        <p class="jamming-desc">When pulling 3 single conductors (1/C) into a conduit around bends, wedging can occur if the Jamming Ratio <strong>$J = D/d$</strong> falls between <strong>2.8 and 3.2</strong>.</p>
       </div>
     </section>
     <aside class="results" aria-live="polite">
-      <div class="eyebrow">Selected conduit</div><div class="size-buttons" id="size-buttons" aria-label="Conduit size"></div>
-      <div class="status" id="status"></div><dl class="metrics" id="metrics"></dl><p class="result-note" id="result-note"></p>
+      <div class="eyebrow">Selected conduit</div>
+      <div class="size-buttons" id="size-buttons" aria-label="Conduit size"></div>
+      <div class="status" id="status"></div>
+      <div id="jamming-banner"></div>
+      <dl class="metrics" id="metrics"></dl>
+      <p class="result-note" id="result-note"></p>
     </aside>
   </div>
   <section class="all-sizes" aria-labelledby="all-sizes-title">
