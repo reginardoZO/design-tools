@@ -94,10 +94,12 @@
         </div>
         <div>
           <label for="txtCurrentLinha">I&prime; &mdash; per cable set (A)</label>
-          <input id="txtCurrentLinha" type="number" step="any">
+          <input id="txtCurrentLinha" type="number" step="any" readonly>
         </div>
       </div>
 
+      <label for="txtParallelSets">Parallel sets per phase</label>
+      <input id="txtParallelSets" type="number" min="1" step="1" value="1">
       <div class="btn-row">
         <button id="btnCablePhase" class="eh-btn">3-1/C</button>
         <button id="btnClearMain" class="eh-btn">Clear</button>
@@ -105,7 +107,7 @@
 
       <p class="hint">
         Press <b>3-1/C</b> to split I across more cables per phase. The Neher-McGrath
-        calculation uses I&prime; when it is filled in, otherwise I.
+        calculation always uses I divided by the number of parallel sets. I&prime; updates automatically.
       </p>
     </section>
 
@@ -174,7 +176,7 @@
                 <input id="txtSoilTemp" type="number" value="35" step="any">
               </div>
               <div>
-                <label for="txtRhoSoil">Soil &rho;</label>
+                <label for="txtRhoSoil">Sand / soil &rho;</label>
                 <input id="txtRhoSoil" type="number" value="110" step="any">
               </div>
             </div>
@@ -201,6 +203,47 @@
               </div>
             </div>
 
+            <label for="cmbInstallation">Installation</label>
+            <select id="cmbInstallation">
+              <option value="sand">Sand fill (homogeneous)</option>
+              <option value="concrete">Concrete envelope in sand / soil</option>
+            </select>
+            <div id="concreteInputs" hidden>
+              <label for="txtRhoConcrete">Concrete ρ (°C·cm/W)</label>
+              <input id="txtRhoConcrete" type="number" min="0" step="any" value="85">
+              <p class="hint">Clearances below are measured from the outermost duct surfaces to each concrete wall. Top cover remains measured to the top duct, not the concrete.</p>
+              <label for="txtConcreteTop">Top clearance (in)</label>
+              <input id="txtConcreteTop" type="number" min="0" step="any" value="3">
+              <label for="txtConcreteBottom">Bottom clearance (in)</label>
+              <input id="txtConcreteBottom" type="number" min="0" step="any" value="3">
+              <label for="txtConcreteLeft">Left clearance (in)</label>
+              <input id="txtConcreteLeft" type="number" min="0" step="any" value="3">
+              <label for="txtConcreteRight">Right clearance (in)</label>
+              <input id="txtConcreteRight" type="number" min="0" step="any" value="3">
+            </div>
+            <div id="mvInputs" hidden>
+              <h2>MV cable losses</h2>
+              <p class="hint">Enter data for the selected cable and bonding arrangement. Unknown losses cannot be assumed zero. Changing cable size clears these values.</p>
+              <label for="txtCapacitance">Phase-to-shield capacitance (µF/km)</label>
+              <input id="txtCapacitance" type="number" min="0" step="any">
+              <label for="txtTanDelta">Dielectric tan δ (fraction, e.g. 0.001)</label>
+              <input id="txtTanDelta" type="number" min="0" max="1" step="any">
+              <label for="txtShieldLoss">Total shield loss factor λs = Ws / Wc</label>
+              <input id="txtShieldLoss" type="number" min="0" step="any">
+              <p class="hint">λs must include circulating and eddy losses for the actual bonding, at the design conditions. Use a manufacturer or project calculation; λs is held constant during the thermal solution. MV auto-size requires cable-specific loss data and is unavailable.</p>
+            </div>
+            <details>
+              <summary>Cable thermal properties</summary>
+              <p class="hint">Verify these assumed values against the cable construction. The region between insulation and jacket is represented by an effective bedding layer.</p>
+              <label for="txtRhoInsulation">Insulation ρ (°C·cm/W)</label>
+              <input id="txtRhoInsulation" type="number" min="0" step="any" value="350">
+              <label for="txtRhoBedding">Effective bedding / screens ρ (°C·cm/W)</label>
+              <input id="txtRhoBedding" type="number" min="0" step="any" value="350">
+              <label for="txtRhoJacket">Jacket ρ (°C·cm/W)</label>
+              <input id="txtRhoJacket" type="number" min="0" step="any" value="600">
+            </details>
+            <p class="hint">Homogeneous external sand / soil; no finite sand-to-native-soil boundary. Concrete uses the 1957 equivalent-envelope approximation (up to 3:1 aspect ratio).</p>
+
             <div class="unit-note">&rho; in &deg;C&middot;cm/W</div>
 
             <div class="btn-row" style="margin-top:14px">
@@ -218,7 +261,7 @@
 
             <div class="grid-legend">
               <span><i class="sw sw-fill"></i>duct</span>
-              <span><i class="sw sw-lim"></i>lowest ampacity</span>
+              <span><i class="sw sw-lim"></i>limiting at bank rating</span>
               <span><i class="sw sw-hot"></i>hottest</span>
             </div>
 
@@ -229,7 +272,7 @@
             <p class="hint">
               Row 1 is the shallowest row. Click a cell to place the selected conduit size,
               or type a size directly. Hover a calculated duct for its temperature and
-              allowable current.
+              bank allowable current.
             </p>
           </div>
 
@@ -240,8 +283,8 @@
   </div>
 
   <div class="eh-foot">
-    Steady-state model &mdash; cyclic loads require a different thermal model. Medium voltage results are
-    preliminary: dielectric and shield losses are not included.<br>
+    Neher–McGrath (1957), steady state, equal current in all ducts. MV includes dielectric and user-specified total shield losses.<br>
+    PVC ducts use the 1957 fiber-duct-in-concrete air-gap correlation as an approximation. <a href="METHOD.md">Method and assumptions</a>.<br>
     Support tool only &mdash; final sizing must be verified by the responsible engineer.
   </div>
 

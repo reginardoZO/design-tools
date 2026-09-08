@@ -78,9 +78,9 @@ GitHub Actions**. The site is served at `https://<user>.github.io/<repo>/`.
 npm test
 ```
 
-- `tests/neher-calc.test.js` pins the Neher-McGrath port to reference values
-  produced by compiling and running the original C# `NeherCalc.cs`, and checks
-  the data extracted from `elec.db`.
+- `tests/neher-calc.test.js` checks the revised Neher–McGrath thermal network
+  against analytical loss-weighted circuits, concrete geometry and physical invariants.
+  `tests/neher-current.test.js` covers derived per-set current updates.
 - `tests/nec-cable-tray.test.js` checks the NEC 392.80 derating chain, load
   rules, ambient and adjustment factors, voltage drop and EGC sizing against
   values worked by hand from the code tables.
@@ -125,18 +125,15 @@ New work should use the shared tokens rather than adding a third palette.
 `apps/neher` is a web port of the **Neher** screen of the EleCalc WPF desktop
 application (`eleCalc/EleCalc/Neher/`). It covers the two areas that matter for
 duct-bank sizing — **Current Calc** and **Neher-McGrath** — side by side. The
-calculations are a one-to-one translation:
+original WPF port has been revised against Neher–McGrath (1957). It now supports
+homogeneous sand fill (default), optional concrete with four user-defined clearances,
+MV dielectric and entered total shield losses, and synchronized current per parallel set.
+Ampacity and operating temperature use the same thermal solver.
 
-| Web file | Ported from |
-| --- | --- |
-| `js/neher-calc.js` | `NeherCalc.cs` (`CalculateThermal`) and the duct-bank geometry in `Neher.xaml.cs` |
-| `js/sizing-calc.js` | the Current Calc handlers (`retornaUnidades`, `btnCurrentMain_Click`) |
-| `js/app.js` | the remaining `Neher.xaml.cs` event handlers |
-
-The port was verified against the C# original on three duct-bank configurations
-(LV single duct, LV 2×3 bank, MV staggered 3×3 bank). All ampacities and
-conductor temperatures matched to six decimal places; those values are locked in
-by `npm test`.
+See [the method, equations, assumptions and verification](apps/neher/METHOD.md).
+MV loss data must be supplied for the selected cable and bonding arrangement;
+MV auto-size is unavailable without data for each candidate size. The catalog and
+PVC air-gap approximation still require project-specific verification.
 
 ### Data
 

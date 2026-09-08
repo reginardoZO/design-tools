@@ -13,6 +13,7 @@ import {
   NeherInputError,
   INCHES_TO_METRES,
 } from './neher-calc.js';
+import { currentPerSet } from './current-state.js';
 import { retornaUnidades, calculateSizedCurrent } from './sizing-calc.js';
 
 const $ = (id) => document.getElementById(id);
@@ -21,7 +22,6 @@ const GRID_ROWS = 8; // CriarGradeNumerica(8, 8)
 const GRID_COLS = 8;
 
 let db = { low_voltage: [], medium_voltage: [], conduitsNeher: [], nec_430_250: [] };
-let cablePhaseMultiplier = 1; // backs the "3-1/C" button label
 
 /* ------------------------------------------------------------------ */
 /* helpers                                                            */
@@ -98,6 +98,7 @@ function buildGrid() {
         if (size && !cell.value.trim()) {
           cell.value = size;
           cell.classList.add('filled');
+          invalidateResult();
         }
       });
       grid.append(cell);
@@ -259,14 +260,49 @@ function buildThermalInput(operatingCurrent, cableSize) {
     maximumConductorTemperatureC: maximumTemperature,
     operatingCurrentAmps: operatingCurrent,
     isMediumVoltage,
+    lineVoltageVolts: voltage,
+    capacitanceMicrofaradsPerKm: parseFlexible($('txtCapacitance').value),
+    dielectricDissipationFactor: parseFlexible($('txtTanDelta').value),
+    shieldLossFactor: parseFlexible($('txtShieldLoss').value),
+    insulationThermalResistivityKmPerW: parseFlexible($('txtRhoInsulation').value) / 100,
+    beddingThermalResistivityKmPerW: parseFlexible($('txtRhoBedding').value) / 100,
+    jacketThermalResistivityKmPerW: parseFlexible($('txtRhoJacket').value) / 100,
+    installation: $('cmbInstallation').value,
+    concrete: {
+      resistivityKmPerW: parseFlexible($('txtRhoConcrete').value) / 100,
+      ...Object.fromEntries(['top', 'bottom', 'left', 'right'].map(side =>
+        [side, parseFlexible($('txtConcrete' + side[0].toUpperCase() + side.slice(1)).value) * INCHES_TO_METRES])),
+    },
     ducts,
   });
 }
 
-/** Port of TryGetCurrentLinha — I' when filled, otherwise I. */
 function designCurrent() {
-  const text = $('txtCurrentLinha').value.trim() ? $('txtCurrentLinha').value : $('txtCurrentMain').value;
-  return parsePositive(text);
+  return currentPerSet(parseFlexible($('txtCurrentMain').value), parseFlexible($('txtParallelSets').value));
+}
+
+function invalidateResult() {
+  setStatus('Recalculate', 'idle');
+  for (const id of ['txtDesignCurrentNeher', 'txtCurrMinNeher', 'txtWorstTempNeher',
+    'txtTemperatureMarginNeher', 'txtLimitingCellNeher']) {
+    $(id).textContent = '—';
+    $(id).classList.remove('ok', 'bad', 'warn');
+  }
+  $('txtNeherStatus').textContent = 'Inputs changed. Press Calculate to update the thermal result.';
+  resetGridHighlights();
+}
+
+function syncCurrent() {
+  const cablePhaseMultiplier = parseFlexible($('txtParallelSets').value);
+  const current = designCurrent();
+  $('txtCurrentLinha').value = Number.isFinite(current) ? current.toFixed(2) : '';
+  $('btnCablePhase').textContent = Number.isInteger(cablePhaseMultiplier) && cablePhaseMultiplier > 0
+    ? `${cablePhaseMultiplier * 3}-1/C` : 'Add set';
+  invalidateResult();
+}
+
+function clearMvData() {
+  for (const id of ['txtCapacitance', 'txtTanDelta', 'txtShieldLoss']) $(id).value = '';
 }
 
 function signed(value) {
@@ -298,8 +334,8 @@ function applyThermalResult(result, operatingCurrent, input) {
     result.temperatureConverged &&
     result.maximumOperatingTemperatureC <= input.maximumConductorTemperatureC;
 
-  const ampTone = input.isMediumVoltage ? 'warn' : ampacityAccepted ? 'ok' : 'bad';
-  const tempTone = input.isMediumVoltage ? 'warn' : temperatureAccepted ? 'ok' : 'bad';
+  const ampTone = ampacityAccepted ? 'ok' : 'bad';
+  const tempTone = temperatureAccepted ? 'ok' : 'bad';
   $('txtCurrMinNeher').className = `big ${ampTone}`;
   $('txtWorstTempNeher').className = `big ${tempTone}`;
 
@@ -308,13 +344,19 @@ function applyThermalResult(result, operatingCurrent, input) {
     : 'did not converge';
 
   setStatus(
-    input.isMediumVoltage ? 'Preliminary' : temperatureAccepted ? 'Pass' : 'Over temperature',
+    !result.temperatureConverged ? 'Did not converge' : temperatureAccepted && ampacityAccepted ? 'Pass' : 'Over temperature',
     tempTone,
   );
 
-  $('txtNeherStatus').textContent = input.isMediumVoltage
-    ? 'MV does not include dielectric or screen losses. Steady state · 3 touching 1/C cables per duct.'
-    : 'Steady state · 3 touching 1/C cables per duct.';
+  const loss = result.cells.find(c => c.row === result.hottestOperatingRow && c.column === result.hottestOperatingColumn)?.lossesWattsPerMetrePerCable;
+  let note = 'Steady state · three touching 1/C cables per duct. ';
+  if (loss) note += `Hottest cable losses: conductor ${loss.conductor.toFixed(3)}, dielectric ${loss.dielectric.toFixed(3)}, shield ${loss.shield.toFixed(3)} W/m per cable. `;
+  if (result.concreteEnvelope) {
+    const e = result.concreteEnvelope;
+    note += `Concrete: ${(e.width / INCHES_TO_METRES).toFixed(2)} × ${(e.height / INCHES_TO_METRES).toFixed(2)} in; center depth ${(e.depth / INCHES_TO_METRES).toFixed(2)} in. `;
+  } else note += 'Homogeneous sand fill. ';
+  if (result.dielectricOvertemperature) note += 'Dielectric heating alone exceeds the temperature limit. ';
+  $('txtNeherStatus').textContent = note;
 
   resetGridHighlights();
   for (const cell of result.cells) {
@@ -322,8 +364,8 @@ function applyThermalResult(result, operatingCurrent, input) {
     if (!element) continue;
     element.title =
       `R${cell.row + 1} / C${cell.column + 1}\n` +
-      `Temperature: ${cell.operatingTemperatureC.toFixed(2)} °C\n` +
-      `Allowable current: ${cell.ampacityAmps.toFixed(2)} A`;
+      `Temperature: ${result.temperatureConverged ? cell.operatingTemperatureC.toFixed(2) + " °C" : "did not converge"}\n` +
+      `Bank allowable current: ${cell.ampacityAmps.toFixed(2)} A`;
   }
   cellAt(result.limitingAmpacityRow, result.limitingAmpacityColumn)?.classList.add('limiting');
   if (
@@ -336,10 +378,11 @@ function applyThermalResult(result, operatingCurrent, input) {
 
 /** Port of Button_Click (Calculate). */
 function runCalculation() {
+  invalidateResult();
   const operatingCurrent = designCurrent();
   if (!Number.isFinite(operatingCurrent)) {
     snack(
-      "Enter a valid current in Current Calc. I' is used when filled in; otherwise I is used.",
+      "Enter a positive total current and an integer number of parallel sets.",
       true,
     );
     return;
@@ -355,6 +398,11 @@ function runCalculation() {
 
 /** Port of Button_Click_4 (Auto-size cable). */
 function autoSizeCable() {
+  invalidateResult();
+  if (selectedNeherVoltage() > 2000) {
+    snack('MV requires loss data for each cable size. Select the cable and enter its data manually.', true);
+    return;
+  }
   const currentLinha = designCurrent();
   if (!Number.isFinite(currentLinha)) {
     snack('Enter a valid current in Current Calc before using Auto-size.', true);
@@ -380,10 +428,11 @@ function autoSizeCable() {
       continue;
     }
 
-    const result = calculateThermal(input);
+    let result;
+    try { result = calculateThermal(input); } catch (error) { lastError = error.message; continue; }
     if (
       !result.temperatureConverged ||
-      result.maximumOperatingTemperatureC > input.maximumConductorTemperatureC + 0.01
+      result.maximumOperatingTemperatureC > input.maximumConductorTemperatureC
     ) {
       continue;
     }
@@ -405,7 +454,11 @@ function autoSizeCable() {
 
 /** Port of ComboBox_SelectionChanged (cmbVoltageNeher). */
 function onNeherVoltageChanged() {
+  clearMvData();
+  invalidateResult();
   const value = $('cmbVoltageNeher').value;
+  $('mvInputs').hidden = !(selectedNeherVoltage() > 2000);
+  $('btnAutoSize').disabled = selectedNeherVoltage() > 2000;
   if (!value) {
     setOptions($('cmbCables'), []);
     setOptions($('cmbTemp'), []);
@@ -467,6 +520,7 @@ function onAuxPowerChanged() {
   }
   const sizedCurrent = row['460 V'] * parseFlexible($('cmbCurrentFactor').value);
   $('txtCurrentMain').value = sizedCurrent.toFixed(2);
+  syncCurrent();
 }
 
 /** Port of btnCurrentMain_Click. */
@@ -496,23 +550,20 @@ function onCalculateCurrent() {
     return;
   }
   $('txtCurrentMain').value = sizedCurrent.toFixed(2);
+  syncCurrent();
 }
 
 /** Port of btnCablePhase_Click. */
 function onCablePhase() {
-  const currentNow = parseFlexible($('txtCurrentMain').value);
-  if (!Number.isFinite(currentNow)) {
-    snack('Calculate I first.', true);
-    return;
-  }
-  cablePhaseMultiplier += 1;
-  $('txtCurrentLinha').value = (currentNow / cablePhaseMultiplier).toFixed(2);
-  $('btnCablePhase').textContent = `${cablePhaseMultiplier * 3}-1/C`;
+  const sets = parseFlexible($('txtParallelSets').value);
+  $('txtParallelSets').value = Number.isInteger(sets) && sets > 0 ? sets + 1 : 1;
+  syncCurrent();
 }
 
 /** Port of btnClearMain_Click. */
 function onClearMain() {
-  cablePhaseMultiplier = 1;
+  $('txtParallelSets').value = '1';
+  invalidateResult();
   $('btnCablePhase').textContent = '3-1/C';
   $('cmbLoadTypeMain').value = '';
   $('txtCurrentLinha').value = '';
@@ -549,6 +600,16 @@ async function init() {
   $('btnCablePhase').addEventListener('click', onCablePhase);
   $('btnClearMain').addEventListener('click', onClearMain);
 
+  $('txtCurrentMain').addEventListener('input', syncCurrent);
+  $('txtParallelSets').addEventListener('input', syncCurrent);
+  $('cmbCables').addEventListener('change', clearMvData);
+  $('cmbInstallation').addEventListener('change', () => {
+    $('concreteInputs').hidden = $('cmbInstallation').value !== 'concrete';
+  });
+  for (const event of ['input', 'change']) document.addEventListener(event, e => {
+    if (e.target.matches('input, select')) invalidateResult();
+  });
+  $('btnClearLayout').addEventListener('click', invalidateResult);
   onLoadTypeChanged();
   $('cmbVoltageNeher').value = '480V';
   onNeherVoltageChanged();

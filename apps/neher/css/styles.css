@@ -173,3 +173,9 @@ body { padding: 24px 16px 48px; }
 }
 .snackbar.show { transform: translate(-50%, 0); }
 .snackbar.error { border-left-color: var(--bad); }
+
+/* Keep conditional input groups hidden even when a layout class sets display. */
+[hidden] { display: none !important; }
+#concreteInputs, #mvInputs, .neher-body details { margin: 14px 0; }
+#concreteInputs input, #mvInputs input, .neher-body details input { margin-bottom: 10px; }
+.neher-body summary { cursor: pointer; font-size: 12px; font-weight: 600; }

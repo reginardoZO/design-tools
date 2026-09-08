@@ -1,12 +1,4 @@
-/**
- * Locks the JavaScript Neher-McGrath port to the WPF implementation.
- *
- * The expected values below were produced by compiling the original
- * EleCalc/Neher/NeherCalc.cs with `dotnet run` and feeding it the same three
- * duct-bank configurations. Every number matched to six decimal places; if a
- * change here breaks a case, the web app no longer reproduces the desktop tool.
- */
-
+/** Physics-based verification of the revised thermal network. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -15,6 +7,11 @@ import { fileURLToPath } from 'node:url';
 
 import {
   calculateThermal,
+  airGapResistance,
+  acResistance,
+  dielectricLoss,
+  concreteEnvelope,
+  buildSoilResistanceMatrix,
   buildNeherDucts,
   makeThermalInput,
   INCHES_TO_METRES as IN2M,
@@ -50,98 +47,6 @@ function solve(matrix, options) {
     }),
   );
 }
-
-const close = (actual, expected) =>
-  assert.equal(actual.toFixed(6), expected.toFixed(6));
-
-test('LV 500 kcmil in a 2x3 bank of 4in ducts', () => {
-  const result = solve(
-    [
-      ['4', '4', '4'],
-      ['4', '4', '4'],
-    ],
-    {
-      odIn: 1.062,
-      rdc25: 0.022,
-      dcondIn: 0.789,
-      insulThickIn: 65 / 1000,
-      dUnderJacketIn: 1.062 - (2 * 65) / 1000,
-      burialIn: 24,
-      spacingIn: 3,
-      rhoSoilCm: 110,
-      rhoDuctCm: 650,
-      soilT: 35,
-      maxT: 90,
-      I: 300,
-      mv: false,
-    },
-  );
-
-  close(result.minimumAmpacityAmps, 242.859838);
-  close(result.maximumOperatingTemperatureC, 124.967306);
-  assert.equal(result.limitingAmpacityRow, 1);
-  assert.equal(result.limitingAmpacityColumn, 1);
-  assert.equal(result.hottestOperatingRow, 1);
-  assert.equal(result.hottestOperatingColumn, 1);
-  assert.equal(result.temperatureConverged, true);
-  assert.equal(result.cells.length, 6);
-  close(result.cells[0].ampacityAmps, 255.768149);
-  close(result.cells[0].operatingTemperatureC, 115.605778);
-});
-
-test('LV 4/0 in a single 4in duct', () => {
-  const result = solve([['4']], {
-    odIn: 0.728,
-    rdc25: 0.051,
-    dcondIn: 0.512,
-    insulThickIn: 55 / 1000,
-    dUnderJacketIn: 0.728 - (2 * 55) / 1000,
-    burialIn: 30,
-    spacingIn: 0,
-    rhoSoilCm: 90,
-    rhoDuctCm: 650,
-    soilT: 25,
-    maxT: 75,
-    I: 180,
-    mv: false,
-  });
-
-  close(result.minimumAmpacityAmps, 223.332796);
-  close(result.maximumOperatingTemperatureC, 56.163391);
-  assert.equal(result.temperatureConverged, true);
-});
-
-test('MV 350 kcmil in a staggered 3x3 bank of 5in ducts', () => {
-  const result = solve(
-    [
-      ['5', '', '5'],
-      ['5', '5', '5'],
-      ['', '5', ''],
-    ],
-    {
-      odIn: 1.342,
-      rdc25: 0.031,
-      dcondIn: 0.615,
-      insulThickIn: 0.22,
-      dUnderJacketIn: 0.615 + 2 * 0.22,
-      burialIn: 36,
-      spacingIn: 7.5,
-      rhoSoilCm: 120,
-      rhoDuctCm: 650,
-      soilT: 20,
-      maxT: 105,
-      I: 420,
-      mv: true,
-    },
-  );
-
-  close(result.minimumAmpacityAmps, 246.927554);
-  close(result.maximumOperatingTemperatureC, 456.775111);
-  assert.equal(result.cells.length, 6, 'empty grid cells must not become ducts');
-  assert.equal(result.hottestOperatingRow, 1);
-  assert.equal(result.hottestOperatingColumn, 1);
-  close(result.cells[5].operatingTemperatureC, 431.813582);
-});
 
 test('cable data extracted from elec.db matches the desktop tables', () => {
   assert.equal(db.low_voltage.length, 17);
@@ -194,4 +99,118 @@ test('every usable catalogue cable solves in a single 5in duct', () => {
     assert.ok(result.minimumAmpacityAmps > 0, `${row.size} ampacity`);
     assert.ok(Number.isFinite(result.maximumOperatingTemperatureC), `${row.size} temperature`);
   }
+});
+
+function fixture(extra = {}) {
+  return makeThermalInput({
+    rdc25OhmPer1000Feet: 0.022, conductorDiameterMetres: 0.789 * IN2M,
+    insulationThicknessMetres: 0.065 * IN2M, diameterUnderJacketMetres: 0.932 * IN2M,
+    cableOuterDiameterMetres: 1.062 * IN2M, cableCentreSpacingMetres: 1.062 * IN2M,
+    ductThermalResistivityKmPerW: 6.5, soilThermalResistivityKmPerW: 1.1,
+    soilTemperatureC: 35, maximumConductorTemperatureC: 90, operatingCurrentAmps: 250,
+    ducts: buildNeherDucts({matrix: [['4']], cableOuterDiameterInches: 1.062,
+      burialDepthInches: 24, ductSpacingInches: 3, conduits: db.conduitsNeher}), ...extra,
+  });
+}
+const near = (a,b,tol=1e-6) => assert.ok(Math.abs(a-b) < tol, `${a} != ${b}`);
+const mv = { isMediumVoltage: true, lineVoltageVolts: 13800,
+  capacitanceMicrofaradsPerKm: 0.3, dielectricDissipationFactor: 0.004, shieldLossFactor: 0.25 };
+
+test('1957 Table VII uses 2.15 cable OD and local air mean, thermal ohm-ft converted to SI', () => {
+  near(airGapResistance(fixture({cableOuterDiameterMetres: IN2M}), 50),
+    17 * 0.3048 / (1 + (2.3 + 0.024 * 50) * 2.15));
+});
+
+test('dielectric losses: phase-to-shield voltage, µF/km conversion and voltage squared', () => {
+  const input=fixture(mv);
+  near(dielectricLoss(input), 2*Math.PI*60*0.3e-9*(13800**2/3)*0.004);
+  near(dielectricLoss({...input,lineVoltageVolts:27600}), 4*dielectricLoss(input));
+  assert.equal(dielectricLoss(fixture()),0);
+});
+
+test('single duct ampacity agrees with independent closed-form loss-weighted thermal circuit', () => {
+  const input=fixture({...mv, airGapY: 0}); // Temperature-independent air gap gives a closed-form check.
+  const d=input.ducts[0], dc=0.789*IN2M, di=0.919*IN2M, ds=0.932*IN2M, od=1.062*IN2M;
+  const ri=3.5/(2*Math.PI)*Math.log(di/dc);
+  const rb=3.5/(2*Math.PI)*Math.log(ds/di);
+  const rj=6/(2*Math.PI)*Math.log(od/ds);
+  const ext=17*.3048/(1+2.3*2.15*1.062)+6.5/(2*Math.PI)*Math.log(d.outerDiameterMetres/d.innerDiameterMetres)+
+    1.1/(2*Math.PI)*Math.log(4*d.centreDepthMetres/d.outerDiameterMetres);
+  const wd=2*Math.PI*60*0.3e-9*(13800**2/3)*.004;
+  const expected=Math.sqrt((55-wd*(ri/2+rb+rj+3*ext))/
+    (acResistance(input,90)*(ri+rb+1.25*(rj+3*ext))));
+  const result=calculateThermal(input);
+  near(result.minimumAmpacityAmps,expected,0.002);
+  const atRating=calculateThermal({...input,operatingCurrentAmps:result.minimumAmpacityAmps});
+  near(atRating.maximumOperatingTemperatureC,90,0.001);
+});
+
+test('MV dielectric and shield losses lower allowable current and increase temperature', () => {
+  const zero=calculateThermal(fixture({...mv,dielectricDissipationFactor:0,shieldLossFactor:0}));
+  const dielectric=calculateThermal(fixture({...mv,shieldLossFactor:0}));
+  const both=calculateThermal(fixture(mv));
+  assert.ok(zero.minimumAmpacityAmps>dielectric.minimumAmpacityAmps);
+  assert.ok(dielectric.minimumAmpacityAmps>both.minimumAmpacityAmps);
+  assert.ok(both.maximumOperatingTemperatureC>dielectric.maximumOperatingTemperatureC);
+  const loss=both.cells[0].lossesWattsPerMetrePerCable;
+  near(loss.shield,0.25*loss.conductor);
+  near(loss.total,loss.conductor+loss.shield+loss.dielectric);
+});
+
+test('zero-current dielectric heating traverses half insulation and all external resistances', () => {
+  const input=fixture({...mv,operatingCurrentAmps:0,airGapY:0});
+  const r=calculateThermal(input);
+  const d=input.ducts[0];
+  const ri=3.5/(2*Math.PI)*Math.log(.919/.789), rb=3.5/(2*Math.PI)*Math.log(.932/.919),rj=6/(2*Math.PI)*Math.log(1.062/.932);
+  const ext=17*.3048/(1+2.3*2.15*1.062)+6.5/(2*Math.PI)*Math.log(d.outerDiameterMetres/d.innerDiameterMetres)+1.1/(2*Math.PI)*Math.log(4*d.centreDepthMetres/d.outerDiameterMetres);
+  near(r.maximumOperatingTemperatureC,35+dielectricLoss(input)*(ri/2+rb+rj+3*ext));
+  const over=calculateThermal({...input,capacitanceMicrofaradsPerKm:1000});
+  assert.equal(over.minimumAmpacityAmps,0);
+  assert.equal(over.dielectricOvertemperature,true);
+});
+
+const concrete = { top: .1, bottom: .1, left: .1, right: .1, resistivityKmPerW: .85 };
+test('1957 square equivalent radius and clearances measured from outer duct surfaces', () => {
+  const input=fixture({installation:'concrete',concrete});
+  const e=concreteEnvelope(input), width=input.ducts[0].outerDiameterMetres+.2;
+  near(e.width,width);near(e.height,width);
+  near(e.radius,width/2*Math.exp((4/Math.PI-1)*Math.log(2)/2));
+  near(e.depth,input.ducts[0].centreDepthMetres);
+  const shifted=concreteEnvelope({...input,concrete:{...concrete,bottom:.2,left:.2}});
+  near(shifted.depth,e.depth+.05);near(shifted.height,e.height+.1);near(shifted.width,e.width+.1);
+});
+
+test('equal concrete and sand resistivities reproduce homogeneous sand exactly', () => {
+  const input=fixture(), a=calculateThermal(input);
+  const b=calculateThermal({...input,installation:'concrete',concrete:{...concrete,resistivityKmPerW:1.1}});
+  near(a.minimumAmpacityAmps,b.minimumAmpacityAmps);
+  near(a.maximumOperatingTemperatureC,b.maximumOperatingTemperatureC);
+});
+
+test('concrete common correction applies to EVERY source, including mutual heating', () => {
+  const ducts=buildNeherDucts({matrix:[['4','4'],['4','4']],cableOuterDiameterInches:1.062,
+    burialDepthInches:24,ductSpacingInches:3,conduits:db.conduitsNeher});
+  const input=fixture({ducts,installation:'concrete',concrete});
+  const actual=buildSoilResistanceMatrix(input);
+  const homogeneous=buildSoilResistanceMatrix({...input,installation:'sand',soilThermalResistivityKmPerW:.85});
+  const correction=(1.1-.85)/(2*Math.PI)*concreteEnvelope(input).geometricFactor;
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++) near(actual[i][j]-homogeneous[i][j],correction);
+  const r=calculateThermal(input);
+  const rated=calculateThermal({...input,operatingCurrentAmps:r.minimumAmpacityAmps});
+  near(rated.maximumOperatingTemperatureC,90,.001);
+});
+
+test('invalid geometry, resistivities, unknown MV losses and nonfinite inputs are rejected', () => {
+  for(const extra of [{soilThermalResistivityKmPerW:NaN},{operatingCurrentAmps:Infinity},
+    {soilThermalResistivityKmPerW:-1},{isMediumVoltage:true},
+    {installation:'concrete',concrete:{...concrete,top:1}},
+    {installation:'concrete',concrete:{...concrete,right:10}},
+    {installation:'concrete',concrete:{...concrete,left:0}}]) assert.throws(()=>calculateThermal(fixture(extra)));
+});
+
+test('nonconvergent operation never returns an old temperature as a valid result', () => {
+  const r=calculateThermal(fixture({operatingCurrentAmps:100000}));
+  assert.equal(r.temperatureConverged,false);
+  assert.ok(Number.isNaN(r.maximumOperatingTemperatureC));
+  assert.equal(r.cells[0].lossesWattsPerMetrePerCable,null);
 });
