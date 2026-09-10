@@ -8,6 +8,7 @@ import {
   LV_SIZE_ORDER, MV_SIZE_ORDER, sizeLabel,
   vdPercent, egcSizing, computeSizing, computeLoad,
 } from "./engine.js";
+import { buildReportHtml, openReport } from "./report.js";
 
 /* --------------------------------- THEME ---------------------------------
    Palette and typography come from shared/theme.css (imported by index.css) —
@@ -288,6 +289,29 @@ export default function App() {
           ["trefoil215", "Trefoil, groups spaced ≥ 2.15×OD"],
         ];
 
+  const generateReport = () => {
+    openReport(
+      buildReportHtml({
+        inputs: {
+          loadType, phases, motorMode, hp, motorV, voltage, rating, ratingUnit, pf,
+          customA, contA, nonContA, continuous, heaterMode,
+          vClass, construction, insTemp: effInsTemp, termTemp,
+          applyTermLimit: !terminationOverrideActive, ccc,
+          arrangement: effArrangement, arrangementRaw: arrangement, covered,
+          ambient, ambMethod, maxSets, maxSize: effMaxSize,
+          vdOn: vdCfg.on, vdLength, vdUnit, vdMax, vdVolts, vdPf,
+          ocpd, egcLinked,
+        },
+        load,
+        result,
+        rec,
+        egc,
+        warnings,
+        vd: vdCfg,
+      })
+    );
+  };
+
   const screw = (pos) => (
     <span
       style={{
@@ -322,6 +346,20 @@ export default function App() {
             <div style={{ ...mono, fontSize: 11, color: C.faint, textAlign: "right", lineHeight: 1.5 }}>
               NEC 2023 · 392.80 · 310.16/.17/.20<br />Art. 315 · 430 · 445 · 424 · 215 · 250
             </div>
+            <button
+              onClick={generateReport}
+              disabled={!result}
+              title="Opens a printable step-by-step report with every NEC rule applied, the numeric substitutions and the assumptions made"
+              style={{
+                ...mono, fontSize: 12, color: result ? "#fff" : C.faint,
+                border: `1px solid ${result ? C.accent : C.line}`,
+                background: result ? C.accent : C.panel, borderRadius: 4,
+                padding: "6px 12px", whiteSpace: "nowrap",
+                cursor: result ? "pointer" : "not-allowed", fontWeight: 600,
+              }}
+            >
+              Detailed calculation report
+            </button>
             <a
               href="../../index.html"
               style={{

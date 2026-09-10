@@ -526,6 +526,7 @@ export function computeSizing(cfg) {
     solutions.push({
       n,
       requiredPerCond: req,
+      scan: eligible, // candidate rows examined for this set count (report trail)
       ampRow: ampHit,
       vdRow: vdHit,
       row: hit,
