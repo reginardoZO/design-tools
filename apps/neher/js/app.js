@@ -14,7 +14,13 @@ import {
   INCHES_TO_METRES,
 } from './neher-calc.js';
 import { currentPerSet } from './current-state.js';
-import { retornaUnidades, calculateSizedCurrent } from './sizing-calc.js';
+import {
+  retornaUnidades,
+  calculateSizedCurrent,
+  calculateFeederCurrent,
+  usesBreakerRating,
+  NEC_STANDARD_OCPD_RATINGS,
+} from './sizing-calc.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -487,10 +493,15 @@ function onLoadTypeChanged() {
 
   const voltage = parseFlexible($('txtVoltageMain').value);
   const showAux = carga === 'MOTOR' && voltage <= 2000;
+  const showBreaker = usesBreakerRating(carga);
 
   setRow($('rowAuxPower'), $('cmbAuxPower'), showAux);
-  setRow($('rowPower'), $('txtPowerMain'), Boolean(carga) && !showAux);
-  $('cmbUnitsMain').disabled = !carga || showAux;
+  setRow($('rowBreaker'), $('txtBreakerRating'), showBreaker);
+  $('hintFeeder').hidden = !showBreaker;
+  // the 240.6(A) rating already carries the 125 % continuous allowance
+  $('cmbCurrentFactor').disabled = showBreaker;
+  setRow($('rowPower'), $('txtPowerMain'), Boolean(carga) && !showAux && !showBreaker);
+  $('cmbUnitsMain').disabled = !carga || showAux || showBreaker;
 
   const withPfAndEfficiency = carga === 'GENERATOR' || (carga === 'MOTOR' && voltage > 2000);
   $('rowPfEff').hidden = !withPfAndEfficiency;
@@ -523,10 +534,27 @@ function onAuxPowerChanged() {
   syncCurrent();
 }
 
+/** Feeder design current comes straight from the upstream OCPD rating (NEC 240.4). */
+function onBreakerRatingChanged() {
+  const breakerRating = parsePositive($('txtBreakerRating').value);
+  const sizedCurrent = calculateFeederCurrent({ breakerRating });
+  if (!Number.isFinite(sizedCurrent)) return false;
+  $('txtCurrentMain').value = sizedCurrent.toFixed(2);
+  syncCurrent();
+  return true;
+}
+
 /** Port of btnCurrentMain_Click. */
 function onCalculateCurrent() {
   if ($('cmbAuxPower').disabled === false && !$('rowAuxPower').hidden) {
     onAuxPowerChanged();
+    return;
+  }
+
+  if ($('txtBreakerRating').disabled === false && !$('rowBreaker').hidden) {
+    if (!onBreakerRatingChanged()) {
+      snack('Enter the rating of the breaker or fuse feeding this circuit, in amperes.', true);
+    }
     return;
   }
 
@@ -581,6 +609,9 @@ async function init() {
   buildGrid();
   setOptions($('cmbDuctFill'), db.conduitsNeher.map((duct) => duct.Size), { placeholder: true });
   $('cmbDuctFill').value = '4';
+  for (const rating of NEC_STANDARD_OCPD_RATINGS) {
+    $('listStdOcpd').append(new Option(String(rating)));
+  }
 
   $('cmbVoltageNeher').addEventListener('change', onNeherVoltageChanged);
   $('btnCalculate').addEventListener('click', runCalculation);
@@ -596,6 +627,7 @@ async function init() {
   $('cmbLoadTypeMain').addEventListener('change', onLoadTypeChanged);
   $('txtVoltageMain').addEventListener('change', onLoadTypeChanged);
   $('cmbAuxPower').addEventListener('change', onAuxPowerChanged);
+  $('txtBreakerRating').addEventListener('input', onBreakerRatingChanged);
   $('btnCurrentMain').addEventListener('click', onCalculateCurrent);
   $('btnCablePhase').addEventListener('click', onCablePhase);
   $('btnClearMain').addEventListener('click', onClearMain);

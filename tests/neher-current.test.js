@@ -15,7 +15,13 @@ test('invalid current or set count cannot fall back to stale current', () => {
 
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { calculateSizedCurrent, retornaUnidades } from '../apps/neher/js/sizing-calc.js';
+import {
+  calculateSizedCurrent,
+  retornaUnidades,
+  calculateFeederCurrent,
+  usesBreakerRating,
+  NEC_STANDARD_OCPD_RATINGS,
+} from '../apps/neher/js/sizing-calc.js';
 
 function uiHarness() {
   let source = readFileSync(new URL('../apps/neher/js/app.js', import.meta.url), 'utf8')
@@ -23,11 +29,14 @@ function uiHarness() {
   source = source.slice(0, source.lastIndexOf('init().catch'));
   const elements = {};
   const el = id => elements[id] ??= {
-    value: '', textContent: '', disabled: true, hidden: true, children: [],
+    value: '', textContent: '', innerHTML: '', disabled: true, hidden: true, children: [],
+    append(...nodes) { this.children.push(...nodes); },
     classList: { add() {}, remove() {}, toggle() {} },
   };
   const context = vm.createContext({ document: { getElementById: el },
-    currentPerSet, calculateSizedCurrent, retornaUnidades, console, setTimeout, clearTimeout });
+    Option: function Option(text, value) { return { text, value: value ?? text }; },
+    currentPerSet, calculateSizedCurrent, retornaUnidades, calculateFeederCurrent,
+    usesBreakerRating, NEC_STANDARD_OCPD_RATINGS, console, setTimeout, clearTimeout });
   vm.runInContext(source, context);
   return { el, run: code => vm.runInContext(code, context), context };
 }
@@ -71,4 +80,44 @@ test('motor table handler updates per-set current and invalidates thermal result
   assert.equal(el('txtCurrentLinha').value, '77.50');
   assert.equal(run('designCurrent()'), 77.5);
   assert.equal(el('txtNeherResultStatus').textContent, 'Recalculate');
+});
+
+test('feeder design current is the upstream OCPD rating, never the connected load', () => {
+  assert.ok(usesBreakerRating('FEEDER'));
+  for (const carga of ['MOTOR', 'XFRM', 'HEATER', 'GENERATOR', ''])
+    assert.equal(usesBreakerRating(carga), false);
+  assert.equal(calculateFeederCurrent({ breakerRating: 400 }), 400);
+  for (const rating of [0, -400, NaN, undefined])
+    assert.ok(Number.isNaN(calculateFeederCurrent({ breakerRating: rating })));
+  assert.deepEqual(retornaUnidades('FEEDER'), []);
+  assert.ok(NEC_STANDARD_OCPD_RATINGS.includes(400) && NEC_STANDARD_OCPD_RATINGS.includes(6000));
+});
+
+test('selecting FEEDER swaps the power inputs for a breaker rating and locks the factor', () => {
+  const { el, run } = uiHarness();
+  el('txtVoltageMain').value = '480';
+  el('cmbLoadTypeMain').value = 'FEEDER';
+  run('onLoadTypeChanged()');
+  assert.equal(el('rowBreaker').hidden, false);
+  assert.equal(el('txtBreakerRating').disabled, false);
+  assert.equal(el('hintFeeder').hidden, false);
+  assert.equal(el('rowPower').hidden, true);
+  assert.equal(el('txtPowerMain').disabled, true);
+  assert.equal(el('cmbUnitsMain').disabled, true);
+  assert.equal(el('cmbCurrentFactor').disabled, true);
+  assert.equal(el('cmbCurrentFactor').value, '1.00');
+
+  el('txtParallelSets').value = '2';
+  el('txtBreakerRating').value = '1200';
+  run('onCalculateCurrent()');
+  assert.equal(el('txtCurrentMain').value, '1200.00');
+  assert.equal(el('txtCurrentLinha').value, '600.00');
+  assert.equal(run('designCurrent()'), 600);
+
+  el('cmbLoadTypeMain').value = 'XFRM';
+  run('onLoadTypeChanged()');
+  assert.equal(el('rowBreaker').hidden, true);
+  assert.equal(el('txtBreakerRating').disabled, true);
+  assert.equal(el('cmbCurrentFactor').disabled, false);
+  assert.equal(el('rowPower').hidden, false);
 });
