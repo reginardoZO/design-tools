@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {compartmentsOf,validateProject,migrateProject,resizeProject,suggestWidth,layoutCables,projectCSV} from '../apps/traylab-southwire/project.js';
+import {calculateCompartment} from '../apps/traylab-southwire/nec.js';
+import {formatNumber,dimension,conductorSize,cableSize} from '../apps/traylab-southwire/format.js';
+
+const catalog=JSON.parse(readFileSync(new URL('../apps/traylab-southwire/catalog.json',import.meta.url)));
+const map=new Map(catalog.map(c=>[c.id,c]));
+const b=map.get('sw-45252-1375');
+const row={id:'r1',tag:'F-350',qty:2,cablesPerRun:1,voltage:480,compartmentId:'c',cableId:b.id,cableSnapshot:b};
+const p={schemaVersion:1,name:'Test',trayTag:'CT-001',widthIn:24,depthIn:4,trayType:'ladder',units:'in',dividerThicknessIn:.125,dividers:[8,20],compartments:['a','b','c'].map(id=>({id,name:id,controlOnly:false,spacing:'touching'})),circuits:[row],reserve:20};
+assert.equal(validateProject(p,map),p);
+const cs=compartmentsOf(p);
+assert.equal(cs[0].widthIn,7.9375);assert.equal(cs[1].widthIn,11.875);assert.equal(cs[2].widthIn,3.9375);
+assert.equal(cs.reduce((sum,c)=>sum+c.widthIn,0)+.25,24);
+const wider=resizeProject(p,36);
+assert.ok(Math.abs(compartmentsOf(wider)[0].widthIn/compartmentsOf(wider)[1].widthIn-cs[0].widthIn/cs[1].widthIn)<1e-10);
+assert.throws(()=>validateProject({...p,dividers:[20,8]},map),/increasing/);
+assert.throws(()=>validateProject({...p,dividerThicknessIn:3},map),/thickness/);
+assert.throws(()=>validateProject({...p,circuits:[{...row,compartmentId:'missing'}]},map),/does not exist/);
+assert.throws(()=>validateProject({...p,circuits:[{...row,qty:1.5}]},map),/integer/);
+assert.throws(()=>validateProject({...p,circuits:[{...row,cableSnapshot:null,cableId:'absent'}]},map),/Missing/);
+const restored=JSON.parse(JSON.stringify(p));
+assert.equal(validateProject(restored,new Map()).circuits[0].cableSnapshot.odIn,1.919);
+// A prior metric display preference must not scale the stored inch geometry.
+const legacy={...structuredClone(p),units:'mm',name:'Exemplo · Estudo de leito 480 / 120 V'};
+legacy.compartments[0].name='Compartimento A';legacy.compartments[1].name='480 V · Força';
+const migrated=validateProject(migrateProject(legacy),map);
+assert.equal(migrated.units,'in');assert.equal(legacy.units,'mm');
+assert.equal(migrated.widthIn,24);assert.deepEqual(migrated.dividers,[8,20]);
+assert.deepEqual(migrated.circuits,legacy.circuits);
+assert.equal(migrated.name,'Example · 480 / 120 V cable tray study');
+assert.equal(migrated.compartments[0].name,'Compartment A');assert.equal(migrated.compartments[1].name,'480 V · Power');
+assert.equal(migrateProject({...p,name:'Customer-supplied name'}).name,'Customer-supplied name');
+assert.throws(()=>validateProject({...p,units:'mm'},map),/inches/);
+assert.equal(formatNumber(2195.125,3),'2,195.125');assert.equal(dimension(.125),'0.125 in');
+assert.equal(conductorSize({size:'4/0',sizeKcmil:211.6}),'4/0 AWG');
+assert.equal(conductorSize({size:'350 kcmil',sizeKcmil:350}),'350 kcmil');
+assert.equal(conductorSize({size:'10 AWG',sizeKcmil:10.38}),'10 AWG');
+assert.equal(cableSize(b),'3C × 350 kcmil');
+const policySafe={...p,circuits:[{...row,cableSnapshot:{...b,category:'vfd'}}]};
+assert.equal(suggestWidth(p,map),null); // Legacy non-VFD multiconductor >=4/0 needs replacement.
+const recommended=suggestWidth(policySafe,map);
+assert.ok(recommended);assert.ok(recommended.project.widthIn>24);
+assert.ok(recommended.checks.every(r=>r.status==='empty'||r.ratio<=.8));
+const calc=calculateCompartment({widthIn:3,depthIn:6,trayType:'ladder',circuits:[{...row,cable:b}]});
+const layout=layoutCables([{...row,cable:b}],3,6,calc,'touching');
+assert.equal(layout.placed.length,1);assert.equal(layout.omitted,1); // must not stack two large power cables
+const spaced=layoutCables([{...row,cable:b}],6,4,calc,'one-diameter');
+assert.equal(spaced.placed.length,2);
+assert.ok(Math.abs(spaced.placed[1].x-2*b.odIn)<1e-10);
+const csv=projectCSV({...p,circuits:[{...row,tag:'A,"B'}]},map);
+assert.ok(csv.startsWith('\uFEFF'));assert.ok(csv.includes('"A,""B"'));assert.ok(csv.includes('"1.919"'));
+assert.ok(csv.includes('"Circuit","Compartment"'));assert.ok(csv.includes('"Conductor size","OD (in)"'));
+assert.ok(csv.includes('"350 kcmil"'));assert.ok(csv.includes('"Cable weight (lb/ft)"'));
+assert.ok(csv.includes('"'+Number((b.weightLbKft/1000*2).toFixed(5))+'"'));
+assert.ok(!csv.includes('kg/m'));
+assert.equal(map.size,catalog.length);
+assert.ok(catalog.every(c=>c.odIn>0&&c.sizeKcmil>0&&c.conductors>0&&c.sourceUrl.startsWith('https://cabletechsupport.southwire.com/')));
+console.log('Project tests passed: usable widths, resize, import integrity, reserve, single-layer drawing and CSV.');
+// Published MV VFD construction says three conductors even without a count table column.
+assert.ok(catalog.filter(c=>c.category==='vfd').every(c=>c.conductors>=3));
+assert.ok(catalog.filter(c=>c.spec==='46255').every(c=>c.conductors===3&&c.voltage===8000));

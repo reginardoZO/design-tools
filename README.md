@@ -11,7 +11,7 @@ browser — no server, no backend, and no database at runtime.
 index.html              hub page
 shared/theme.css        palette and typography for every tool
 assets/                 favicon
-apps/<app>/             the six applications
+apps/<app>/             individual applications
 data/elec.db            cable and conduit tables (build-time source)
 scripts/                build and data scripts
 tests/                  regression tests
@@ -32,6 +32,7 @@ regenerate it.
 | --- | --- | --- |
 | Neher-McGrath Duct Bank Ampacity | `apps/neher` | static (vanilla JS) |
 | Cable Tray Ampacity & Sizing | `apps/nec-cable-tray` | Vite + React + Tailwind |
+| TrayLab - NEC 2023 / Southwire | `apps/traylab-southwire` | static (vanilla JS) |
 | Conduit Fill | `apps/conduit-fill` | static (vanilla JS) |
 | LV Cable Voltage Drop | `apps/voltage-drop` | Vite + React |
 | LV Panel Sizer | `apps/dimensionador` | Vite + React + TS |
@@ -86,6 +87,16 @@ npm test
   values worked by hand from the code tables.
 - `tests/conduit-fill.test.js` checks NEC Chapter 9 fill factors and the
   Schedule 40 conduit geometry used by the Conduit Fill tool.
+- `tests/traylab-nec.test.js` and `tests/traylab-project.test.js` preserve the
+  TrayLab regression checks for NEC fill, divider geometry, project migration,
+  catalog integrity, width suggestions and CSV exports.
+- `tests/traylab-arrangement.test.js` checks trefoil/VFD arrangements,
+  spacing, migration and physical geometry.
+- `tests/traylab-compliance.test.js` preserves the reviewed source's 45
+  compliance scenarios, including 80 deterministic packing comparisons,
+  external calculation basis, review invalidation and fail-closed issue gates.
+- `tests/traylab-hub.test.js` checks hub registration, theme integration,
+  local asset resolution and the absence of the superseded installation module.
 
 ## Design system
 
@@ -108,8 +119,8 @@ Google Fonts with a system fallback. Static pages link `shared/theme.css`
 directly; Vite apps import it from their entry CSS. Colours should not be
 defined anywhere else.
 
-The hub, Neher-McGrath, Cable Tray, LV Cable Voltage Drop and Underground Route
-Planner are on it, and the MV Panel Load Router uses it for its chrome. Two
+The hub, Neher-McGrath, Cable Tray, TrayLab, LV Cable Voltage Drop and Underground
+Route Planner are on it, and the MV Panel Load Router uses it for its chrome. Two
 deliberate exceptions stay outside:
 
 - **MV Panel Load Router** keeps its own ten-hue `PALETTE` array. Those colours
@@ -119,6 +130,36 @@ deliberate exceptions stay outside:
   left alone.
 
 New work should use the shared tokens rather than adding a third palette.
+
+## TrayLab - NEC 2023 / Southwire
+
+[`apps/traylab-southwire`](apps/traylab-southwire/README.md) is a static,
+browser-local cable tray fill tool with a 2,195-item Southwire catalog,
+individually checked compartments, draggable dividers, design reserve and
+tray-width suggestions. It supports saved projects, JSON import/export, CSV
+export and printable U.S. Letter landscape reports.
+
+This integration uses `traylab-nec2023-reviewed-complete-source`, replacing
+the earlier TrayLab implementation. Its calculation, arrangement, compliance
+and project modules are preserved. Large single-conductor phase cables use
+ABC trefoils with per-compartment 1D/2.15D clearance; multiconductor/VFD
+spacing is modeled separately. Physical fit and NEC fill are independent.
+
+External calculation-basis records and installation review must match the
+current configuration before reports or CSVs can be issued. Incomplete or
+unsupported configurations remain drafts. The application does not calculate
+ampacity or certify NEC compliance; the responsible engineer must verify the
+adopted code and project evidence.
+
+The interface, including the tray diagram, uses `shared/theme.css` tokens,
+shared typography and a return link to the hub. The catalog and provenance manifest are served
+locally; no runtime backend, package installation or separate build is needed.
+Project storage remains local to the browser and origin; export JSON for backup
+or to transfer projects from another site.
+
+See [calculation scope and verification](apps/traylab-southwire/NEC-NOTES.md)
+and the [supplied source audit](apps/traylab-southwire/AUDIT-2023.md).
+Fill checks do not establish ampacity or mechanical approval.
 
 ## The Neher-McGrath app
 
