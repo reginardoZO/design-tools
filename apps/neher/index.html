@@ -240,15 +240,7 @@
               <input id="txtConcreteRight" type="number" min="0" step="any" value="3">
             </div>
             <div id="mvInputs" hidden>
-              <h2>MV cable losses</h2>
-              <p class="hint">Enter data for the selected cable and bonding arrangement. Unknown losses cannot be assumed zero. Changing cable size clears these values.</p>
-              <label for="txtCapacitance">Phase-to-shield capacitance (µF/km)</label>
-              <input id="txtCapacitance" type="number" min="0" step="any">
-              <label for="txtTanDelta">Dielectric tan δ (fraction, e.g. 0.001)</label>
-              <input id="txtTanDelta" type="number" min="0" max="1" step="any">
-              <label for="txtShieldLoss">Total shield loss factor λs = Ws / Wc</label>
-              <input id="txtShieldLoss" type="number" min="0" step="any">
-              <p class="hint">λs must include circulating and eddy losses for the actual bonding, at the design conditions. Use a manufacturer or project calculation; λs is held constant during the thermal solution. MV auto-size requires cable-specific loss data and is unavailable.</p>
+              <p class="hint">MV loss estimates: capacitance from catalogue cable dimensions (assuming EPR relative permittivity 3.2), tan δ = 0.008 and total shield loss factor λs = 0.25. These are screening assumptions; verify the cable and shield bonding for final sizing. The estimated values used appear in the result.</p>
             </div>
             <details>
               <summary>Cable thermal properties</summary>
@@ -301,7 +293,7 @@
   </div>
 
   <div class="eh-foot">
-    Neher–McGrath (1957), steady state, equal current in all ducts. MV includes dielectric and user-specified total shield losses.<br>
+    Neher–McGrath (1957), steady state, equal current in all ducts. MV includes estimated dielectric and shield losses.<br>
     PVC ducts use the 1957 fiber-duct-in-concrete air-gap correlation as an approximation. <a href="METHOD.md">Method and assumptions</a>.<br>
     Support tool only &mdash; final sizing must be verified by the responsible engineer.
   </div>

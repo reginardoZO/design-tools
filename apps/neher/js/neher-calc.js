@@ -97,6 +97,30 @@ export function dielectricLoss(input) {
     (input.lineVoltageVolts ** 2 / 3) * input.dielectricDissipationFactor;
 }
 
+// Screening estimates for the catalogue's EPR-style MV cable construction.
+// Shield loss cannot be derived without the bonding and shield resistance data.
+export const MV_ESTIMATE_ASSUMPTIONS = Object.freeze({
+  relativePermittivity: 3.2,
+  dielectricDissipationFactor: 0.008,
+  shieldLossFactor: 0.25,
+});
+
+export function estimateMvLosses(conductorDiameterInches, diameterOverInsulationInches) {
+  if (!(conductorDiameterInches > 0) ||
+      !(diameterOverInsulationInches > conductorDiameterInches)) {
+    throw new NeherInputError('MV cable insulation dimensions are invalid.');
+  }
+  // Coaxial approximation; 1 F/m = 1e9 µF/km. Diameters may use any shared unit.
+  const capacitanceMicrofaradsPerKm = 2 * Math.PI * 8.8541878128e-12 *
+    MV_ESTIMATE_ASSUMPTIONS.relativePermittivity /
+    Math.log(diameterOverInsulationInches / conductorDiameterInches) * 1e9;
+  return {
+    capacitanceMicrofaradsPerKm,
+    dielectricDissipationFactor: MV_ESTIMATE_ASSUMPTIONS.dielectricDissipationFactor,
+    shieldLossFactor: MV_ESTIMATE_ASSUMPTIONS.shieldLossFactor,
+  };
+}
+
 function validateInput(input) {
   const fail = message => { throw new NeherInputError(message); };
   if (!input.ducts?.length) fail('At least one duct is required.');

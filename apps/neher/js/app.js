@@ -10,6 +10,7 @@ import {
   calculateThermal,
   buildNeherDucts,
   makeThermalInput,
+  estimateMvLosses,
   NeherInputError,
   INCHES_TO_METRES,
 } from './neher-calc.js';
@@ -245,6 +246,10 @@ function buildThermalInput(operatingCurrent, cableSize) {
     throw new NeherInputError(`Construction dimensions of cable '${cableSize}' are inconsistent.`);
   }
 
+  const mvLosses = isMediumVoltage
+    ? estimateMvLosses(conductorDiameterInches, cableRow.dim_over_insul)
+    : {};
+
   const ducts = buildNeherDucts({
     matrix: readGridMatrix(),
     cableOuterDiameterInches,
@@ -267,9 +272,7 @@ function buildThermalInput(operatingCurrent, cableSize) {
     operatingCurrentAmps: operatingCurrent,
     isMediumVoltage,
     lineVoltageVolts: voltage,
-    capacitanceMicrofaradsPerKm: parseFlexible($('txtCapacitance').value),
-    dielectricDissipationFactor: parseFlexible($('txtTanDelta').value),
-    shieldLossFactor: parseFlexible($('txtShieldLoss').value),
+    ...mvLosses,
     insulationThermalResistivityKmPerW: parseFlexible($('txtRhoInsulation').value) / 100,
     beddingThermalResistivityKmPerW: parseFlexible($('txtRhoBedding').value) / 100,
     jacketThermalResistivityKmPerW: parseFlexible($('txtRhoJacket').value) / 100,
@@ -305,10 +308,6 @@ function syncCurrent() {
   $('btnCablePhase').textContent = Number.isInteger(cablePhaseMultiplier) && cablePhaseMultiplier > 0
     ? `${cablePhaseMultiplier * 3}-1/C` : 'Add set';
   invalidateResult();
-}
-
-function clearMvData() {
-  for (const id of ['txtCapacitance', 'txtTanDelta', 'txtShieldLoss']) $(id).value = '';
 }
 
 function signed(value) {
@@ -357,6 +356,7 @@ function applyThermalResult(result, operatingCurrent, input) {
   const loss = result.cells.find(c => c.row === result.hottestOperatingRow && c.column === result.hottestOperatingColumn)?.lossesWattsPerMetrePerCable;
   let note = 'Steady state · three touching 1/C cables per duct. ';
   if (loss) note += `Hottest cable losses: conductor ${loss.conductor.toFixed(3)}, dielectric ${loss.dielectric.toFixed(3)}, shield ${loss.shield.toFixed(3)} W/m per cable. `;
+  if (input.isMediumVoltage) note += `Estimated MV inputs: C ${input.capacitanceMicrofaradsPerKm.toFixed(3)} µF/km, tan δ ${input.dielectricDissipationFactor}, λs ${input.shieldLossFactor}. `;
   if (result.concreteEnvelope) {
     const e = result.concreteEnvelope;
     note += `Concrete: ${(e.width / INCHES_TO_METRES).toFixed(2)} × ${(e.height / INCHES_TO_METRES).toFixed(2)} in; center depth ${(e.depth / INCHES_TO_METRES).toFixed(2)} in. `;
@@ -405,10 +405,6 @@ function runCalculation() {
 /** Port of Button_Click_4 (Auto-size cable). */
 function autoSizeCable() {
   invalidateResult();
-  if (selectedNeherVoltage() > 2000) {
-    snack('MV requires loss data for each cable size. Select the cable and enter its data manually.', true);
-    return;
-  }
   const currentLinha = designCurrent();
   if (!Number.isFinite(currentLinha)) {
     snack('Enter a valid current in Current Calc before using Auto-size.', true);
@@ -460,11 +456,9 @@ function autoSizeCable() {
 
 /** Port of ComboBox_SelectionChanged (cmbVoltageNeher). */
 function onNeherVoltageChanged() {
-  clearMvData();
   invalidateResult();
   const value = $('cmbVoltageNeher').value;
   $('mvInputs').hidden = !(selectedNeherVoltage() > 2000);
-  $('btnAutoSize').disabled = selectedNeherVoltage() > 2000;
   if (!value) {
     setOptions($('cmbCables'), []);
     setOptions($('cmbTemp'), []);
@@ -634,7 +628,6 @@ async function init() {
 
   $('txtCurrentMain').addEventListener('input', syncCurrent);
   $('txtParallelSets').addEventListener('input', syncCurrent);
-  $('cmbCables').addEventListener('change', clearMvData);
   $('cmbInstallation').addEventListener('change', () => {
     $('concreteInputs').hidden = $('cmbInstallation').value !== 'concrete';
   });

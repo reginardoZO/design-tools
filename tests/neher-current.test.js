@@ -22,6 +22,10 @@ import {
   usesBreakerRating,
   NEC_STANDARD_OCPD_RATINGS,
 } from '../apps/neher/js/sizing-calc.js';
+import {
+  buildNeherDucts, makeThermalInput, estimateMvLosses, calculateThermal,
+  INCHES_TO_METRES,
+} from '../apps/neher/js/neher-calc.js';
 
 function uiHarness() {
   let source = readFileSync(new URL('../apps/neher/js/app.js', import.meta.url), 'utf8')
@@ -36,10 +40,39 @@ function uiHarness() {
   const context = vm.createContext({ document: { getElementById: el },
     Option: function Option(text, value) { return { text, value: value ?? text }; },
     currentPerSet, calculateSizedCurrent, retornaUnidades, calculateFeederCurrent,
-    usesBreakerRating, NEC_STANDARD_OCPD_RATINGS, console, setTimeout, clearTimeout });
+    usesBreakerRating, NEC_STANDARD_OCPD_RATINGS, buildNeherDucts, makeThermalInput,
+    estimateMvLosses, calculateThermal, INCHES_TO_METRES,
+    console, setTimeout, clearTimeout });
   vm.runInContext(source, context);
   return { el, run: code => vm.runInContext(code, context), context };
 }
+
+test('MV interface calculates and auto-sizes without loss data fields', () => {
+  const { el, run, context } = uiHarness();
+  const catalogue = JSON.parse(readFileSync(new URL('../apps/neher/data/cables.json', import.meta.url)));
+  context.catalogue = catalogue;
+  context.setTimeout = () => 0;
+  run('db = catalogue');
+  for (const [id, value] of Object.entries({
+    cmbVoltageNeher: '13.8kV', cmbCables: '2', cmbTemp: '90', txtSoilTemp: '35',
+    txtRhoSoil: '110', txtRhoDuct: '650', txtH: '24', txtDuctSpacingNeher: '3',
+    txtLF: '100', txtRhoInsulation: '350', txtRhoBedding: '350', txtRhoJacket: '600',
+    cmbInstallation: 'sand', txtCurrentMain: '100', txtParallelSets: '1',
+  })) el(id).value = value;
+  el('InputGrid').children = [{ value: '5', dataset: { row: '0', column: '0' },
+    classList: { remove() {}, add() {} } }];
+  el('cmbCables').options = catalogue.medium_voltage.map(row => ({ value: row.size }));
+
+  const input = run("buildThermalInput(100, '2')");
+  assert.ok(input.capacitanceMicrofaradsPerKm > 0);
+  assert.ok(input.dielectricDissipationFactor > 0);
+  assert.ok(input.shieldLossFactor > 0);
+  run('runCalculation()');
+  assert.match(el('txtCurrMinNeher').textContent, / A$/);
+  run('autoSizeCable()');
+  assert.match(el('txtCurrMinNeher').textContent, / A$/);
+  assert.match(el('txtNeherStatus').textContent, /Estimated MV inputs:/);
+});
 
 test('actual UI handlers update I-prime after Calculate I, manual changes and set reduction', () => {
   const { el, run } = uiHarness();

@@ -14,6 +14,7 @@ import {
   buildSoilResistanceMatrix,
   buildNeherDucts,
   makeThermalInput,
+  estimateMvLosses,
   INCHES_TO_METRES as IN2M,
 } from '../apps/neher/js/neher-calc.js';
 
@@ -115,6 +116,20 @@ function fixture(extra = {}) {
 const near = (a,b,tol=1e-6) => assert.ok(Math.abs(a-b) < tol, `${a} != ${b}`);
 const mv = { isMediumVoltage: true, lineVoltageVolts: 13800,
   capacitanceMicrofaradsPerKm: 0.3, dielectricDissipationFactor: 0.004, shieldLossFactor: 0.25 };
+
+test('MV catalogue geometry gives usable loss estimates for both voltage selections', () => {
+  const small = estimateMvLosses(db.medium_voltage[0].dim_bare, db.medium_voltage[0].dim_over_insul);
+  const large = estimateMvLosses(db.medium_voltage.at(-1).dim_bare, db.medium_voltage.at(-1).dim_over_insul);
+  assert.ok(small.capacitanceMicrofaradsPerKm > 0.1 && small.capacitanceMicrofaradsPerKm < 0.5);
+  assert.ok(large.capacitanceMicrofaradsPerKm > small.capacitanceMicrofaradsPerKm);
+  assert.ok(small.dielectricDissipationFactor > 0 && small.shieldLossFactor > 0);
+  for (const lineVoltageVolts of [4160, 13800]) {
+    const result = calculateThermal(fixture({isMediumVoltage: true, lineVoltageVolts, ...small}));
+    assert.ok(result.minimumAmpacityAmps > 0);
+    assert.ok(result.cells[0].lossesWattsPerMetrePerCable.dielectric > 0);
+    assert.ok(result.cells[0].lossesWattsPerMetrePerCable.shield > 0);
+  }
+});
 
 test('1957 Table VII uses 2.15 cable OD and local air mean, thermal ohm-ft converted to SI', () => {
   near(airGapResistance(fixture({cableOuterDiameterMetres: IN2M}), 50),

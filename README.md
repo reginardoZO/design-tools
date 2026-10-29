@@ -168,13 +168,13 @@ application (`eleCalc/EleCalc/Neher/`). It covers the two areas that matter for
 duct-bank sizing — **Current Calc** and **Neher-McGrath** — side by side. The
 original WPF port has been revised against Neher–McGrath (1957). It now supports
 homogeneous sand fill (default), optional concrete with four user-defined clearances,
-MV dielectric and entered total shield losses, and synchronized current per parallel set.
+MV dielectric and shield loss estimates, and synchronized current per parallel set.
 Ampacity and operating temperature use the same thermal solver.
 
 See [the method, equations, assumptions and verification](apps/neher/METHOD.md).
-MV loss data must be supplied for the selected cable and bonding arrangement;
-MV auto-size is unavailable without data for each candidate size. The catalog and
-PVC air-gap approximation still require project-specific verification.
+MV capacitance is estimated from each cable's geometry; dielectric and shield loss
+factors use stated screening assumptions, including during MV auto-size. The catalog,
+MV loss estimates and PVC air-gap approximation require project-specific verification.
 
 ### Data
 
