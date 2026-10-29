@@ -25,6 +25,29 @@ const FALLBACK_CABLES = {
     { id: '1c-lv-750', size: '750 kcmil', voltage: '600V', type: 'single', cores: 1, od: 1.278, label: '750 kcmil · 1/C Single (Cu XHHW-2, 600V)' },
     { id: '1c-lv-1000', size: '1000 kcmil', voltage: '600V', type: 'single', cores: 1, od: 1.443, label: '1000 kcmil · 1/C Single (Cu XHHW-2, 600V)' },
   ],
+  // Southwire SPEC 46102, Table 1: 5 kV, 133% insulation, for 4.16 kV systems.
+  single_mv_4160: [
+    ['2', '2 AWG', 0.755],
+    ['1', '1 AWG', 0.800],
+    ['1-0', '1/0 AWG', 0.870],
+    ['2-0', '2/0 AWG', 0.914],
+    ['3-0', '3/0 AWG', 0.964],
+    ['4-0', '4/0 AWG', 1.020],
+    ['250', '250 kcmil', 1.058],
+    ['350', '350 kcmil', 1.177],
+    ['500', '500 kcmil', 1.282],
+    ['600', '600 kcmil', 1.392],
+    ['750', '750 kcmil', 1.494],
+    ['1000', '1000 kcmil', 1.643],
+  ].map(([sizeId, size, od]) => ({
+    id: `1c-mv-4160-${sizeId}`,
+    size,
+    voltage: '5kV',
+    type: 'mv',
+    cores: 1,
+    od,
+    label: `4.16kV · ${size} · 1/C Cu MV-105 (5kV 133%)`,
+  })),
   single_mv: [
     { id: '1c-mv-2', size: '2 AWG', voltage: '15kV', type: 'mv', cores: 1, od: 0.986, label: '2 AWG · 1/C Shielded MV (15kV EPR)' },
     { id: '1c-mv-1', size: '1 AWG', voltage: '15kV', type: 'mv', cores: 1, od: 1.016, label: '1 AWG · 1/C Shielded MV (15kV EPR)' },
@@ -85,11 +108,21 @@ const FALLBACK_CABLES = {
     { id: 'gnd-2-0', size: '2/0 AWG', voltage: '600V', type: 'ground', cores: 1, od: 0.526, label: '2/0 AWG · Ground (Cu THHN/THWN-2)' },
     { id: 'gnd-3-0', size: '3/0 AWG', voltage: '600V', type: 'ground', cores: 1, od: 0.571, label: '3/0 AWG · Ground (Cu THHN/THWN-2)' },
     { id: 'gnd-4-0', size: '4/0 AWG', voltage: '600V', type: 'ground', cores: 1, od: 0.625, label: '4/0 AWG · Ground (Cu THHN/THWN-2)' },
+    // Southwire SPEC 10000, Table 1: nominal OD for Cu THHN/THWN-2.
+    { id: 'gnd-250', size: '250 kcmil', voltage: '600V', type: 'ground', cores: 1, od: 0.684, label: '250 kcmil · Ground (Cu THHN/THWN-2)' },
+    { id: 'gnd-300', size: '300 kcmil', voltage: '600V', type: 'ground', cores: 1, od: 0.753, label: '300 kcmil · Ground (Cu THHN/THWN-2)' },
+    { id: 'gnd-350', size: '350 kcmil', voltage: '600V', type: 'ground', cores: 1, od: 0.803, label: '350 kcmil · Ground (Cu THHN/THWN-2)' },
+    { id: 'gnd-400', size: '400 kcmil', voltage: '600V', type: 'ground', cores: 1, od: 0.848, label: '400 kcmil · Ground (Cu THHN/THWN-2)' },
+    { id: 'gnd-500', size: '500 kcmil', voltage: '600V', type: 'ground', cores: 1, od: 0.931, label: '500 kcmil · Ground (Cu THHN/THWN-2)' },
+    { id: 'gnd-600', size: '600 kcmil', voltage: '600V', type: 'ground', cores: 1, od: 1.030, label: '600 kcmil · Ground (Cu THHN/THWN-2)' },
+    { id: 'gnd-750', size: '750 kcmil', voltage: '600V', type: 'ground', cores: 1, od: 1.132, label: '750 kcmil · Ground (Cu THHN/THWN-2)' },
+    { id: 'gnd-1000', size: '1000 kcmil', voltage: '600V', type: 'ground', cores: 1, od: 1.281, label: '1000 kcmil · Ground (Cu THHN/THWN-2)' },
   ],
 };
 
 const CATEGORIES = [
   { key: 'single_lv', label: 'Single Conductors (1/C · LV 600V)' },
+  { key: 'single_mv_4160', label: 'Single Conductors (1/C Shielded · 4.16kV system / 5kV cable)' },
   { key: 'single_mv', label: 'Single Conductors (1/C Shielded · MV 15kV)' },
   { key: 'multi_lv', label: 'Multiconductor (3/C · LV 600V Power)' },
   { key: 'multi_vfd', label: 'Multiconductor (3/C Shielded · VFD)' },
@@ -190,7 +223,7 @@ function addCableRow(initialCableId = '1c-lv-500', initialQuantity = 3) {
     // Auto-adjust default quantity suggestion: 3 for 1/C Single, 1 for 3/C Multi
     if (cable && cable.type === 'multiconductor' && qtyInput.value === '3') {
       qtyInput.value = '1';
-    } else if (cable && cable.type === 'single' && qtyInput.value === '1') {
+    } else if (cable && (cable.type === 'single' || cable.type === 'mv') && qtyInput.value === '1') {
       qtyInput.value = '3';
     }
     update();
