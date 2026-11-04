@@ -222,7 +222,7 @@ Support tools only — final sizing must be verified by the responsible engineer
 
 [Raceway Lab](apps/raceway-lab/README.md) adds a four-step English workflow for
 LV and MV copper power circuits in aboveground raceways. It includes conductor
-ampacity, terminal limits, LV CCC adjustment, EGC, conduit sizing, voltage-drop
-checks, calculation printouts and an NEC learning guide. MV / multicore voltage
-drop requires verified size-specific impedance. See its [source and scope notes](apps/raceway-lab/SOURCES.md)
+ampacity, terminal limits, LV CCC adjustment, EGC, conduit fill and bend-radius
+sizing with Okonite catalog cables, calculation printouts and an NEC learning
+guide. See its [source and scope notes](apps/raceway-lab/SOURCES.md)
 and the [Portuguese engineering guide](docs/aboveground-raceways-pt.md).
