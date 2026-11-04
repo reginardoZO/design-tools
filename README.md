@@ -33,6 +33,7 @@ regenerate it.
 | Neher-McGrath Duct Bank Ampacity | `apps/neher` | static (vanilla JS) |
 | Cable Tray Ampacity & Sizing | `apps/nec-cable-tray` | Vite + React + Tailwind |
 | TrayLab - NEC 2023 / Southwire | `apps/traylab-southwire` | static (vanilla JS) |
+| Raceway Lab - Aboveground Power / NEC 2023 | `apps/raceway-lab` | static (vanilla JS) |
 | Conduit Fill | `apps/conduit-fill` | static (vanilla JS) |
 | LV Cable Voltage Drop | `apps/voltage-drop` | Vite + React |
 | LV Panel Sizer | `apps/dimensionador` | Vite + React + TS |
@@ -216,3 +217,12 @@ non-functional changes were made to run it as a standalone Vite app:
   losses are not included.
 
 Support tools only — final sizing must be verified by the responsible engineer.
+
+## Raceway Lab - aboveground power
+
+[Raceway Lab](apps/raceway-lab/README.md) adds a four-step English workflow for
+LV and MV copper power circuits in aboveground raceways. It includes conductor
+ampacity, terminal limits, LV CCC adjustment, EGC, conduit sizing, voltage-drop
+checks, calculation printouts and an NEC learning guide. MV / multicore voltage
+drop requires verified size-specific impedance. See its [source and scope notes](apps/raceway-lab/SOURCES.md)
+and the [Portuguese engineering guide](docs/aboveground-raceways-pt.md).
