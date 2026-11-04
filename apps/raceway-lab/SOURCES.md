@@ -3,18 +3,20 @@
 ## Implemented model
 
 Three-phase 60 Hz copper power circuits in **aboveground** raceways: LV <=1000 V ac
-and MV >2000 V through 15 kV, 3 x 1/C or one 3/C cable per set. Every cable comes
+and MV >1000 V through 15 kV, 3 x 1/C or one 3/C cable per set. Every cable comes
 from the Okonite OSC 2024 catalog; there is no custom cable construction. Each
 parallel set is in a separate raceway. Identical LV circuits may share a raceway.
 The model does not mix different loads/cable families in a raceway. Ordinary
-locations only. Aluminum, VFD output, 1001–2000 V, DC, engineered grouped MV
-raceways, underground/direct-buried segments, voltage drop and short-circuit
-withstand are outside this implementation. These are scope boundaries, not claims
+locations only. Aluminum, VFD output, unverified MV general-feeder sizing, DC,
+engineered grouped MV raceways, underground/direct-buried segments, voltage drop
+and short-circuit withstand are outside this implementation. These are scope boundaries, not claims
 that the NEC prohibits those arrangements.
 
-The user enters only the load (current, or motor HP/voltage for LV motors). The
-required conductor ampacity, the NEC fill limit, the cable minimum bending radius
-and the conduit bending radius are derived; none of them is a user input.
+Inputs depend on circuit type: continuous/noncontinuous load, applicable LV motor
+FLC, MV motor overload trip setting, or VFD rated input current. The required
+conductor ampacity, the NEC fill limit, cable minimum bending radius and conduit
+bending radius are derived; the breaker rating and EGC sizing protective-device
+setting remain separate from the MV motor overload trip setting.
 
 ## Data provenance
 
@@ -30,7 +32,7 @@ and the conduit bending radius are derived; none of them is a user input.
 | Conduit bending radius | NEC Chapter 9 Table 2, "Other bends" column (1/2 in = 4 in through 6 in = 36 in). |
 | Cable bending radius | Shielded MV 1/C: 12 x OD. Shielded MV 3/C: max(12 x individual core, 7 x overall OD), core = assembled core OD / (1 + 2/√3). Nonshielded C-L-X: 7 x OD (330.24(B)). Other nonshielded LV: 4 / 5 / 6 x OD for OD <=1.0 / 1.0–2.0 / >2.0 in (336.24 for 3/C TC; ICEA S-95-658 / NEMA WC 70 guidance for 1/C). |
 | Wire EGC | Table 250.122 copper; 250.122(B) proportional upsizing using circular-mil area from the smallest size that passes ampacity **and exists in the selected family**; 250.190(C)(1) >=6 AWG for nonintegral MV EGC. Integral catalog grounds pass when their total area (all sectioned grounds) covers the required EGC. Separate insulated EGC uses Chapter 9 Table 5 THHN/THWN-2 area. |
-| Load | LV feeder 215.2(A)(1) two checks; LV motor 430.6, 430.22 / 430.250; VFD **input** 430.122(A) 125%. MV feeder, motor and VFD apply 125% to the entered current (430.224 for MV motors; engineering basis for MV feeders). |
+| Load | General LV feeder/branch: 210.19(A)(1) / 215.2(A)(1), 125% continuous + noncontinuous; the 100%-continuous exception requires affirmation that the complete applicable assembly is listed for 100% operation. LV motor: 430.6(A)(1), 430.22 and Table 430.250, 125% of applicable table FLC. MV motor: 430.205(A), overload trip setting with no automatic 125% FLC multiplier. VFD input: 430.122(A) LV / 430.205(B) MV, 125% of rated input. MV general feeders fail closed pending a separately verified Article 235 basis. |
 
 Primary reference URLs:
 

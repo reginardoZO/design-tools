@@ -17,8 +17,10 @@ O projeto exige três verificações distintas: capacidade elétrica do cabo, es
 
 | Assunto | Referência NEC 2023 | Aplicação |
 |---|---|---|
-| Carga de alimentadores BT | 215.2(A)(1), 215.3 | Corrente mínima dos condutores e proteção |
-| Motores / entrada de VFD | 430.6, 430.22, 430.250, 430.122(A) | Base de corrente e multiplicadores |
+| Carga de circuitos BT | 210.19(A)(1), 215.2(A)(1), 215.3 | Corrente mínima dos condutores e proteção |
+| Motores BT | 430.6(A)(1), 430.22, Tabela 430.250 | FLC aplicável e mínimo de 125% para motor contínuo |
+| Motores MT | 430.205(A) | Ampacidade mínima pela corrente de trip da sobrecarga |
+| Entrada de VFD | 430.122(A), 430.205(B) | 125% da corrente nominal de entrada do conversor |
 | Alimentadores e proteção MT | Artigos 235 e 245 | Requisitos próprios acima de 1000 V ac |
 | Ampacidade BT | 310.14, Tabela 310.16 | Condutores em eletroduto, ambiente de 30°C |
 | Temperatura e agrupamento BT | 310.15(B), (C), (E), (F) | Correções, condutores carregados e neutro |
@@ -31,7 +33,7 @@ O projeto exige três verificações distintas: capacidade elétrica do cabo, es
 | Tipo de eletroduto | 342, 344, 352, 358 | IMC, RMC, PVC e EMT |
 | Caixas e puxamento | 314.28, 314.29, 314.71; seção .26 do eletroduto | Dimensões, acesso e curvas |
 
-O NEC 2023 reorganizou diversos assuntos de média tensão. Não copie diretamente a numeração de manuais antigos que citam 310.60 ou 311.60. Verifique o texto e a tabela equivalente na edição 2023. A distinção regulamentar acima de 1000 V também não coincide com o início das tabelas de ampacidade de MT acima de 2000 V.
+O NEC 2023 reorganizou diversos assuntos de média tensão. Não copie diretamente a numeração de manuais antigos que citam 310.60 ou 311.60. Verifique o texto e a tabela equivalente na edição 2023. O Raceway Lab classifica tensões acima de 1000 V como MT. O alimentador geral MT permanece bloqueado enquanto sua base própria do Artigo 235 não estiver verificada, em vez de reutilizar automaticamente uma regra BT.
 
 ## 3. Sequência recomendada de dimensionamento
 
@@ -53,21 +55,23 @@ O processo é iterativo. Aumentar a seção do cabo pode aumentar o EGC e exigir
 
 ### 4.1 Carga de alimentadores
 
-Para um alimentador comum, sem aplicação da exceção de conjunto integralmente identificado para 100% da corrente, a condição antes dos fatores é:
+Para circuitos gerais de alimentador/ramal, sem aplicação da exceção de conjunto integralmente identificado para 100% de operação contínua, a condição requerida é:
 
 I mínimo = 1,25 x I contínua + I não contínua.
 
 A carga contínua é aquela cuja corrente máxima deve permanecer por três horas ou mais. A verificação de 215.2(A)(1) não deve ser reduzida a multiplicar indiscriminadamente todos os fatores: é necessário atender à condição de carga contínua/não contínua antes dos ajustes e à carga efetiva após correções e ajustes. O Raceway Lab mantém essas duas verificações visíveis.
 
-A proteção do alimentador também deve atender a 215.3 e às regras do Artigo 240. A aplicação adota uma verificação conservadora da ampacidade contra o OCPD, sem usar automaticamente a exceção do próximo tamanho padronizado de 240.4(B).
+A proteção do alimentador também deve atender a 215.3 e às regras do Artigo 240. A exceção de 100% contínuo só pode ser selecionada quando o conjunto aplicável completo está listado/identificado para operar a 100% contínuo; um disjuntor rotulado 100% isoladamente não comprova essa condição. A aplicação adota uma verificação conservadora da ampacidade contra o OCPD, sem usar automaticamente a exceção do próximo tamanho padronizado de 240.4(B).
 
 ### 4.2 Motores e conversores
 
-Para o motor comum de serviço contínuo abrangido por 430.22, os condutores são dimensionados para pelo menos 125% da corrente de plena carga determinada conforme 430.6. A Tabela 430.250 fornece correntes de motores trifásicos dentro das condições de sua aplicação. Corrente para cabos e corrente para ajuste de sobrecarga não são necessariamente a mesma referência.
+Para o motor BT comum de serviço contínuo abrangido por 430.22, os condutores são dimensionados para pelo menos 125% da corrente de plena carga aplicável determinada conforme 430.6(A)(1) e a Tabela 430.250. Corrente para cabos e corrente para ajuste de sobrecarga não são necessariamente a mesma referência. Regimes diferentes de serviço precisam de análise própria, não são extrapolados pelo modelo.
 
-Na entrada de um VFD, 430.122(A) utiliza 125% da corrente nominal de entrada do conversor. Não substitua essa corrente pela corrente de saída do motor sem verificar a regra aplicável. Cabos entre VFD e motor exigem outros cuidados, incluindo instruções do fabricante, comprimento, blindagem, correntes de modo comum e sobretensões. O módulo implementa apenas a entrada do VFD.
+Na entrada de um VFD BT, 430.122(A) utiliza 125% da corrente nominal de entrada do conversor. Para MT, o modelo usa 430.205(B), também com 125% da corrente nominal de entrada do equipamento. Não substitua essa corrente pela corrente de saída do motor. Cabos entre VFD e motor exigem outros cuidados, incluindo instruções do fabricante, comprimento, blindagem, correntes de modo comum e sobretensões; a saída do VFD não é dimensionada pelo módulo.
 
-Em média tensão, o Raceway Lab aplica 125% à corrente informada para alimentador, motor (430.224) ou entrada de VFD. O usuário informa somente a corrente da carga; a ampacidade mínima exigida é calculada.
+Para motor MT, 430.205(A) define a ampacidade mínima dos condutores pela corrente em que o dispositivo de proteção contra sobrecarga do motor é selecionado para atuar. O usuário deve informar a corrente efetiva primária do trip de sobrecarga. Não se aplica automaticamente 125% ao FLC do motor nem se usa a corrente nominal do disjuntor como substituta. FLC do motor e corrente nominal do disjuntor são referências opcionais e não alteram a ampacidade requerida.
+
+O circuito usa entradas diferentes conforme o tipo: corrente contínua e não contínua para alimentador/ramal geral, FLC aplicável para motor BT, trip de sobrecarga para motor MT e corrente nominal de entrada para VFD. O valor do OCPD informado separadamente para dimensionar o EGC não é derivado do trip de sobrecarga do motor. Alimentador geral MT é bloqueado até haver uma regra verificada para o Artigo 235.
 
 ### 4.3 Tabela 310.16 e fatores
 
@@ -200,7 +204,7 @@ O cabo 4/0 da seção 2:4, catálogo 114-23-3831, é 133% em 5 kV e 100% em 8 kV
 
 ## 13. Como usar o Raceway Lab
 
-Na etapa Circuit & load, informe tensão, tipo de carga (alimentador, motor ou entrada de VFD) e a corrente da carga; em motores BT, informe HP e tensão. A ampacidade mínima exigida é calculada pelo programa. Em Cable & ampacity, selecione construção, família do catálogo Okonite, temperatura, tensão nominal e terminais; as seções listadas são apenas as oferecidas pela família. Em Raceway & installation, escolha o tipo de eletroduto, condições do local, curvas e modo do EGC. O limite de ocupação, o raio do cabo e o raio da curva do eletroduto são determinados automaticamente. Em Results, examine a memória de cálculo.
+Na etapa Circuit & load, informe tensão e tipo de circuito. Para alimentador/ramal geral, informe correntes contínua e não contínua; para motor BT, informe FLC aplicável; para motor MT, informe o trip de sobrecarga; para entrada de VFD, informe a corrente nominal de entrada do equipamento. FLC do motor MT e corrente nominal do disjuntor são referências opcionais. O ajuste do dispositivo usado no EGC é separado. Em Cable & ampacity, selecione construção, família do catálogo Okonite, temperatura, tensão nominal e terminais; as seções listadas são apenas as oferecidas pela família. Em Raceway & installation, escolha o tipo de eletroduto, condições do local, curvas e modo do EGC. O limite de ocupação, o raio do cabo e o raio da curva do eletroduto são determinados automaticamente. Em Results, examine a memória de cálculo e a ampacidade requerida, ampacidade corrigida, limite de terminais e ampacidade final permitida.
 
 Na seleção automática, o programa escolhe a menor seção da família que atende à ampacidade, terminais e proteção, e o menor eletroduto que atende à ocupação do NEC e ao raio de curvatura, evitando a faixa de jamming.
 
@@ -224,4 +228,4 @@ O projeto pode ser salvo no navegador, exportado/importado em JSON e impresso co
 
 [7] Classic Wire, PowerGuard MV-105 ampacities: https://www.classicwire.com/products/ul-type-mv-105-ampacities-copper-conductors-rated-5-kv-to-35-kv/. Comparação independente da coluna de maior tensão para eletroduto no ar.
 
-As fontes foram consultadas em 04/11/2026. O módulo inclui limites explícitos e testes de regressão, mas não cobre todas as instalações permitidas no NEC. Projetos com alumínio, circuitos diferentes compartilhados, áreas classificadas, agrupamento térmico MT, trechos subterrâneos ou casos de 1001–2000 V exigem outra análise. O cabo C-L-X 2:21 (2,4 kV, não blindado) usa a coluna de 2001–5000 V da Tabela 315.60(C)(9); confirme essa base com o fabricante. Verificar o código adotado, a especificação PlantSERV e os fabricantes antes de emitir o projeto para construção.
+As fontes foram consultadas em 04/11/2026. O módulo inclui limites explícitos e testes de regressão, mas não cobre todas as instalações permitidas no NEC. Projetos com alumínio, circuitos diferentes compartilhados, áreas classificadas, agrupamento térmico MT, alimentadores gerais MT, trechos subterrâneos e saída de VFD exigem outra análise. Circuitos acima de 1000 V são classificados como MT, mas a faixa entre 1001 e 2000 V pode exigir seleção de cabo cuja classe nominal seja adequada ao sistema. O cabo C-L-X 2:21 (2,4 kV, não blindado) usa a coluna de 2001–5000 V da Tabela 315.60(C)(9); confirme essa base com o fabricante. Verificar o código adotado, a especificação PlantSERV e os fabricantes antes de emitir o projeto para construção.

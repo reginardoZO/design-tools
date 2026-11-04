@@ -8,7 +8,7 @@ const cat=JSON.parse(readFileSync(new URL('../apps/raceway-lab/catalog.json',imp
 const run=changes=>calculate({...defaults(),...changes},cat);
 const has=(r,c)=>r.issues.some(x=>x.code===c);
 const near=(a,b,tol=1e-7)=>assert.ok(Math.abs(a-b)<tol,`${a} != ${b}`);
-const mv={voltage:4160,loadType:'motor',current:200,family:'2:4',cableVoltage:5000,insulationLevel:100,selection:'manual',size:'4/0',terminal:'90',ambient:45,ocpd:300};
+const mv={voltage:4160,loadType:'mv-motor',motorFLC:250,motorTrip:280,breakerRating:400,family:'2:4',cableVoltage:5000,insulationLevel:100,selection:'auto',terminal:'90',ambient:45,ocpd:400};
 
 test('catalog: Okonite copper families for aboveground raceway only',()=>{
  const specs=[...new Set(cat.map(c=>c.spec))].sort();
@@ -16,7 +16,7 @@ test('catalog: Okonite copper families for aboveground raceway only',()=>{
  for(const c of cat){
   assert.ok(SIZES.includes(c.size),c.id);assert.ok(c.odIn>0,c.id);assert.ok([1,3].includes(c.conductors),c.id);
   assert.ok(/^\d{3}-\d{2}-\d{4}$/.test(c.catalogNumber),c.id);
-  if(c.voltage>2000)assert.ok(c.ratings&&Object.keys(c.ratings).length,c.id);
+  if(c.voltage>1000)assert.ok(c.ratings&&Object.keys(c.ratings).length,c.id);
   if(c.coreOdIn)assert.ok(c.coreOdIn<c.odIn,c.id);
  }
  assert.equal(new Set(cat.map(c=>c.id)).size,cat.length);
@@ -42,10 +42,20 @@ test('4:2 composite power + control: control set selects the row, integral groun
  const int=run({...p,family:'4:2/4x12',groundMode:'integral'});assert.equal(int.status,'Calculated');assert.equal(int.selected.cable.catalogNumber,'571-31-3667');assert.ok(!has(int,'ground'));
  const none=run({...p,family:'4:2/3x14',groundMode:'integral'});assert.ok(has(none,'ground'));assert.equal(none.status,'Blocked');
 });
-test('project JSON round trip preserves blank inputs; old versions are rejected',()=>{
- const restored=loadProject(JSON.parse(JSON.stringify({...defaults(),current:NaN})));
- assert.ok(Number.isNaN(restored.current));
- for(const raw of [{version:2},{...defaults(),version:1},{...defaults(),conduitType:'invalid'},{...defaults(),conduitSize:'100'},{...defaults(),wet:'yes'},{...defaults(),loadType:'custom'}])assert.throws(()=>loadProject(raw));
+test('project JSON round trip preserves blank inputs and migrates legacy MV motors as incomplete',()=>{
+ const restored=loadProject(JSON.parse(JSON.stringify({...defaults(),motorTrip:NaN})));
+ assert.ok(Number.isNaN(restored.motorTrip));
+ const legacy={...defaults(),version:2,loadType:'motor',voltage:4160,current:250,motorHp:2000,motorVoltage:460};
+ for(const key of ['continuousRatedAssembly','motorFLC','motorTrip','breakerRating','motorDuty','driveInput'])delete legacy[key];
+ const migrated=loadProject(JSON.parse(JSON.stringify(legacy)));
+ assert.equal(migrated.loadType,'mv-motor');assert.equal(migrated.motorFLC,250);assert.ok(Number.isNaN(migrated.motorTrip));
+ assert.ok(has(run(migrated),'motor-trip'));
+ const legacyLV={...legacy,loadType:'motor',voltage:480,motorHp:75,motorVoltage:460};
+ const migratedLV=loadProject(JSON.parse(JSON.stringify(legacyLV)));
+ assert.equal(migratedLV.loadType,'lv-motor');assert.equal(migratedLV.motorFLC,96);assert.equal(demand(migratedLV).required,120);
+ const legacyVFD={...legacy,loadType:'vfd',voltage:4160,current:300};
+ assert.equal(loadProject(JSON.parse(JSON.stringify(legacyVFD))).driveInput,300);
+ for(const raw of [{version:1},{...defaults(),conduitType:'invalid'},{...defaults(),conduitSize:'100'},{...defaults(),wet:'yes'},{...defaults(),loadType:'custom'}])assert.throws(()=>loadProject(raw));
  assert.equal(loadProject(JSON.parse(JSON.stringify(defaults()))).voltage,480);
 });
 test('removed inputs are not part of the project',()=>{
@@ -62,7 +72,7 @@ test('LV 100 A continuous example: Okonite 3:1, NEC fill, bend radius and EGC',(
 });
 test('manual conduit in the jam band is flagged for review',()=>{const r=run({conduitSize:'1-1/2'});assert.ok(has(r,'jamming'));assert.equal(r.status,'Review required');});
 test('continuous feeder applies separate pre-adjustment and post-adjustment tests',()=>{
- const r=run({ocpd:125,selection:'manual',size:'1',ambient:45});assert.equal(r.load.thermal,100);near(r.selected.corrected,126.15);assert.equal(r.selected.ampPass,true);
+ const r=run({ocpd:125,selection:'manual',size:'1',ambient:45});assert.equal(r.load.thermal,125);near(r.selected.corrected,126.15);assert.equal(r.selected.ampPass,true);
 });
 test('LV ambient factors use exact band endpoints',()=>{assert.equal(correction(false,40,90),.91);assert.equal(correction(false,40.01,90),.87);assert.equal(correction(false,60,60),null);assert.equal(correction(false,85.01,90),null);});
 test('MV correction uses 40 C base and no LV factors',()=>{assert.equal(correction(true,40,90),1);assert.equal(correction(true,45,90),.95);assert.equal(correction(true,45,105),.96);});
@@ -76,7 +86,7 @@ test('1 / 2 / 3 physical items use the NEC 53 / 31 / 40 percent limit',()=>{
  assert.equal(fill([{count:3,area:.13}],{area:1}).pass,true);
 });
 test('3/C plus separate EGC uses 31%; integral EGC keeps one 53% item',()=>{
- const p={...mv,loadType:'feeder',continuous:200,construction:'multi',family:'2:19',cableVoltage:8000,size:'350'};
+ const p={...mv,loadType:'vfd-input',driveInput:200,construction:'multi',family:'2:19',cableVoltage:8000,size:'350'};
  const r=run(p);assert.equal(r.selected.conduit.nec,31);
  const q=run({...p,groundMode:'integral'});assert.equal(q.selected.conduit.nec,53);assert.equal(q.selected.conduit.count,1);
 });
@@ -86,19 +96,21 @@ test('integral EGC comes from the catalog construction',()=>{
  near(int.selected.groundKcmil,26.24);
 });
 test('sectioned integral grounds are summed and undersized grounds fail',()=>{
- const p={voltage:2400,loadType:'feeder',continuous:40,construction:'multi',family:'2:21',cableVoltage:2400,terminal:'90',selection:'manual',size:'8',groundMode:'integral'};
+ const p={voltage:2400,loadType:'vfd-input',driveInput:32,construction:'multi',family:'2:21',cableVoltage:2400,terminal:'90',selection:'manual',size:'8',groundMode:'integral'};
  const ok=run({...p,ocpd:100});near(ok.selected.groundKcmil,3*6.53);assert.ok(!has(ok,'ground'));
  const bad=run({...p,ocpd:400});assert.ok(has(bad,'ground'));assert.equal(bad.status,'Blocked');
 });
-test('MV 4.16 kV motor: 125% of entered FLC, 280 × .95 = 266 A, 90 C terminal',()=>{
- const r=run(mv);assert.equal(r.load.design,250);assert.equal(r.selected.ref,'315.60(C)(7)');assert.equal(r.selected.base,280);near(r.selected.corrected,266);assert.equal(r.selected.g.size,'4');assert.equal(r.selected.ampPass,true);
+test('MV 4.16 kV motor uses the overload trip setting, not FLC or breaker rating',()=>{
+ const r=run(mv);assert.equal(r.load.required,280);assert.equal(r.load.design,280);assert.equal(r.load.reference,'430.205(A)');assert.equal(r.selected.ref,'315.60(C)(7)');assert.ok(r.selected.allowed>=280);assert.equal(r.selected.ampPass,true);
+ assert.notEqual(r.load.required,312.5);assert.notEqual(r.load.required,mv.breakerRating);
+ assert.match(r.load.basis,/No automatic 125% multiplier/);
 });
 test('MV feeder and VFD apply 125%',()=>{
- assert.equal(demand({...defaults(),voltage:4160,loadType:'feeder',continuous:100,noncontinuous:20}).design,145);
- assert.equal(demand({...defaults(),voltage:4160,loadType:'vfd',current:80}).design,100);
+ assert.ok(has(run({voltage:4160,loadType:'feeder'}),'mv-feeder-scope'));
+ assert.equal(demand({...defaults(),voltage:4160,loadType:'vfd-input',driveInput:300}).required,375);
 });
 test('MV105 correction and 90C terminal ceiling are separate',()=>{const r=run({...mv,insulation:105,ambient:30});assert.equal(r.selected.base,305);assert.equal(r.selected.term,280);assert.equal(r.selected.allowed,280);});
-test('MV-90 family blocks the 105 C insulation basis',()=>{const r=run({voltage:2400,loadType:'feeder',continuous:100,construction:'multi',family:'2:21',cableVoltage:2400,terminal:'90',insulation:105,ocpd:200});assert.ok(has(r,'insulation-rating'));assert.equal(r.status,'Blocked');});
+test('MV-90 family blocks the 105 C insulation basis',()=>{const r=run({voltage:2400,loadType:'vfd-input',driveInput:80,construction:'multi',family:'2:21',cableVoltage:2400,terminal:'90',insulation:105,ocpd:200});assert.ok(has(r,'insulation-rating'));assert.equal(r.status,'Blocked');});
 test('15 kV rated cable on 4.16 kV uses higher cable voltage column',()=>{const r=run({...mv,family:'2:8/133',cableVoltage:15000,insulationLevel:133});assert.equal(r.selected.base,295);assert.ok(!has(r,'voltage-band'));});
 test('incorrect MV cable voltage column is blocked',()=>{const r=run({...mv,family:'2:8/133',cableVoltage:5000});assert.ok(has(r,'voltage-band'));assert.equal(r.status,'Blocked');});
 test('catalog MV insulation level and dual voltage ratings are enforced',()=>{
@@ -131,15 +143,20 @@ test('rooftop 3/4 in, 33 C adder; XHHW-2 exception comes from the family',()=>{
  assert.equal(run({rooftop:true,roofHeight:.74,construction:'multi',family:'4:5'}).adder,0);
 });
 test('auto terminal defaults are conservative for small equipment',()=>{const r=run({continuous:30,ocpd:40,terminal:'auto',selection:'manual',size:'8'});assert.equal(r.selected.terminal,60);assert.equal(r.selected.term,40);});
-test('motor 75hp 460V FLC is 96 A and requirement 120 A',()=>{const d=demand({...defaults(),loadType:'motor'});assert.equal(d.actual,96);assert.equal(d.design,120);assert.equal(d.thermal,120);});
-test('incompatible LV motor voltage is blocked',()=>assert.ok(has(run({loadType:'motor',motorVoltage:230}),'motor-voltage')));
-test('VFD input uses 125% of input rated current',()=>assert.equal(demand({...defaults(),loadType:'vfd',current:120}).design,150));
+test('LV motor uses 125% of applicable Table FLC',()=>{const d=demand({...defaults(),loadType:'lv-motor',motorFLC:100});assert.equal(d.actual,100);assert.equal(d.required,125);assert.equal(d.reference,'430.6(A)(1), 430.22, Table 430.250');});
+test('LV motor uses a compatible voltage and required FLC',()=>{assert.ok(has(run({loadType:'lv-motor',voltage:4160}),'circuit-voltage'));assert.ok(has(run({loadType:'lv-motor',motorFLC:NaN}),'motor-flc'));});
+test('MV motor cannot size without the overload protection trip setting',()=>{const r=run({...mv,motorTrip:NaN});assert.equal(r.status,'Blocked');assert.equal(r.selected,undefined);assert.ok(has(r,'motor-trip'));});
+test('MV motor EGC uses the independent protective device input, not overload trip current',()=>{const a=run({...mv,motorTrip:280,ocpd:100}),b=run({...mv,motorTrip:350,ocpd:100});assert.equal(a.selected.g.size,b.selected.g.size);assert.equal(demand({...defaults(),...mv,motorTrip:350}).required,350);});
+test('VFD input uses 125% of equipment rated input current at LV and MV',()=>{assert.equal(demand({...defaults(),loadType:'vfd-input',driveInput:120}).required,150);assert.equal(demand({...defaults(),voltage:4160,loadType:'vfd-input',driveInput:300}).required,375);});
 test('feeder OCPD below continuous load requirement is blocked',()=>assert.ok(has(run({ocpd:100}),'ocpd-load')));
-test('size missing from the family is not treated as a pass',()=>{const r=run({...mv,family:'2:3',size:'2'});assert.ok(has(r,'cable'));assert.equal(r.status,'Blocked');});
+test('size missing from the family is not treated as a pass',()=>{const r=run({...mv,family:'2:3',selection:'manual',size:'2'});assert.ok(has(r,'cable'));assert.equal(r.status,'Blocked');});
 test('more than 360 degrees is rejected; 360 is permitted',()=>{assert.ok(has(run({bends:361}),'bends'));assert.ok(!has(run({bends:360}),'bends'));});
 test('wet-only criteria, phase grouping, damage and classified areas fail closed',()=>{for(const [p,c] of [[{wetRated:false},'wet'],[{allPhases:false},'phase-group'],[{hazardous:true},'hazard'],[{damage:true,conduitType:'EMT'},'damage']])assert.ok(has(run(p),c));});
 test('MV insulation level category clearing time limits',()=>{assert.ok(has(run({...mv,insulationLevel:100,clearingMinutes:2}),'insulation-level'));assert.ok(has(run({...mv,insulationLevel:133,clearingMinutes:61}),'insulation-level'));});
-test('invalid numbers and unsupported choices cannot yield a pass',()=>{for(const p of [{voltage:NaN},{sets:1.5},{sets:0},{current:Infinity},{continuous:-1},{conduitType:'unknown'},{voltage:16000},{voltage:1500},{size:'unknown'},{groundMode:'none'},{loadType:'custom'},{family:'unknown'}])assert.equal(run(p).status,'Blocked',JSON.stringify(p));});
+test('1001–2000 V is classified as MV, while unsupported MV feeder rules fail closed',()=>{assert.ok(has(run({voltage:1500,loadType:'feeder'}),'mv-feeder-scope'));assert.ok(has(run({voltage:1500,loadType:'lv-motor'}),'circuit-voltage'));});
+test('qualifying 100%-rated assembly changes only continuous-load sizing basis',()=>{const standard=demand({...defaults(),continuous:100,noncontinuous:50});const listed=demand({...defaults(),continuous:100,noncontinuous:50,continuousRatedAssembly:true});assert.equal(standard.required,175);assert.equal(listed.required,150);});
+test('general continuous and mixed load formulas',()=>{assert.equal(demand({...defaults(),continuous:100,noncontinuous:0}).required,125);assert.equal(demand({...defaults(),continuous:100,noncontinuous:50}).required,175);});
+test('invalid numbers and unsupported choices cannot yield a pass',()=>{for(const p of [{voltage:NaN},{sets:1.5},{sets:0},{driveInput:Infinity,loadType:'vfd-input'},{continuous:-1},{conduitType:'unknown'},{voltage:16000},{size:'unknown'},{groundMode:'none'},{loadType:'custom'},{family:'unknown'}])assert.equal(run(p).status,'Blocked',JSON.stringify(p));});
 test('hub registration, static build and local assets resolve',()=>{
  const read=x=>readFileSync(new URL('../'+x,import.meta.url),'utf8');assert.equal(read('index.html').match(/href="apps\/raceway-lab\/index.html"/g)?.length,1);assert.match(read('scripts/build.mjs'),/'raceway-lab'/);
  const page=new URL('../apps/raceway-lab/index.html',import.meta.url);

@@ -1,11 +1,40 @@
 import {defaults} from './engine.js';
-import {CONDUITS, SIZES} from './data.js';
+import {CONDUITS, SIZES, MOTOR_FLC} from './data.js';
 
-// JSON encodes a deliberately blank numeric input as null. Preserve that blank
-// on restore so an incomplete engineering input can never become a default.
+function migrateV2(raw) {
+  const clean = defaults();
+  for (const key of Object.keys(clean)) {
+    if (['version', 'loadType', 'motorFLC', 'motorTrip', 'breakerRating', 'motorDuty', 'driveInput', 'continuousRatedAssembly'].includes(key)) continue;
+    if (!(key in raw)) throw Error(`Missing input: ${key}`);
+    if (typeof clean[key] === 'number' && raw[key] === null) clean[key] = NaN;
+    else if (typeof raw[key] === typeof clean[key]) clean[key] = raw[key];
+    else throw Error(`Invalid input type: ${key}`);
+  }
+  clean.version = 3;
+  clean.continuousRatedAssembly = false;
+  clean.motorDuty = 'continuous';
+  if (raw.loadType === 'feeder') clean.loadType = 'feeder';
+  else if (raw.loadType === 'motor' && raw.voltage > 1000) {
+    clean.loadType = 'mv-motor';
+    clean.motorFLC = Number.isFinite(raw.current) && raw.current > 0 ? raw.current : NaN;
+    clean.motorTrip = NaN;
+  } else if (raw.loadType === 'motor') {
+    clean.loadType = 'lv-motor';
+    const columns = [200, 208, 230, 460, 575, 2300];
+    clean.motorFLC = MOTOR_FLC[String(raw.motorHp)]?.[columns.indexOf(raw.motorVoltage)] ?? NaN;
+  } else if (raw.loadType === 'vfd') {
+    clean.loadType = 'vfd-input';
+    clean.driveInput = Number.isFinite(raw.current) && raw.current > 0 ? raw.current : NaN;
+  } else throw Error('Unsupported legacy load type');
+  return clean;
+}
+
+// JSON encodes blank numeric inputs as null; restore them as NaN, never as defaults.
 export function loadProject(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || raw.version !== 2)
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     throw Error('Unsupported project version');
+  if (raw.version === 2) raw = migrateV2(raw);
+  if (raw.version !== 3) throw Error('Unsupported project version');
   const clean = defaults();
   for (const key of Object.keys(clean)) {
     if (!(key in raw)) throw Error(`Missing input: ${key}`);
@@ -15,9 +44,9 @@ export function loadProject(raw) {
   }
   const choices = {
     conduitType: Object.keys(CONDUITS), construction: ['single', 'multi'],
-    loadType: ['feeder', 'motor', 'vfd'], selection: ['auto', 'manual'],
-    neutral: ['none', 'linear', 'nonlinear'], groundMode: ['separate', 'integral'],
-    terminal: ['auto', '60', '75', '90', '105'],
+    loadType: ['feeder', 'lv-motor', 'mv-motor', 'vfd-input'], motorDuty: ['continuous', 'other'],
+    selection: ['auto', 'manual'], neutral: ['none', 'linear', 'nonlinear'],
+    groundMode: ['separate', 'integral'], terminal: ['auto', '60', '75', '90', '105'],
     size: SIZES,
   };
   for (const [key, values] of Object.entries(choices))
