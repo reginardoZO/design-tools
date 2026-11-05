@@ -1,11 +1,21 @@
-import {LV, MV_1C, MV_3C, KCMIL, SIZES, EGC, GROUND_AREA, LV_CORRECTION, MV_CORRECTION, CONDUITS, CONDUIT_BEND, GROUND_KCMIL, MOTOR_FLC, MOTOR_VOLTAGES} from './data.js';
+import {LV, MV_1C, MV_3C, KCMIL, SIZES, EGC, GROUND_AREA, LV_CORRECTION, MV_CORRECTION, CONDUITS, CONDUIT_BEND, GROUND_KCMIL, MOTOR_FLC, MOTOR_VOLTAGES, MOTOR_FLC_1PH, MOTOR_VOLTAGES_1PH} from './data.js';
 export const label = s => `${s} ${Number(s)>=250?'kcmil':'AWG'}`;
 export const area = d => Math.PI*d*d/4;
 export const cableRatings = c => c?.ratings||null;
 export const defaults = () => ({version:4, name:'PlantSERV · Power circuit', voltage:480, loadType:'feeder', continuous:100, noncontinuous:0, continuousRatedAssembly:false, motorFLC:NaN, motorHp:1, motorVoltage:460, motorTrip:NaN, breakerRating:NaN, motorDuty:'continuous', driveInput:NaN, sets:1, circuits:1, neutral:'none', construction:'single', family:'3:1', selection:'auto', size:'1/0', insulation:90, terminal:'75', ambient:40, rooftop:false, roofHeight:1, wet:true, wetRated:true, cableVoltage:1000, conduitType:'RMC', conduitSize:'auto', isolated:true, allPhases:true, hazardous:false, damage:false, bends:180, ocpd:150, groundMode:'separate', insulationLevel:133, clearingMinutes:1});
-export function motorTableFLC(horsepower, voltage){
- const column=[...MOTOR_VOLTAGES,2300].indexOf(Number(voltage));
- return column<0?null:MOTOR_FLC[String(horsepower)]?.[column]??null;
+export const loadDefaults = () => ({phases:3, motorKind:'standard', motorPowerUnit:'hp', motorPower:NaN, inputMode:'A', loadValue:NaN, powerBasis:'electrical', efficiency:NaN, powerFactor:1, operation:'', heaterCategory:'other', circuitKind:'feeder', feederUnit:'A', transformerKva:NaN, primaryVoltage:NaN, secondaryVoltage:NaN, transformerSide:'primary', transformerBasis:'full', continuousPercent:NaN, neutralCurrent:NaN, verifyProtection:true, verifyTransformerProtection:false, primaryOcpd:NaN, secondaryOcpd:NaN});
+export const newProject = () => ({...defaults(), ...loadDefaults(), version:5, terminal:'auto', ocpd:NaN, continuous:NaN, noncontinuous:NaN});
+export const LOAD_TYPES = [['lv-motor','LV Motor - Direct Online'],['mv-motor','MV Motor - Direct Online'],['lv-vfd','LV Motor - VFD'],['mv-vfd','MV Motor - VFD'],['heater','Heater'],['transformer','Transformer'],['feeder','Feeder - Distribution Panel'],['general','General Load']];
+export function changeLoadType(p,loadType){
+ return {...p,...loadDefaults(),phases:p.phases??3,loadType,version:5,continuous:NaN,noncontinuous:NaN,continuousRatedAssembly:false,motorHp:NaN,motorFLC:NaN,motorTrip:NaN,breakerRating:NaN,driveInput:NaN,motorDuty:'continuous',neutral:'none',ocpd:NaN};
+}
+export function motorTableFLC(horsepower, voltage, phases=3){
+ const rated=({120:115,240:230,480:460,600:575})[voltage]||Number(voltage);
+ const voltages=phases===1?MOTOR_VOLTAGES_1PH:[...MOTOR_VOLTAGES,2300];
+ const column=voltages.indexOf(rated);
+ const table=phases===1?MOTOR_FLC_1PH:MOTOR_FLC;
+ const key=Object.keys(table).find(value=>Math.abs(Number(value)-Number(horsepower))<1e-8);
+ return column<0?null:table[key]?.[column]??null;
 }
 export const familyEntries = (catalog,p) => catalog.filter(c=>c.spec===p.family&&c.conductors===(p.construction==='single'?1:3));
 // Union of the voltage / insulation-level ratings published for a family.
@@ -20,24 +30,43 @@ export function correction(mv,temp,rating){
 }
 export function adjustment(ccc){return ccc<=3?1:ccc<=6?.8:ccc<=9?.7:ccc<=20?.5:ccc<=30?.45:ccc<=40?.4:.35;}
 export function demand(p){
+ p=activeInputs(p);
  const mv=p.voltage>1000;
+ const result=(actual,required,thermal,reference,basis,extra={})=>({actual,design:required,required,thermal,reference,basis,multiplier:actual>0?`${(required/actual).toFixed(3)} load-based ratio`:'Not applicable',...extra});
+ const general=(actual,continuous,reference,basis,extra={})=>result(actual,actual+.25*continuous,actual,reference,basis,{ocpdRequired:actual+.25*continuous,...extra});
+ const fromInput=(value,mode,voltage=p.voltage)=>mode==='A'?value:value*1000/((p.phases===3?Math.sqrt(3):1)*voltage*(mode==='kW'?p.powerFactor:1)*(mode==='kW'&&p.powerBasis==='thermal'?p.efficiency/100:1));
  if(p.loadType==='feeder'){
-  if(mv)return {actual:p.continuous+p.noncontinuous,design:NaN,required:NaN,thermal:NaN,multiplier:'Not implemented',reference:'Article 235',basis:'A verified medium-voltage general feeder sizing basis is not implemented; no conductor recommendation is issued.'};
+  if(mv)return result(p.continuous+p.noncontinuous,NaN,NaN,'Article 235','A verified medium-voltage general feeder sizing basis is not implemented; no conductor recommendation is issued.');
   const multiplier=p.continuousRatedAssembly?1:1.25;
-  const required=multiplier*p.continuous+p.noncontinuous;
-  return {actual:p.continuous+p.noncontinuous,design:required,required,thermal:required,multiplier:p.continuousRatedAssembly?'100% qualifying listed assembly':'125% continuous load',reference:'210.19(A)(1) / 215.2(A)(1)',basis:p.continuousRatedAssembly?'The qualifying assembly is identified for 100% continuous operation; continuous-load conductor sizing uses 100% only when the complete applicable assembly is listed for that operation.':'General feeder / branch circuit: 125% of continuous current + 100% of noncontinuous current.'};
+  const scale=p.feederUnit==='kVA'?1000/((p.phases===3?Math.sqrt(3):1)*p.voltage):1;
+  const actual=(p.continuous+p.noncontinuous)*scale, required=(multiplier*p.continuous+p.noncontinuous)*scale;
+  return result(actual,required,actual,'215.2(A)(1)',p.continuousRatedAssembly?'Complete applicable assembly confirmed listed for 100% continuous operation.':'125% of continuous current + 100% of noncontinuous current; no demand-factor reduction.',{ocpdRequired:required});
+ }
+ if(p.loadType==='heater'||p.loadType==='general'){
+  const actual=fromInput(p.loadValue,p.inputMode);
+  const mandatory=p.loadType==='heater'&&p.heaterCategory!=='other';
+  const continuous=mandatory||p.operation==='continuous';
+  const reference=p.loadType==='heater'?(p.heaterCategory==='process'?'425.4(B), 425.22':p.heaterCategory==='space'?'424.3(B)':'210.19(A)(1) / 215.2(A)(1)'):(p.circuitKind==='branch'?'210.19(A)(1)':'215.2(A)(1)');
+  return general(actual,continuous?actual:0,reference,mandatory?'Fixed process/space heating is treated as continuous; no 100% heater exception is applied.':'Electrical load current is calculated before applying the operating classification.');
+ }
+ if(p.loadType==='transformer'){
+  const primaryCurrent=fromInput(p.transformerKva,'kVA',p.primaryVoltage), secondaryCurrent=fromInput(p.transformerKva,'kVA',p.secondaryVoltage);
+  const actual=p.transformerBasis==='full'?(p.transformerSide==='primary'?primaryCurrent:secondaryCurrent):fromInput(p.loadValue,p.inputMode);
+  const continuous=p.transformerBasis==='calculated'?actual*p.continuousPercent/100:(p.operation==='continuous'?actual:0);
+  return general(actual,continuous,p.circuitKind==='branch'?'210.19(A)(1); 450.3; 240.4; 240.21(C)':'215.2(A)(1); 450.3; 240.4; 240.21(C)','Transformer capacity establishes rated currents, not an automatic 125% multiplier. Winding and conductor protection are independent.',{primaryCurrent,secondaryCurrent});
  }
  if(p.loadType==='lv-motor'){
-    const actual=motorTableFLC(p.motorHp,p.motorVoltage);
-    const required=1.25*actual;
-    return {actual,design:required,required,thermal:required,multiplier:'125% of applicable motor FLC',reference:'430.6(A)(1), 430.22, Table 430.250',basis:`Table 430.250 gives ${actual??'no listed value'} A for a ${p.motorHp} hp, ${p.motorVoltage} V motor; minimum conductor ampacity is 125% of that FLC under NEC 430.22.`};
+    const horsepower=p.motorPowerUnit==='kW'?p.motorPower/0.746:p.motorHp;
+    const actual=p.motorKind==='standard'?motorTableFLC(horsepower,p.version>=5?p.voltage:p.motorVoltage,p.phases):p.motorFLC;
+    const required=actual===null?NaN:1.25*actual;
+    return result(actual,required,required,p.motorKind==='standard'?(p.phases===3?'430.6(A)(1), 430.22, Table 430.250':'430.6(A)(1), 430.22, Table 430.248'):'430.6(A)(1), 430.22',p.motorKind==='standard'?'125% of NEC table FLC; nameplate current and short-circuit protection are separate.':'125% of nameplate current for the explicitly selected 430.6(A)(1) special motor category.',{tableFLC:p.motorKind==='standard'?actual:null,nameplateCurrent:p.motorFLC});
  }
  if(p.loadType==='mv-motor'){
   const required=p.motorTrip;
-  return {actual:Number.isFinite(p.motorFLC)?p.motorFLC:required,design:required,required,thermal:required,multiplier:'Not applicable — overload trip setting governs',reference:'430.205(A)',basis:'According to NEC 430.205(A), the required conductor ampacity is based on the motor overload protection trip setting. No automatic 125% multiplier has been applied to the motor full-load current.'};
+   return result(p.motorFLC,required,required,'430.205(A)','According to NEC 430.205(A), the required conductor ampacity is based on the motor overload protection trip setting. No automatic 125% multiplier has been applied to the motor full-load current.');
  }
- const required=1.25*p.driveInput;
- return {actual:p.driveInput,design:required,required,thermal:required,multiplier:'125% of equipment rated input current',reference:mv?'430.205(B)':'430.122(A)',basis:`VFD input circuit: 125% of power conversion equipment rated input current under NEC ${mv?'430.205(B)':'430.122(A)'}. VFD output circuits are outside this model.`};
+ if(['vfd-input','lv-vfd','mv-vfd'].includes(p.loadType))return result(p.driveInput,1.25*p.driveInput,1.25*p.driveInput,mv?'430.205(B)':'430.122(A)','125% of VFD rated input current. Motor FLC and VFD output current are not used for input-conductor sizing.');
+ return result(NaN,NaN,NaN,'Load inputs','Select a supported load type.');
 }
 // NEC Chapter 9 Table 1: 1 item 53%, 2 items 31%, more than 2 items 40%.
 export function fill(contents,conduit){
@@ -69,39 +98,68 @@ export function cableBend(c){
  return {radius:k*od,rule:`${k} × overall OD (nonshielded, nonarmored; OD ${od<=1?'≤ 1.0':od<=2?'1.0–2.0':'> 2.0'} in)`,ref:c.conductors===3?'336.24':'ICEA S-95-658 / NEMA WC 70 (manufacturer guidance)'};
 }
 function issue(code,message,ref,level='block'){return {code,message,ref,level};}
-const numKeys=['voltage','sets','circuits','insulation','ambient','roofHeight','cableVoltage','bends','ocpd','insulationLevel','clearingMinutes'];
+const numKeys=['voltage','sets','circuits','insulation','ambient','cableVoltage','bends'];
 export function validate(p){
+ p=activeInputs(p);
  const out=[]; const add=(...x)=>out.push(issue(...x));
+ const positive=(key,ref='Load inputs')=>{if(!Number.isFinite(p[key])||p[key]<=0)add('input',`${key}: enter a positive finite value.`,ref);};
+ const choice=(key,values)=>{if(!values.includes(p[key]))add('input',`${key}: select an applicable choice.`,'Load inputs');};
  for(const k of numKeys)if(typeof p[k]!=='number'||!Number.isFinite(p[k]))add('input',`${k}: enter a finite number.`,'Input validation');
  if(out.length)return out;
- const enums={loadType:['feeder','lv-motor','mv-motor','vfd-input'],motorDuty:['continuous','other'],neutral:['none','linear','nonlinear'],construction:['single','multi'],selection:['auto','manual'],terminal:['auto','60','75','90','105'],conduitType:Object.keys(CONDUITS),groundMode:['separate','integral']};
+ const enums={loadType:['feeder','lv-motor','mv-motor','vfd-input','lv-vfd','mv-vfd','heater','transformer','general'],neutral:['none','linear','nonlinear'],construction:['single','multi'],selection:['auto','manual'],terminal:['auto','60','75','90','105'],conduitType:Object.keys(CONDUITS),groundMode:['separate','integral'],phases:[1,3]};
  for(const [k,values] of Object.entries(enums))if(!values.includes(p[k]))add('input',`${k}: unsupported choice.`,'Scope');
- if(typeof p.continuousRatedAssembly!=='boolean')add('input','The 100%-continuous assembly confirmation must be true or false.','Input validation');
+ if(p.loadType==='feeder'&&typeof p.continuousRatedAssembly!=='boolean')add('input','The 100%-continuous assembly confirmation must be true or false.','Input validation');
  if(p.voltage<=0||p.voltage>15000)add('voltage','Use a system voltage above 0 V through 15 kV.','Articles 310 / 315');
  const mv=p.voltage>1000;
- if((p.loadType==='lv-motor'&&mv)||(p.loadType==='mv-motor'&&!mv))add('circuit-voltage','Choose the motor circuit type that matches the system voltage: LV is 1000 V or less; MV is greater than 1000 V.','430.22 / 430.205(A)');
+ if((['lv-motor','lv-vfd'].includes(p.loadType)&&mv)||(['mv-motor','mv-vfd'].includes(p.loadType)&&!mv))add('circuit-voltage','Choose the motor circuit type that matches the system voltage: LV is 1000 V or less; MV is greater than 1000 V.','430.22 / 430.205(A)/(B)');
  if(mv&&p.loadType==='feeder')add('mv-feeder-scope','A verified medium-voltage general feeder sizing basis is not implemented. No conductor recommendation can be issued.','Article 235');
+ if(mv&&['heater','transformer','general'].includes(p.loadType))add('mv-load-scope','Nonmotor MV conductor/protection arrangements require an engineering review outside this isolated motor-circuit model.','Articles 235 / 315 / 450');
+ if(p.phases===1&&(mv||p.construction==='multi'||p.neutral!=='none'))add('phase-scope','Single-phase sizing supports LV two-wire circuits with single conductors only. MV tables and 3/C cables require three-phase circuits.','Table 310.16 / 315.60(C)(7)/(9)');
  if(p.loadType==='feeder'){
+   choice('feederUnit',['A','kVA']);
   for(const k of ['continuous','noncontinuous'])if(typeof p[k]!=='number'||!Number.isFinite(p[k])||p[k]<0)add('input',`${k}: enter a finite nonnegative load current.`,'Input validation');
  }
  if(p.loadType==='lv-motor'){
-    if(!Number.isFinite(Number(p.motorHp))||!Number.isFinite(motorTableFLC(p.motorHp,p.motorVoltage))||motorTableFLC(p.motorHp,p.motorVoltage)<=0)add('motor-flc','Select a motor horsepower and rated voltage with a listed Table 430.250 full-load current.','430.6(A)(1), 430.22, Table 430.250');
+   choice('motorKind',['standard','low-speed','high-torque','multispeed']);
+   choice('motorPowerUnit',['hp','kW']);
+  if(p.motorKind!=='standard')positive(p.motorPowerUnit==='hp'?'motorHp':'motorPower','430.6(A)(1)');
+   if(p.motorKind!=='standard')positive('motorFLC','430.6(A)(1)');
+   else if(!(demand(p).tableFLC>0))add('motor-flc','Select an exact listed horsepower and supported voltage/phase column. kW is converted at 0.746 kW/hp; do not interpolate table ratings.','430.6(A)(1), Tables 430.248 / 430.250');
+  if(p.motorKind==='standard'&&!Number.isNaN(p.motorFLC)&&!(Number.isFinite(p.motorFLC)&&p.motorFLC>0))add('motor-flc','Enter positive nameplate current or leave the optional reference blank.','Motor nameplate reference');
+   choice('motorDuty',['continuous','other']);
   if(p.motorDuty!=='continuous')add('motor-duty','This calculator covers continuous-duty motors only; apply the applicable alternative conductor-sizing rule for other duty ratings.','430.22(E)');
  }
  if(p.loadType==='mv-motor'){
   if(typeof p.motorTrip!=='number'||!Number.isFinite(p.motorTrip)||p.motorTrip<=0)add('motor-trip','Motor overload protection trip setting is required for medium-voltage motor conductor sizing under NEC 430.205(A). Enter the effective overload trip current in amperes.','430.205(A)');
-  if(p.motorDuty!=='continuous')add('motor-duty','This calculator covers continuous-duty motors only; verify the applicable requirements for other duty ratings.','430.205(A)');
+   if(p.version>=5)positive('motorFLC','430.205(A)');
  }
- if(p.loadType==='vfd-input'&&(typeof p.driveInput!=='number'||!Number.isFinite(p.driveInput)||p.driveInput<=0))add('drive-input','Enter the power conversion equipment rated input current.','430.122(A) / 430.205(B)');
- for(const k of ['motorFLC','motorTrip','breakerRating','driveInput'])if(typeof p[k]!=='number'||(!Number.isFinite(p[k])&&!Number.isNaN(p[k]))||(Number.isFinite(p[k])&&p[k]<0))add('input',`${k}: enter a nonnegative value or leave it blank if optional.`,'Input validation');
- if(Number.isFinite(p.motorTrip)&&p.motorTrip<=0)add('motor-trip','Motor overload protection trip setting must be greater than zero.','430.205(A)');
- if(Number.isFinite(p.motorFLC)&&p.motorFLC<=0)add('motor-flc','Motor full-load current must be greater than zero when provided.','430.6(A)(1), 430.22');
- if(Number.isFinite(p.breakerRating)&&p.breakerRating<=0)add('breaker-rating','Circuit breaker rating must be greater than zero when provided.','Reference only');
- if(Number.isFinite(p.driveInput)&&p.driveInput<=0)add('drive-input','VFD rated input current must be greater than zero.','430.122(A) / 430.205(B)');
+ if(['vfd-input','lv-vfd','mv-vfd'].includes(p.loadType)&&!(Number.isFinite(p.driveInput)&&p.driveInput>0))add('drive-input','Enter the power conversion equipment rated input current.','430.122(A) / 430.205(B)');
+ if(['heater','general','transformer'].includes(p.loadType)){
+  choice('circuitKind',['branch','feeder']);
+  if(p.loadType==='heater')choice('heaterCategory',['other','space','process']);
+  if(p.loadType==='transformer'){
+   positive('transformerKva');positive('primaryVoltage');positive('secondaryVoltage');
+   choice('transformerSide',['primary','secondary']);choice('transformerBasis',['full','calculated']);
+   if(p.transformerBasis==='calculated'&&(!Number.isFinite(p.continuousPercent)||p.continuousPercent<0||p.continuousPercent>100))add('input','Enter the continuous portion of calculated transformer load, from 0 to 100%.','215.2 / 210.19');
+  }
+  const entered=p.loadType!=='transformer'||p.transformerBasis==='calculated';
+  if(entered){
+   choice('inputMode',p.loadType==='heater'?['A','kW']:['A','kW','kVA']);positive('loadValue');
+   if(p.inputMode==='kW'){
+    if(!(p.powerFactor>0&&p.powerFactor<=1))add('input','Power factor must be above 0 and no greater than 1.','Electrical input');
+    choice('powerBasis',['electrical','thermal']);
+    if(p.powerBasis==='thermal'&&!(Number.isFinite(p.efficiency)&&p.efficiency>0&&p.efficiency<=100))add('input','Thermal/output power requires an efficiency above 0 through 100%.','Electrical input');
+   }
+  }
+  if((p.loadType!=='transformer'||p.transformerBasis==='full')&&!(p.loadType==='heater'&&p.heaterCategory!=='other'))choice('operation',['continuous','noncontinuous']);
+ }
+ if(p.neutral!=='none'&&p.version>=5){
+  if(!Number.isFinite(p.neutralCurrent)||p.neutralCurrent<0)add('neutral-load','Enter the maximum calculated unbalanced neutral current; no demand reduction is assumed.','220.61');
+ }
  for(const k of ['sets','circuits'])if(!Number.isInteger(p[k])||p[k]<1||p[k]>10)add('input',`${k}: use a whole number from 1 to 10.`,'Scope');
  if(p.ambient< -40||p.ambient>100)add('temperature','Ambient must be between −40 and 100°C. Verify cable low-temperature installation rating separately.','310.15(B) / 315.60(D)(4)');
- for(const k of ['roofHeight','bends','clearingMinutes'])if(p[k]<0)add('input',`${k}: negative values are not permitted.`,'Input validation');
- if(p.ocpd<=0||p.ocpd>6000||p.cableVoltage<=0)add('input','Check protection (1–6000 A) and cable voltage rating.','Input validation');
+ for(const k of ['bends',...(p.rooftop?['roofHeight']:[]),...(mv?['clearingMinutes','insulationLevel']:[])])if(!Number.isFinite(p[k])||p[k]<0)add('input',`${k}: enter a finite nonnegative value.`,'Input validation');
+ if((!Number.isNaN(p.ocpd)&&(!Number.isFinite(p.ocpd)||p.ocpd<=0||p.ocpd>6000))||p.cableVoltage<=0)add('input','Check protection (1–6000 A, or blank) and cable voltage rating.','Input validation');
  if(!SIZES.includes(p.size))add('input','Unsupported conductor size.','Scope');
  if(![...(mv?[90,105]:[60,75,90])].includes(p.insulation))add('temperature','Select a supported insulation rating for this voltage class.','310.4 / 315.10(A)');
  if(mv&&!['90','105'].includes(p.terminal))add('terminal','MV calculation requires a 90°C or specifically identified 105°C termination basis.','110.40');
@@ -123,7 +181,7 @@ export function validate(p){
 }
 function baseAmps(p,size){
  const mv=p.voltage>1000;
- const terminal=p.terminal==='auto'?((p.ocpd<=100&&KCMIL[size]<=KCMIL['1'])?60:75):Number(p.terminal);
+ const terminal=p.terminal==='auto'?((demand(p).required<=100&&KCMIL[size]<=KCMIL['1'])?60:75):Number(p.terminal);
  if(mv){const row=(p.construction==='single'?MV_1C:MV_3C)[size];const offset=p.cableVoltage<=5000?0:2;
   return {base:row?.[offset+(p.insulation===105?1:0)],term:row?.[offset+(terminal===105?1:0)],terminal,ref:`315.60(C)(${p.construction==='single'?7:9})`};}
  return {base:LV[size]?.[[60,75,90].indexOf(p.insulation)],term:LV[size]?.[[60,75,90].indexOf(terminal)],terminal,ref:'310.16'};
@@ -134,30 +192,56 @@ function pickCable(entries,size,p){
  return (wanted.length?wanted:rows).sort((a,b)=>b.odIn-a.odIn)[0];
 }
 export function integralGround(c){return c?.ground?c.ground.count*(GROUND_KCMIL[c.ground.size]||0):0;}
+export const circuitVoltage = p => p.loadType==='transformer'?(p.transformerSide==='secondary'?p.secondaryVoltage:p.primaryVoltage):p.voltage;
+function activeInputs(p){
+ const state={...loadDefaults(),...p};
+ if(state.version>=5&&!['feeder','heater','transformer','general'].includes(state.loadType))state.neutral='none';
+ return {...state,voltage:circuitVoltage(state)};
+}
 export function calculate(p,catalog=[]){
+ p=activeInputs(p);
  const load=demand(p);const issues=validate(p); if(issues.some(i=>i.level==='block'))return {status:'Blocked',issues,candidates:[],load};
  const mv=p.voltage>1000;
+ const hasOcpd=Number.isFinite(p.ocpd)&&p.ocpd>0;
+ const generalLoad=['feeder','heater','transformer','general'].includes(p.loadType);
+ if(generalLoad&&!p.verifyProtection)issues.push(issue('protection-unverified','Conductor overcurrent protection has not been verified. The entered device is used only as the wire-EGC sizing basis.','240.4 / 210.20 / 215.3','review'));
+ if(!hasOcpd)issues.push(issue('egc-basis','Load-based ampacity can be calculated, but wire EGC and raceway fill remain pending until the actual protective-device rating/setting is entered.','250.122','review'));
+ if(generalLoad&&hasOcpd&&p.verifyProtection&&p.ocpd<load.ocpdRequired-1e-9)issues.push(issue('ocpd-load','The conventional OCPD is below 125% of continuous load plus noncontinuous load. A conductor exception is not a breaker exception.','210.20 / 215.3 / 424.3(B) / 425.22'));
+ if(p.loadType==='general')issues.push(issue('special-load','Confirm that no specialized NEC equipment article supersedes the general branch/feeder rule.','210 / 215','review'));
+ if(p.neutral==='nonlinear')issues.push(issue('neutral-harmonics','Full-size neutral is retained and counted as a loaded conductor. Validate the calculated neutral current for harmonics; no neutral demand reduction is applied.','220.61(C) / 310.15(E)','review'));
+ if(p.loadType==='transformer'){
+  if(p.verifyTransformerProtection){
+   const primaryLimit=load.primaryCurrent*(Number.isFinite(p.secondaryOcpd)?2.5:load.primaryCurrent<2?3:load.primaryCurrent<9?1.67:1.25);
+   const secondaryLimit=load.secondaryCurrent*(load.secondaryCurrent<9?1.67:1.25);
+   if(p.primaryVoltage>1000||p.secondaryVoltage>1000)issues.push(issue('transformer-protection','MV winding protection requires Table 450.3(A) and engineering review; it is not checked with LV percentages.','450.3(A)'));
+   else if(!(Number.isFinite(p.primaryOcpd)&&p.primaryOcpd>0)||p.primaryOcpd>primaryLimit+1e-9||(Number.isFinite(p.secondaryOcpd)&&(!(p.secondaryOcpd>0)||p.secondaryOcpd>secondaryLimit+1e-9)))issues.push(issue('transformer-protection','Protection exceeds the conservative Table 450.3(B) limits or the primary device is missing. No next-standard-size or manufacturer exception is assumed.','450.3(B)'));
+  }
+  issues.push(issue('transformer-review','Verify winding protection under 450.3 independently of conductor protection under 240.4. Secondary conductors require the applicable 240.21(C) arrangement, lengths and installation conditions; no primary-device protection credit is assumed.','450.3 / 240.4 / 240.21(C)','review'));
+ }
  const entries=familyEntries(catalog,p); const fam=entries[0];
  if(!fam)return {status:'Blocked',issues:[...issues,issue('family','Select an Okonite catalog family for this voltage class and construction.','Cable catalog')],candidates:[]};
  if(p.insulation>fam.maxTemp)issues.push(issue('insulation-rating',`${fam.title} is rated ${fam.maxTemp}°C; select ${fam.maxTemp}°C insulation basis.`,'310.4 / 315.10(A)'));
- if(!mv&&p.loadType==='feeder'&&p.ocpd<load.required)issues.push(issue('ocpd-load','Feeder OCPD is below the required continuous + noncontinuous load sizing basis. Verify the complete listed assembly and applicable protection requirements.','215.3'));
- if(!(load.actual>0)||!(load.required>0))return {status:'Blocked',issues:[...issues,issue('load','Enter a positive load and a valid required conductor ampacity.','Load inputs')],candidates:[],load};
+ if((!(load.actual>0)&&p.loadType!=='mv-motor')||!(load.required>0))return {status:'Blocked',issues:[...issues,issue('load','Enter a positive load and a valid required conductor ampacity.','Load inputs')],candidates:[],load};
  const xhhw2=!!fam.xhhw2;
  const adder=!mv&&p.rooftop&&p.roofHeight<.75&&!xhhw2?33:0;
  const ambient=p.ambient+adder;
  const factor=correction(mv,ambient,p.insulation);
  if(!factor)return {status:'Blocked',issues:[...issues,issue('temperature','No permitted correction factor at the entered ambient / insulation rating.','310.15(B)(1)(1) / 315.60(D)(4)')],candidates:[]};
- const ccc=(3+(p.neutral==='nonlinear'?1:0))*p.circuits;
+ const phaseCount=p.phases===1?2:3;
+ const ccc=(phaseCount+(p.neutral==='nonlinear'?1:0))*p.circuits;
  const adjust=mv?1:adjustment(ccc);
  const ampOptions=SIZES.map(size=>{
   const b=baseAmps(p,size); const corrected=b.base*factor*adjust;
   const parallelOK=p.sets===1||KCMIL[size]>=KCMIL['1/0'];
-  const thermalPass=corrected*p.sets>=load.required-1e-9;
-  const terminalPass=b.term*p.sets>=load.required-1e-9;
+  const thermalPass=corrected*p.sets>=load.thermal-1e-9;
+  const unadjusted=Math.min(b.base,b.term);
+  const terminalPass=unadjusted*p.sets>=load.required-1e-9;
   // Conservative no-next-size-up protection rule; do not apply to motor/VFD or MV.
-  const protectionPass=mv||p.loadType!=='feeder'||Math.min(corrected,b.term)*p.sets>=p.ocpd;
-  const smallPass=mv||p.loadType!=='feeder'||!{'14':15,'12':20,'10':30}[size]||p.ocpd<=({'14':15,'12':20,'10':30}[size]);
-  return {size,...b,corrected,allowed:Math.min(corrected,b.term)*p.sets,thermalPass,terminalPass,parallelOK,protectionPass,ampPass:parallelOK&&thermalPass&&terminalPass&&protectionPass&&smallPass&&!!b.base&&!!b.term};
+  const protectionPass=mv||!generalLoad||!hasOcpd||!p.verifyProtection||Math.min(corrected,b.term)*p.sets>=p.ocpd;
+  const smallPass=mv||!generalLoad||!hasOcpd||!p.verifyProtection||!{'14':15,'12':20,'10':30}[size]||p.ocpd<=({'14':15,'12':20,'10':30}[size]);
+  const neutralRequired=p.neutral!=='none'&&p.version>=5?1.25*p.neutralCurrent:0;
+  const neutralPass=Math.min(corrected,b.term)*p.sets>=neutralRequired-1e-9;
+  return {size,...b,unadjusted,corrected,allowed:Math.min(corrected,b.term)*p.sets,thermalPass,terminalPass,parallelOK,protectionPass,neutralRequired,neutralPass,ampPass:parallelOK&&thermalPass&&terminalPass&&neutralPass&&protectionPass&&smallPass&&!!b.base&&!!b.term};
  });
  // 250.122(B) baseline: smallest size with sufficient ampacity that the selected family actually offers.
  const minAmp=(ampOptions.find(x=>x.ampPass&&entries.some(c=>c.size===x.size))||ampOptions.find(x=>x.ampPass))?.size;
@@ -165,10 +249,10 @@ export function calculate(p,catalog=[]){
  const integral=p.groundMode==='integral';
  const options=ampOptions.filter(x=>p.selection==='auto'||x.size===p.size).map(a=>{
   const cable=pickCable(entries,a.size,p);
-  const g=grounding(p.ocpd,a.size,minAmp,mv,integral);
+  const g=hasOcpd?grounding(p.ocpd,a.size,minAmp,mv,integral):null;
   const od=cable?.odIn;
   const bend=cableBend(cable);
-  const contents=od&&g?[{kind:'phase',count:p.circuits*(p.construction==='single'?3:1),area:area(od),diameter:od}]:[];
+  const contents=od&&g?[{kind:'phase',count:p.circuits*(p.construction==='single'?phaseCount:1),area:area(od),diameter:od}]:[];
   if(p.neutral!=='none'&&od)contents.push({kind:'neutral',count:p.circuits,area:area(od),diameter:od});
   if(!integral&&g)contents.push({kind:'EGC',count:1,area:g.area,diameter:Math.sqrt(4*g.area/Math.PI)});
   const conduits=od&&g?CONDUITS[p.conduitType].map(c=>{
@@ -190,7 +274,7 @@ export function calculate(p,catalog=[]){
  });
  const chosen=p.selection==='auto'?options.find(x=>x.pass):options[0];
  const selected=chosen||options.find(x=>x.ampPass&&x.cablePass)||options[0];
- if(!chosen)issues.push(issue('sizing','No candidate satisfies all numerical checks. Review the candidate table; missing catalog sizes are never treated as a pass.','Sizing results'));
+ if(!chosen&&(hasOcpd||!options.some(x=>x.ampPass&&x.cablePass&&x.voltageBandPass&&x.levelPass&&x.tempPass)))issues.push(issue('sizing','No candidate satisfies all numerical checks. Review the candidate table; missing catalog sizes are never treated as a pass.','Sizing results'));
  if(selected){
   if(!selected.ampPass)issues.push(issue('ampacity','Selected conductor does not meet ampacity, terminal, protection or parallel-size checks.','310.16 / 315.60; 110.14(C) / 110.40; 310.10(G)'));
   if(!selected.cable)issues.push(issue('cable',`${label(selected.size)} is not available in the selected Okonite family.`,'Okonite catalog'));
@@ -209,5 +293,5 @@ export function calculate(p,catalog=[]){
   }
  }
  const status=issues.some(i=>i.level==='block')?'Blocked':issues.some(i=>i.level==='review')?'Review required':'Calculated';
- return {status,issues,load,mv,fam,xhhw2,ambient,adder,factor,ccc,adjust,minAmp,selected,candidates:options};
+ return {status,issues,load,mv,fam,xhhw2,ambient,adder,factor,ccc,adjust,minAmp,minTerminal:ampOptions.find(x=>x.terminalPass&&x.parallelOK)?.size,minThermal:ampOptions.find(x=>x.thermalPass&&x.parallelOK)?.size,protection:{rating:hasOcpd?p.ocpd:null,egcBasis:hasOcpd?p.ocpd:null,required:load.ocpdRequired??null,checked:hasOcpd&&p.verifyProtection&&generalLoad},selected,candidates:options};
 }

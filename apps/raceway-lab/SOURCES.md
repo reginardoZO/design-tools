@@ -2,10 +2,12 @@
 
 ## Implemented model
 
-Three-phase 60 Hz copper power circuits in **aboveground** raceways: LV <=1000 V ac
+Single/three-phase 60 Hz copper power circuits in **aboveground** raceways: LV <=1000 V ac
 and MV >1000 V through 15 kV, 3 x 1/C or one 3/C cable per set. Every cable comes
 from the Okonite OSC 2024 catalog; there is no custom cable construction. Each
 parallel set is in a separate raceway. Identical LV circuits may share a raceway.
+Single-phase support is LV two-wire with single conductors only; MV table
+arrangements and the catalog 3/C construction remain three-phase.
 The model does not mix different loads/cable families in a raceway. Ordinary
 locations only. Aluminum, VFD output, unverified MV general-feeder sizing, DC,
 engineered grouped MV raceways, underground/direct-buried segments, voltage drop
@@ -32,8 +34,10 @@ setting remain separate from the MV motor overload trip setting.
 | Conduit bending radius | NEC Chapter 9 Table 2, "Other bends" column (1/2 in = 4 in through 6 in = 36 in). |
 | Cable bending radius | Shielded MV 1/C: 12 x OD. Shielded MV 3/C: max(12 x individual core, 7 x overall OD), core = assembled core OD / (1 + 2/√3). Nonshielded C-L-X: 7 x OD (330.24(B)). Other nonshielded LV: 4 / 5 / 6 x OD for OD <=1.0 / 1.0–2.0 / >2.0 in (336.24 for 3/C TC; ICEA S-95-658 / NEMA WC 70 guidance for 1/C). |
 | Wire EGC | Table 250.122 copper; 250.122(B) proportional upsizing using circular-mil area from the smallest size that passes ampacity **and exists in the selected family**; 250.190(C)(1) >=6 AWG for nonintegral MV EGC. Integral catalog grounds pass when their total area (all sectioned grounds) covers the required EGC. Separate insulated EGC uses Chapter 9 Table 5 THHN/THWN-2 area. |
-| Motor full-load current | NEC 2023 Table 430.250 horsepower and rated-voltage columns. LV motor FLC is selected from the table; no user-entered current is accepted for this load rule. |
-| Load | General LV feeder/branch: 210.19(A)(1) / 215.2(A)(1), 125% continuous + noncontinuous; the 100%-continuous exception requires affirmation that the complete applicable assembly is listed for 100% operation. LV motor: 430.6(A)(1), 430.22 and Table 430.250, 125% of applicable table FLC. MV motor: 430.205(A), overload trip setting with no automatic 125% FLC multiplier. VFD input: 430.122(A) LV / 430.205(B) MV, 125% of rated input. MV general feeders fail closed pending a separately verified Article 235 basis. |
+| Motor full-load current | NEC 2023 Tables 430.248 (single-phase) / 430.250 (three-phase). System 120/240/480/600 V maps to applicable 115/230/460/575 V columns. No interpolation between horsepower ratings; kW converts at 0.746 kW/hp. Explicit low-speed, high-torque and multispeed categories use nameplate current under 430.6(A)(1). |
+| Load | General LV feeder/branch: 210.19(A)(1) / 215.2(A)(1), 125% continuous + noncontinuous. The feeder 100%-continuous exception requires affirmation that the complete applicable assembly is listed for 100% operation. LV motor: 125% table FLC or applicable special-motor nameplate current. MV motor: 430.205(A), overload setting without 125% rated-current multiplier. VFD input: 430.122(A) / 430.205(B), 125% rated input. Fixed process heaters: 425.4(B), continuous; space heaters: 424.3(B), continuous. Other heaters/general loads follow entered classification. |
+| Transformer | Rated current = kVA x 1000 / (phase factor x voltage), with phase factor 1 or sqrt(3). Only the continuous load portion receives 125%. Optional LV winding protection follows conservative 450.3(B) percentages: primary-only 125% at >=9 A, 167% at 2-<9 A, 300% below 2 A; primary/secondary protection 250% primary with 125% secondary at >=9 A or 167% below 9 A. No next-standard-rating exception. 240.4 / 240.21(C) conductor arrangements require independent review. |
+| Neutral | Full phase-size neutral retained; entered maximum calculated unbalanced current is conservatively checked at 125%, without 220.61 demand reductions. Nonlinear neutral counts as CCC; harmonic current must be established separately. |
 
 Primary reference URLs:
 
@@ -46,11 +50,17 @@ Primary reference URLs:
 ## Calculation and engineering decisions
 
 1. LV feeder: terminal/unadjusted capacity >=125% continuous +100%
-   noncontinuous, adjusted conductor capacity >=actual load. For motor/VFD and
-   all MV loads the 125% requirement is also checked against adjusted capacity.
+   noncontinuous, adjusted conductor capacity >=actual load. This also applies
+   to general loads, heaters and transformer load-based sizing. Motor/VFD
+   adjusted capacity must cover their article-specific requirement; MV DOL
+   requires at least the overload trip setting, not 125% of motor current.
 2. Normal LV feeder OCPD is checked against the governing conductor capacity.
-   The next-standard-rating exception of 240.4(B) and 100%-rated assembly
-   exceptions are not implemented.
+   The next-standard-rating exception of 240.4(B) is not implemented. The
+   confirmed complete listed 100%-rated assembly exception is implemented for
+   feeders only; heater conductor exceptions are not applied to breaker sizing.
+   Missing OCPD data do not block calculation of the load-based ampacity, but
+   EGC and fill remain pending. Disabling conductor-protection verification
+   retains Review required status, even when an EGC basis has been entered.
 3. MV insulation rating and terminal rating are separate. At a 90°C terminal,
    MV-105 does not eliminate the 90°C ampacity ceiling. Cable rated voltage
    selects the table band. A 105°C basis is blocked for MV-90 families (2:21).

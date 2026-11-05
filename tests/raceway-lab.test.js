@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
-import {calculate,defaults,correction,adjustment,fill,grounding,demand,area,cableBend,familyRatings,familyEntries,motorTableFLC} from '../apps/raceway-lab/engine.js';
+import {calculate,defaults,newProject,changeLoadType,LOAD_TYPES,correction,adjustment,fill,grounding,demand,area,cableBend,familyRatings,familyEntries,motorTableFLC} from '../apps/raceway-lab/engine.js';
 import {MV_1C,MV_3C,CONDUIT_BEND,SIZES} from '../apps/raceway-lab/data.js';
 import {loadProject} from '../apps/raceway-lab/project.js';
 const cat=JSON.parse(readFileSync(new URL('../apps/raceway-lab/catalog.json',import.meta.url)));
@@ -76,7 +76,9 @@ test('LV 100 A continuous example: Okonite 3:1, NEC fill, bend radius and EGC',(
 });
 test('manual conduit in the jam band is flagged for review',()=>{const r=run({conduitSize:'1-1/2'});assert.ok(has(r,'jamming'));assert.equal(r.status,'Review required');});
 test('continuous feeder applies separate pre-adjustment and post-adjustment tests',()=>{
- const r=run({ocpd:125,selection:'manual',size:'1',ambient:45});assert.equal(r.load.thermal,125);near(r.selected.corrected,126.15);assert.equal(r.selected.ampPass,true);
+ const r=run({ocpd:125,selection:'manual',size:'1',ambient:45});assert.equal(r.load.thermal,100);near(r.selected.corrected,126.15);assert.equal(r.selected.ampPass,true);
+ const derated=run({ocpd:NaN,selection:'manual',size:'1',ambient:55});near(derated.selected.corrected,110.2);assert.equal(derated.selected.thermalPass,true);assert.equal(derated.selected.terminalPass,true);assert.equal(derated.selected.ampPass,true);
+ const cold=run({ocpd:NaN,selection:'manual',size:'1',ambient:10,insulation:60});assert.equal(cold.selected.thermalPass,true);assert.equal(cold.selected.terminalPass,false);
 });
 test('LV ambient factors use exact band endpoints',()=>{assert.equal(correction(false,40,90),.91);assert.equal(correction(false,40.01,90),.87);assert.equal(correction(false,60,60),null);assert.equal(correction(false,85.01,90),null);});
 test('MV correction uses 40 C base and no LV factors',()=>{assert.equal(correction(true,40,90),1);assert.equal(correction(true,45,90),.95);assert.equal(correction(true,45,105),.96);});
@@ -160,6 +162,97 @@ test('MV insulation level category clearing time limits',()=>{assert.ok(has(run(
 test('1001–2000 V is classified as MV, while unsupported MV feeder rules fail closed',()=>{assert.ok(has(run({voltage:1500,loadType:'feeder'}),'mv-feeder-scope'));assert.ok(has(run({voltage:1500,loadType:'lv-motor'}),'circuit-voltage'));});
 test('qualifying 100%-rated assembly changes only continuous-load sizing basis',()=>{const standard=demand({...defaults(),continuous:100,noncontinuous:50});const listed=demand({...defaults(),continuous:100,noncontinuous:50,continuousRatedAssembly:true});assert.equal(standard.required,175);assert.equal(listed.required,150);});
 test('general continuous and mixed load formulas',()=>{assert.equal(demand({...defaults(),continuous:100,noncontinuous:0}).required,125);assert.equal(demand({...defaults(),continuous:100,noncontinuous:50}).required,175);});
+test('NEC requested load-current and sizing regression cases',()=>{
+ const calc=changes=>demand({...newProject(),...changes});
+ const heater={loadType:'heater',inputMode:'kW',loadValue:160,powerFactor:1,operation:'continuous'};
+ near(calc(heater).actual,192.45008973,.00001);
+ const thermal=calc({...heater,powerBasis:'thermal',efficiency:95});
+ near(thermal.actual,202.57904182,.00001);near(thermal.required,253.22380228,.00001);
+ near(calc({loadType:'heater',loadValue:202.58,operation:'continuous'}).required,253.225);
+ near(calc({loadType:'heater',loadValue:202.58,operation:'noncontinuous'}).required,202.58);
+ const transformer=calc({loadType:'transformer',transformerKva:75,primaryVoltage:480,secondaryVoltage:208,operation:'continuous'});
+ near(transformer.primaryCurrent,90.21097956,.00001);near(transformer.required,112.76372445,.00001);
+ assert.equal(calc({loadType:'lv-motor',motorHp:100}).actual,124);
+ assert.equal(calc({loadType:'lv-motor',motorHp:100}).required,155);
+ assert.equal(calc({loadType:'mv-motor',voltage:4160,motorFLC:90,motorTrip:110}).required,110);
+ assert.equal(calc({loadType:'lv-vfd',driveInput:100,motorFLC:999}).required,125);
+ assert.equal(calc({loadType:'mv-vfd',voltage:4160,driveInput:100}).required,125);
+ assert.equal(calc({loadType:'feeder',continuous:100,noncontinuous:50}).required,175);
+});
+test('mandatory heater categories override stale noncontinuous choice, without a 100% exception',()=>{
+ for(const heaterCategory of ['process','space']){
+  const r=calculate({...newProject(),loadType:'heater',heaterCategory,loadValue:202.58,operation:'noncontinuous',continuousRatedAssembly:true,ocpd:250},cat);
+  near(r.load.required,253.225);assert.ok(has(r,'ocpd-load'));assert.equal(r.status,'Blocked');
+ }
+ const other=calculate({...newProject(),loadType:'heater',heaterCategory:'other',loadValue:202.58,operation:'noncontinuous',ocpd:250},cat);
+ assert.ok(!has(other,'ocpd-load'));assert.equal(other.load.required,202.58);
+});
+test('conventional 250 A device is insufficient for a 202.58 A continuous load',()=>{
+ for(const loadType of ['heater','general']){
+  const p={...newProject(),loadType,loadValue:202.58,operation:'continuous',ocpd:250};
+  assert.ok(has(calculate(p,cat),'ocpd-load'));
+  assert.ok(!has(calculate({...p,ocpd:300},cat),'ocpd-load'));
+ }
+ const listed=calculate({...newProject(),loadType:'feeder',continuous:202.58,noncontinuous:0,ocpd:250,continuousRatedAssembly:true},cat);
+ assert.ok(!has(listed,'ocpd-load'));
+});
+test('load current does not require breaker data; EGC and fill remain explicitly incomplete',()=>{
+ const r=calculate({...newProject(),continuous:100,noncontinuous:50},cat);
+ assert.equal(r.load.required,175);assert.ok(r.selected.ampPass);assert.equal(r.selected.g,null);
+ assert.equal(r.selected.conduit,undefined);assert.ok(has(r,'egc-basis'));assert.equal(r.status,'Review required');
+ assert.equal(r.protection.rating,null);assert.ok(r.minTerminal);assert.ok(r.minThermal);
+});
+test('hidden load inputs and inactive efficiency never change calculation or validation',()=>{
+ const p={...newProject(),loadType:'heater',inputMode:'kW',loadValue:160,operation:'continuous'};
+ const a=calculate(p,cat),b=calculate({...p,motorTrip:-1,motorFLC:Infinity,driveInput:Infinity,continuous:-999,noncontinuous:Infinity,efficiency:0,primaryOcpd:-1},cat);
+ assert.deepEqual(b.load,a.load);assert.deepEqual(b.issues,a.issues);
+ assert.equal(calculate({...p,powerBasis:'thermal'},cat).status,'Blocked');
+ assert.equal(calculate({...p,operation:''},cat).status,'Blocked');
+ const motor={...newProject(),loadType:'lv-vfd',driveInput:100};
+ const normal=calculate(motor,cat),stale=calculate({...motor,neutral:'nonlinear',neutralCurrent:Infinity,motorTrip:-1},cat);
+ assert.deepEqual(stale.load,normal.load);assert.deepEqual(stale.issues,normal.issues);assert.equal(stale.ccc,3);
+ assert.equal(loadProject(JSON.parse(JSON.stringify({...motor,neutral:'nonlinear'}))).neutral,'none');
+});
+test('transformer full/noncontinuous and specified mixed load use independent load and winding protection bases',()=>{
+ const p={...newProject(),loadType:'transformer',transformerKva:75,primaryVoltage:480,secondaryVoltage:208,operation:'noncontinuous'};
+ const full=calculate(p,cat);near(full.load.required,full.load.primaryCurrent);
+ const mixed=calculate({...p,transformerBasis:'calculated',loadValue:80,continuousPercent:50,voltage:999},cat);
+ assert.equal(mixed.load.actual,80);assert.equal(mixed.load.required,90);
+ assert.ok(has(mixed,'transformer-review'));assert.ok(!has(mixed,'rating'));
+ const secondary=calculate({...p,transformerSide:'secondary',operation:'continuous'},cat);
+ near(secondary.load.actual,75000/(Math.sqrt(3)*208));
+ const protectedInput={...p,verifyTransformerProtection:true,primaryOcpd:100};
+ assert.ok(!has(calculate(protectedInput,cat),'transformer-protection'));
+ assert.ok(has(calculate({...protectedInput,primaryOcpd:150},cat),'transformer-protection'));
+ assert.ok(!has(calculate({...protectedInput,primaryOcpd:200,secondaryOcpd:250},cat),'transformer-protection'));
+ assert.ok(has(calculate({...protectedInput,secondaryOcpd:400},cat),'transformer-protection'));
+});
+test('single-phase motors, special nameplate types and exact kW table ratings',()=>{
+ assert.equal(motorTableFLC(5,240,1),28);
+ assert.equal(demand({...newProject(),loadType:'lv-motor',phases:1,voltage:240,motorHp:5}).required,35);
+ assert.equal(demand({...newProject(),loadType:'lv-motor',motorPowerUnit:'kW',motorPower:74.6}).required,155);
+ const special=calculate({...newProject(),loadType:'lv-motor',motorKind:'high-torque',motorFLC:100,motorHp:100},cat);
+ assert.equal(special.load.tableFLC,null);assert.equal(special.load.required,125);
+ assert.equal(calculate({...newProject(),loadType:'lv-motor',motorDuty:'other',motorHp:100},cat).status,'Blocked');
+ const single=calculate({...newProject(),loadType:'general',phases:1,voltage:240,loadValue:20,operation:'noncontinuous',ocpd:30},cat);
+ assert.equal(single.ccc,2);assert.equal(single.selected.contents[0].count,2);
+});
+test('feeder kVA portions, calculated neutral and nonlinear CCC are handled separately',()=>{
+ const p={...newProject(),continuous:100,noncontinuous:50,neutral:'linear',neutralCurrent:60,ocpd:200};
+ const r=calculate(p,cat);assert.equal(r.load.required,175);assert.equal(r.selected.neutralRequired,75);assert.equal(r.ccc,3);
+ assert.equal(calculate({...p,neutral:'nonlinear'},cat).ccc,4);
+ assert.ok(has(calculate({...p,neutralCurrent:NaN},cat),'neutral-load'));
+ const kva=demand({...p,feederUnit:'kVA'});near(kva.required,175000/(Math.sqrt(3)*480));
+});
+test('load type changes and project v5 round trips clear incompatible values',()=>{
+ for(const [loadType] of LOAD_TYPES){
+  const changed=changeLoadType({...newProject(),ocpd:500,motorTrip:110,driveInput:100,loadValue:20,efficiency:95,continuousRatedAssembly:true},loadType);
+  assert.equal(changed.loadType,loadType);assert.ok(Number.isNaN(changed.ocpd));assert.ok(Number.isNaN(changed.motorTrip));assert.ok(Number.isNaN(changed.loadValue));assert.equal(changed.continuousRatedAssembly,false);
+  const restored=loadProject(JSON.parse(JSON.stringify(changed)));
+  assert.equal(restored.version,5);assert.equal(restored.loadType,loadType);assert.ok(Number.isNaN(restored.efficiency));
+ }
+ assert.equal(loadProject(JSON.parse(JSON.stringify({...defaults(),loadType:'vfd-input'}))).loadType,'lv-vfd');
+});
 test('invalid numbers and unsupported choices cannot yield a pass',()=>{for(const p of [{voltage:NaN},{sets:1.5},{sets:0},{driveInput:Infinity,loadType:'vfd-input'},{continuous:-1},{conduitType:'unknown'},{voltage:16000},{size:'unknown'},{groundMode:'none'},{loadType:'custom'},{family:'unknown'}])assert.equal(run(p).status,'Blocked',JSON.stringify(p));});
 test('hub registration, static build and local assets resolve',()=>{
  const read=x=>readFileSync(new URL('../'+x,import.meta.url),'utf8');assert.equal(read('index.html').match(/href="apps\/raceway-lab\/index.html"/g)?.length,1);assert.match(read('scripts/build.mjs'),/'raceway-lab'/);

@@ -1,4 +1,4 @@
-import {defaults} from './engine.js';
+import {defaults, newProject, loadDefaults, LOAD_TYPES} from './engine.js';
 import {CONDUITS, SIZES, MOTOR_FLC} from './data.js';
 
 function migrateV2(raw) {
@@ -41,8 +41,13 @@ export function loadProject(raw) {
     throw Error('Unsupported project version');
   if (raw.version === 2) raw = migrateV2(raw);
   if (raw.version === 3) raw = migrateV3(raw);
-  if (raw.version !== 4) throw Error('Unsupported project version');
-  const clean = defaults();
+  if (raw.version === 4) {
+    raw = {...loadDefaults(), ...raw, version: 5};
+    if (raw.neutral !== 'none') raw.neutralCurrent = null;
+  }
+  if (raw.version !== 5) throw Error('Unsupported project version');
+  if (raw.loadType === 'vfd-input') raw = {...raw, loadType: raw.voltage > 1000 ? 'mv-vfd' : 'lv-vfd'};
+  const clean = newProject();
   for (const key of Object.keys(clean)) {
     if (!(key in raw)) throw Error(`Missing input: ${key}`);
     if (typeof clean[key] === 'number' && raw[key] === null) clean[key] = NaN;
@@ -51,8 +56,7 @@ export function loadProject(raw) {
   }
   const choices = {
     conduitType: Object.keys(CONDUITS), construction: ['single', 'multi'],
-    loadType: ['feeder', 'lv-motor', 'mv-motor', 'vfd-input'], motorDuty: ['continuous', 'other'],
-    motorVoltage: [200, 208, 230, 460, 575],
+    loadType: LOAD_TYPES.map(([id]) => id), phases: [1, 3],
     selection: ['auto', 'manual'], neutral: ['none', 'linear', 'nonlinear'],
     groundMode: ['separate', 'integral'], terminal: ['auto', '60', '75', '90', '105'],
     size: SIZES,
@@ -61,5 +65,6 @@ export function loadProject(raw) {
     if (!values.includes(clean[key])) throw Error(`Unsupported choice: ${key}`);
   if (clean.conduitSize !== 'auto' && !CONDUITS[clean.conduitType].some(c => c.trade === clean.conduitSize))
     throw Error('Unsupported conduit size');
+  if (!['feeder', 'heater', 'transformer', 'general'].includes(clean.loadType)) clean.neutral = 'none';
   return clean;
 }
