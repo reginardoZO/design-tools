@@ -1,8 +1,12 @@
-import {LV, MV_1C, MV_3C, KCMIL, SIZES, EGC, GROUND_AREA, LV_CORRECTION, MV_CORRECTION, CONDUITS, CONDUIT_BEND, GROUND_KCMIL} from './data.js';
+import {LV, MV_1C, MV_3C, KCMIL, SIZES, EGC, GROUND_AREA, LV_CORRECTION, MV_CORRECTION, CONDUITS, CONDUIT_BEND, GROUND_KCMIL, MOTOR_FLC, MOTOR_VOLTAGES} from './data.js';
 export const label = s => `${s} ${Number(s)>=250?'kcmil':'AWG'}`;
 export const area = d => Math.PI*d*d/4;
 export const cableRatings = c => c?.ratings||null;
-export const defaults = () => ({version:3, name:'PlantSERV · Power circuit', voltage:480, loadType:'feeder', continuous:100, noncontinuous:0, continuousRatedAssembly:false, motorFLC:NaN, motorTrip:NaN, breakerRating:NaN, motorDuty:'continuous', driveInput:NaN, sets:1, circuits:1, neutral:'none', construction:'single', family:'3:1', selection:'auto', size:'1/0', insulation:90, terminal:'75', ambient:40, rooftop:false, roofHeight:1, wet:true, wetRated:true, cableVoltage:1000, conduitType:'RMC', conduitSize:'auto', isolated:true, allPhases:true, hazardous:false, damage:false, bends:180, ocpd:150, groundMode:'separate', insulationLevel:133, clearingMinutes:1});
+export const defaults = () => ({version:4, name:'PlantSERV · Power circuit', voltage:480, loadType:'feeder', continuous:100, noncontinuous:0, continuousRatedAssembly:false, motorFLC:NaN, motorHp:1, motorVoltage:460, motorTrip:NaN, breakerRating:NaN, motorDuty:'continuous', driveInput:NaN, sets:1, circuits:1, neutral:'none', construction:'single', family:'3:1', selection:'auto', size:'1/0', insulation:90, terminal:'75', ambient:40, rooftop:false, roofHeight:1, wet:true, wetRated:true, cableVoltage:1000, conduitType:'RMC', conduitSize:'auto', isolated:true, allPhases:true, hazardous:false, damage:false, bends:180, ocpd:150, groundMode:'separate', insulationLevel:133, clearingMinutes:1});
+export function motorTableFLC(horsepower, voltage){
+ const column=[...MOTOR_VOLTAGES,2300].indexOf(Number(voltage));
+ return column<0?null:MOTOR_FLC[String(horsepower)]?.[column]??null;
+}
 export const familyEntries = (catalog,p) => catalog.filter(c=>c.spec===p.family&&c.conductors===(p.construction==='single'?1:3));
 // Union of the voltage / insulation-level ratings published for a family.
 export function familyRatings(entries){
@@ -24,8 +28,9 @@ export function demand(p){
   return {actual:p.continuous+p.noncontinuous,design:required,required,thermal:required,multiplier:p.continuousRatedAssembly?'100% qualifying listed assembly':'125% continuous load',reference:'210.19(A)(1) / 215.2(A)(1)',basis:p.continuousRatedAssembly?'The qualifying assembly is identified for 100% continuous operation; continuous-load conductor sizing uses 100% only when the complete applicable assembly is listed for that operation.':'General feeder / branch circuit: 125% of continuous current + 100% of noncontinuous current.'};
  }
  if(p.loadType==='lv-motor'){
-  const required=1.25*p.motorFLC;
-  return {actual:p.motorFLC,design:required,required,thermal:required,multiplier:'125% of applicable motor FLC',reference:'430.6(A)(1), 430.22, Table 430.250',basis:'Minimum conductor ampacity is based on 125% of the applicable motor full-load current in accordance with NEC 430.22.'};
+    const actual=motorTableFLC(p.motorHp,p.motorVoltage);
+    const required=1.25*actual;
+    return {actual,design:required,required,thermal:required,multiplier:'125% of applicable motor FLC',reference:'430.6(A)(1), 430.22, Table 430.250',basis:`Table 430.250 gives ${actual??'no listed value'} A for a ${p.motorHp} hp, ${p.motorVoltage} V motor; minimum conductor ampacity is 125% of that FLC under NEC 430.22.`};
  }
  if(p.loadType==='mv-motor'){
   const required=p.motorTrip;
@@ -80,7 +85,7 @@ export function validate(p){
   for(const k of ['continuous','noncontinuous'])if(typeof p[k]!=='number'||!Number.isFinite(p[k])||p[k]<0)add('input',`${k}: enter a finite nonnegative load current.`,'Input validation');
  }
  if(p.loadType==='lv-motor'){
-  if(typeof p.motorFLC!=='number'||!Number.isFinite(p.motorFLC)||p.motorFLC<=0)add('motor-flc','Enter the applicable motor full-load current from the NEC table for conductor sizing.','430.6(A)(1), 430.22, Table 430.250');
+    if(!Number.isFinite(Number(p.motorHp))||!Number.isFinite(motorTableFLC(p.motorHp,p.motorVoltage))||motorTableFLC(p.motorHp,p.motorVoltage)<=0)add('motor-flc','Select a motor horsepower and rated voltage with a listed Table 430.250 full-load current.','430.6(A)(1), 430.22, Table 430.250');
   if(p.motorDuty!=='continuous')add('motor-duty','This calculator covers continuous-duty motors only; apply the applicable alternative conductor-sizing rule for other duty ratings.','430.22(E)');
  }
  if(p.loadType==='mv-motor'){

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
-import {calculate,defaults,correction,adjustment,fill,grounding,demand,area,cableBend,familyRatings,familyEntries} from '../apps/raceway-lab/engine.js';
+import {calculate,defaults,correction,adjustment,fill,grounding,demand,area,cableBend,familyRatings,familyEntries,motorTableFLC} from '../apps/raceway-lab/engine.js';
 import {MV_1C,MV_3C,CONDUIT_BEND,SIZES} from '../apps/raceway-lab/data.js';
 import {loadProject} from '../apps/raceway-lab/project.js';
 const cat=JSON.parse(readFileSync(new URL('../apps/raceway-lab/catalog.json',import.meta.url)));
@@ -53,6 +53,10 @@ test('project JSON round trip preserves blank inputs and migrates legacy MV moto
  const legacyLV={...legacy,loadType:'motor',voltage:480,motorHp:75,motorVoltage:460};
  const migratedLV=loadProject(JSON.parse(JSON.stringify(legacyLV)));
  assert.equal(migratedLV.loadType,'lv-motor');assert.equal(migratedLV.motorFLC,96);assert.equal(demand(migratedLV).required,120);
+ assert.equal(migratedLV.motorHp,75);assert.equal(migratedLV.motorVoltage,460);
+ const legacyV3={...defaults(),version:3,loadType:'lv-motor',motorFLC:100};delete legacyV3.motorHp;delete legacyV3.motorVoltage;
+ const migratedV3=loadProject(JSON.parse(JSON.stringify(legacyV3)));
+ assert.ok(Number.isNaN(migratedV3.motorHp));assert.ok(has(run(migratedV3),'motor-flc'));
  const legacyVFD={...legacy,loadType:'vfd',voltage:4160,current:300};
  assert.equal(loadProject(JSON.parse(JSON.stringify(legacyVFD))).driveInput,300);
  for(const raw of [{version:1},{...defaults(),conduitType:'invalid'},{...defaults(),conduitSize:'100'},{...defaults(),wet:'yes'},{...defaults(),loadType:'custom'}])assert.throws(()=>loadProject(raw));
@@ -143,8 +147,8 @@ test('rooftop 3/4 in, 33 C adder; XHHW-2 exception comes from the family',()=>{
  assert.equal(run({rooftop:true,roofHeight:.74,construction:'multi',family:'4:5'}).adder,0);
 });
 test('auto terminal defaults are conservative for small equipment',()=>{const r=run({continuous:30,ocpd:40,terminal:'auto',selection:'manual',size:'8'});assert.equal(r.selected.terminal,60);assert.equal(r.selected.term,40);});
-test('LV motor uses 125% of applicable Table FLC',()=>{const d=demand({...defaults(),loadType:'lv-motor',motorFLC:100});assert.equal(d.actual,100);assert.equal(d.required,125);assert.equal(d.reference,'430.6(A)(1), 430.22, Table 430.250');});
-test('LV motor uses a compatible voltage and required FLC',()=>{assert.ok(has(run({loadType:'lv-motor',voltage:4160}),'circuit-voltage'));assert.ok(has(run({loadType:'lv-motor',motorFLC:NaN}),'motor-flc'));});
+test('LV motor looks up Table 430.250 FLC from horsepower and rated voltage',()=>{assert.equal(motorTableFLC(75,460),96);assert.equal(motorTableFLC(75,230),192);assert.equal(motorTableFLC(250,230),null);const d=demand({...defaults(),loadType:'lv-motor',motorHp:75,motorVoltage:460});assert.equal(d.actual,96);assert.equal(d.required,120);assert.equal(d.reference,'430.6(A)(1), 430.22, Table 430.250');});
+test('LV motor requires a supported horsepower and rated voltage lookup',()=>{assert.ok(has(run({loadType:'lv-motor',voltage:4160}),'circuit-voltage'));assert.ok(has(run({loadType:'lv-motor',motorHp:NaN}),'motor-flc'));assert.ok(has(run({loadType:'lv-motor',motorHp:250,motorVoltage:230}),'motor-flc'));});
 test('MV motor cannot size without the overload protection trip setting',()=>{const r=run({...mv,motorTrip:NaN});assert.equal(r.status,'Blocked');assert.equal(r.selected,undefined);assert.ok(has(r,'motor-trip'));});
 test('MV motor EGC uses the independent protective device input, not overload trip current',()=>{const a=run({...mv,motorTrip:280,ocpd:100}),b=run({...mv,motorTrip:350,ocpd:100});assert.equal(a.selected.g.size,b.selected.g.size);assert.equal(demand({...defaults(),...mv,motorTrip:350}).required,350);});
 test('VFD input uses 125% of equipment rated input current at LV and MV',()=>{assert.equal(demand({...defaults(),loadType:'vfd-input',driveInput:120}).required,150);assert.equal(demand({...defaults(),voltage:4160,loadType:'vfd-input',driveInput:300}).required,375);});

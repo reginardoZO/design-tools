@@ -1,4 +1,4 @@
-# Raceway Lab
+# Conduit Way Lab
 
 Static browser-local NEC 2023 calculation aid for three-phase copper power
 circuits in aboveground RMC, IMC, EMT and PVC 40/80. Open through the hub card.
@@ -9,11 +9,13 @@ The four-step interface sizes/validates cables, EGC and conduit, with an English
 learning guide, traceable calculations, candidate comparison, JSON import/export,
 local browser save and printable draft/final-status calculation records.
 
-Inputs depend on circuit type: continuous/noncontinuous load, the applicable LV
-motor FLC, the MV motor overload trip setting, or VFD rated input current. The
+Inputs depend on circuit type: continuous/noncontinuous load, LV motor horsepower
+and rated voltage (used to look up FLC in Table 430.250), the MV motor overload
+trip setting, or VFD rated input current. The
 required ampacity, NEC fill limit, cable geometry and bending radii are derived.
-The motor overload trip setting, breaker rating and EGC sizing device setting are
-separate inputs and are not interchangeable.
+The motor overload trip setting, branch-circuit short-circuit/ground-fault device
+and EGC sizing input are separate and are not interchangeable. Motor LV EGC
+sizing still uses the applicable branch-circuit protective device under 250.122.
 
 - **Cables:** Okonite OSC 2024 copper product data sheets for aboveground
   raceway (`catalog.json`): LV 3:1, 4:1 (C-L-X 3/C), 4:2 (C-L-X 3/C power +

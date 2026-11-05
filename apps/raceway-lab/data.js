@@ -147,6 +147,7 @@ export const KCMIL = {
   "3/0": 167.8,
   "4/0": 211.6
 };
+export const MOTOR_VOLTAGES = [200, 208, 230, 460, 575];
 export const MOTOR_FLC = {
   "1": [
     4.8,
