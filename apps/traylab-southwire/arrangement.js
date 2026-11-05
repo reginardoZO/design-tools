@@ -1,166 +1,144 @@
-// Physical layout policy. D is the outside diameter of one complete cable.
-// Clearance is edge-to-edge, never center-to-center or the trefoil envelope OD.
+// Physical layout of one compartment. D is the outside diameter of one cable.
+// Spacing is edge to edge; between unequal neighbours the larger OD governs.
 const EPS = 1e-9;
 export const TREFOIL_HEIGHT = 1 + Math.sqrt(3) / 2;
 
-export function arrangementSettings(compartment = {}) {
+export const MULTI_LAYOUTS = Object.freeze({
+  stacked: {label: 'Random fill (stacked)', layer: false, gap: 0},
+  layer: {label: 'Single layer · touching', layer: true, gap: 0},
+  'layer-1d': {label: 'Single layer · 1D spacing', layer: true, gap: 1}
+});
+export const SINGLE_LAYOUTS = Object.freeze({
+  trefoil: {label: 'Trefoil · touching', trefoil: true, gap: 0},
+  'trefoil-1d': {label: 'Trefoil · 1D spacing', trefoil: true, gap: 1},
+  'trefoil-2.15d': {label: 'Trefoil · 2.15D spacing', trefoil: true, gap: 2.15},
+  flat: {label: 'Flat · touching', trefoil: false, gap: 0},
+  'flat-1d': {label: 'Flat · 1D spacing', trefoil: false, gap: 1}
+});
+export const DEFAULT_LAYOUT = Object.freeze({multiLayout: 'stacked', singleLayout: 'trefoil-2.15d'});
+
+export function layoutOf(comp = {}) {
   return {
-    spacing: compartment.spacing || 'touching',
-    trefoilSpacing: compartment.trefoilSpacing || '2.15D',
-    vfdSpacing: compartment.vfdSpacing || (compartment.spacing === 'one-diameter' ? '1D' : 'touching')
+    multi: MULTI_LAYOUTS[comp.multiLayout] || MULTI_LAYOUTS[DEFAULT_LAYOUT.multiLayout],
+    single: SINGLE_LAYOUTS[comp.singleLayout] || SINGLE_LAYOUTS[DEFAULT_LAYOUT.singleLayout]
   };
 }
 
-export function requiresTrefoil(cable, purpose = 'power') {
-  if (!cable || purpose === 'ground' || cable.category === 'vfd') return false;
-  const size = Number(cable.sizeKcmil) || (/4\/0/.test(cable.size) ? 211.6 : Number(String(cable.size).replace(/\s*(kcmil|mcm)\s*$/i, '')));
-  return size >= 211.5;
-}
+export const clearGap = (a, b) => Math.max(a.gap, b.gap) * Math.max(a.d, b.d);
 
-export function isTrefoil(row) {
-  return requiresTrefoil(row.cable, row.purpose) && row.cable.conductors === 1 && row.cablesPerRun === 3;
-}
-
-export function circuitPolicyIssues(row) {
-  const c = row.cable;
-  if (!c) return [];
-  if (row.purpose === 'ground') return c.conductors !== 1 ? ['A separate EGC must be a single-conductor product.'] : [];
-  if (c.category === 'vfd' && c.conductors < 3) return ['Project rule: a VFD product must remain a complete multiconductor cable with at least three phase conductors. A single-conductor product cannot use the VFD exception.'];
-  if (c.groundOnly) return ['This product is an equipment grounding conductor; assign it to a separate EGC row.'];
-  if (!requiresTrefoil(c, row.purpose)) return [];
-  if (c.conductors !== 1) return ['Project rule: non-VFD phase cables at 4/0 AWG and larger require trefoil. Replace this multiconductor product with a suitable 1/C product; its outside diameter cannot be reused for individual phase cables.'];
-  if (row.cablesPerRun !== 3) return ['Project rule: each trefoil run must contain exactly three single-conductor phase cables. Edit this row to use 3 cables/run.'];
-  return [];
-}
-
-export function arrangementLabel(row, comp = {}) {
-  const settings = arrangementSettings(comp);
-  if (circuitPolicyIssues(row).length) return 'Update required';
-  if (isTrefoil(row)) return `Trefoil · ${settings.trefoilSpacing} clear gap`;
-  if (row.cable?.category === 'vfd' && row.purpose !== 'ground') return `VFD · ${settings.vfdSpacing === '1D' ? '1D clear gap' : 'touching'}`;
-  if (row.purpose === 'ground') return 'Separate EGC';
-  return settings.spacing === 'one-diameter' ? 'Individual cables · 1D clear gap' : 'Standard cables';
-}
-
-// Keep runs compressed for calculations: a large quantity never allocates one
-// object per cable. Only the SVG preview expands units, with a hard display cap.
-export function planArrangement(circuits, settingsInput = {}, singleLayerRequired = false) {
-  const settings = arrangementSettings(settingsInput);
-  const segments = [];
-  const issues = [];
-  for (const row of circuits) {
-    const c = row.cable;
-    if (!c || !(c.odIn > 0) || !Number.isInteger(row.qty) || row.qty < 1 || !Number.isInteger(row.cablesPerRun) || row.cablesPerRun < 1) continue;
-    issues.push(...circuitPolicyIssues(row).map(message => `${row.tag || 'Circuit'}: ${message}`));
-    const trefoil = isTrefoil(row);
-    const vfd = c.category === 'vfd' && row.purpose !== 'ground';
-    const factor = trefoil ? (settings.trefoilSpacing === '1D' ? 1 : 2.15) : vfd ? (settings.vfdSpacing === '1D' ? 1 : 0) : settings.spacing === 'one-diameter' ? 1 : 0;
-    segments.push({
-      id: row.id, tag: row.tag, cat: c.category, d: Number(c.odIn),
-      kind: trefoil ? 'trefoil' : vfd ? 'vfd' : 'cable',
-      count: trefoil ? row.qty : row.qty * row.cablesPerRun,
-      cablesPerUnit: trefoil ? 3 : 1, factor,
-      width: Number(c.odIn) * (trefoil ? 2 : 1),
-      height: Number(c.odIn) * (trefoil ? TREFOIL_HEIGHT : 1),
-      large: c.sizeKcmil >= 211.5, rated: c.voltage, conductors: c.conductors
-    });
+/**
+ * rows = [{id, cable, qty}] where qty is the number of physical cables.
+ * Layer items (trefoils, flat singles, single-layer multiconductors) sit side
+ * by side from the left wall; stacked multiconductors fill the remaining width.
+ * Counts stay compressed so very large quantities never allocate per cable.
+ */
+export function planLayout(rows = [], comp = {}) {
+  const {multi, single} = layoutOf(comp);
+  const linear = [], stacked = [];
+  for (const r of rows) {
+    const c = r.cable, d = Number(c?.odIn), n = Number(r.qty);
+    if (!(d > 0) || !Number.isInteger(n) || n < 1) continue;
+    const base = {id: r.id, cat: c.category, d};
+    if (c.conductors === 1) {
+      if (single.trefoil) {
+        const groups = Math.floor(n / 3), loose = n % 3;
+        if (groups) linear.push({...base, kind: 'trefoil', count: groups, cablesPerUnit: 3, width: 2 * d, height: TREFOIL_HEIGHT * d, gap: single.gap});
+        if (loose) linear.push({...base, kind: 'single', count: loose, cablesPerUnit: 1, width: d, height: d, gap: single.gap, loose: true});
+      } else {
+        linear.push({...base, kind: 'single', count: n, cablesPerUnit: 1, width: d, height: d, gap: single.gap});
+      }
+    } else if (multi.layer) {
+      linear.push({...base, kind: 'multi', count: n, cablesPerUnit: 1, width: d, height: d, gap: multi.gap});
+    } else {
+      stacked.push({...base, kind: 'multi', count: n});
+    }
   }
-  // A stable order makes calculated and drawn gaps identical. Groups occupy
-  // one layer; nothing is stacked above a trefoil or VFD cable.
-  segments.sort((a,b) => ({trefoil:0,vfd:1,cable:2}[a.kind] - {trefoil:0,vfd:1,cable:2}[b.kind]) || b.d-a.d);
-  const trefoilGroups = segments.filter(s=>s.kind==='trefoil').reduce((n,s)=>n+s.count,0);
-  const vfdCables = segments.filter(s=>s.kind==='vfd').reduce((n,s)=>n+s.count,0);
-  const linear = singleLayerRequired || settings.spacing === 'one-diameter' || trefoilGroups > 0 || vfdCables > 0;
-  let widthIn = 0, previous = null;
+  const order = {trefoil: 0, single: 1, multi: 2};
+  linear.sort((a, b) => order[a.kind] - order[b.kind] || b.d - a.d);
+  stacked.sort((a, b) => b.d - a.d);
+  let width = 0, prev = null;
+  for (const s of linear) {
+    if (prev) width += clearGap(prev, s);
+    width += s.count * s.width + (s.count - 1) * s.gap * s.d;
+    prev = s;
+  }
+  const zoneGapIn = prev && stacked.length ? clearGap(prev, {gap: 0, d: stacked[0].d}) : 0;
+  return {
+    linear, stacked, zoneGapIn,
+    linearWidthIn: width,
+    linearHeightIn: Math.max(0, ...linear.map(s => s.height)),
+    trefoils: linear.filter(s => s.kind === 'trefoil').reduce((n, s) => n + s.count, 0),
+    looseSingles: linear.filter(s => s.loose).reduce((n, s) => n + s.count, 0),
+    cableCount: linear.reduce((n, s) => n + s.count * s.cablesPerUnit, 0) + stacked.reduce((n, s) => n + s.count, 0)
+  };
+}
+
+// Shelf packing of stacked cables (largest first) between `lane` and `width`.
+function shelfPack(segments, lane, width, depth) {
+  let x = lane, y = 0, rowH = 0, used = lane;
+  const done = fits => ({fits, usedWidthIn: used, usedHeightIn: y + rowH});
   for (const s of segments) {
-    if (previous) widthIn += clearGap(previous,s);
-    widthIn += s.count * s.width + (s.count-1) * s.factor * s.d;
-    previous = s;
-  }
-  return {settings, segments, issues, linear, widthIn,
-    heightIn: Math.max(0,...segments.map(s=>s.height)), trefoilGroups, vfdCables,
-    cableCount: segments.reduce((n,s)=>n+s.count*s.cablesPerUnit,0)};
-}
-
-export function clearGap(left, right) {
-  return Math.max(left.factor,right.factor) * Math.max(left.d,right.d);
-}
-
-// Conservative shelf packing using the same order as the schematic. Counts are
-// compressed so validation is independent of the SVG's 1,400-cable display cap.
-// Failure means this modeled layout was not demonstrated, not that no packing
-// solution could possibly exist.
-export function checkPhysicalFit(plan, width, depth, fillResult = {}) {
-  if (plan.linear) return {fits:plan.widthIn<=width+EPS && plan.heightIn<=depth+EPS, placed:plan.widthIn<=width+EPS && plan.heightIn<=depth+EPS?plan.cableCount:0};
-  const mixed = /^392\.22\(A\).*\(c\)$/.test(fillResult.rule);
-  const sorted=[...plan.segments].sort((a,b)=>b.d-a.d);
-  let lane=0,placed=0;
-  if(mixed) for(const s of sorted.filter(s=>s.large)) {
-    if(lane+s.count*s.d>width+EPS || s.d>depth+EPS)return {fits:false,placed};
-    lane+=s.count*s.d;placed+=s.count;
-  }
-  let x=lane,y=0,rowHeight=0;
-  for(const s of sorted.filter(s=>!mixed||!s.large)) {
-    let n=s.count;
-    while(n>0) {
-      if(s.d>width-lane+EPS || y+s.d>depth+EPS)return {fits:false,placed};
-      const capacity=Math.max(0,Math.floor((width-x+EPS)/s.d));
-      if(capacity===0){x=lane;y+=rowHeight;rowHeight=0;continue;}
-      const taken=Math.min(n,capacity);x+=taken*s.d;placed+=taken;n-=taken;rowHeight=Math.max(rowHeight,s.d);
-      if(n>0){
-        x=lane;y+=rowHeight;rowHeight=0;
-        const full=Math.floor((width-lane+EPS)/s.d);
-        const rows=Math.min(Math.floor(n/full),Math.max(0,Math.floor((depth-y+EPS)/s.d)));
-        if(rows>0){placed+=rows*full;n-=rows*full;y+=(rows-1)*s.d;x=lane+full*s.d;rowHeight=s.d;}
+    let n = s.count;
+    while (n > 0) {
+      if (lane + s.d > width + EPS || y + s.d > depth + EPS) return done(false);
+      const capacity = Math.floor((width - x + EPS) / s.d);
+      if (capacity <= 0) { y += rowH; x = lane; rowH = 0; continue; }
+      const taken = Math.min(n, capacity);
+      x += taken * s.d; used = Math.max(used, x); n -= taken; rowH = Math.max(rowH, s.d);
+      if (n > 0) {
+        y += rowH; x = lane; rowH = 0;
+        const full = Math.floor((width - lane + EPS) / s.d);
+        const rows = Math.min(Math.floor(n / full), Math.max(0, Math.floor((depth - y + EPS) / s.d)));
+        if (rows > 0) { n -= rows * full; used = Math.max(used, lane + full * s.d); y += (rows - 1) * s.d; x = lane + full * s.d; rowH = s.d; }
       }
     }
   }
-  return {fits:placed===plan.cableCount,placed};
+  return done(true);
 }
 
-export function drawArrangement(plan, width, depth, fillResult = {}, limit = 1400) {
+/** Does the modeled layout fit the clear width × usable depth? */
+export function checkFit(plan, width, depth) {
+  const linearFits = plan.linearWidthIn <= width + EPS && plan.linearHeightIn <= depth + EPS;
+  if (!plan.stacked.length) return {fits: linearFits, usedWidthIn: plan.linearWidthIn, usedHeightIn: plan.linearHeightIn};
+  const lane = plan.linearWidthIn + plan.zoneGapIn;
+  const stack = shelfPack(plan.stacked, lane, width, depth);
+  return {fits: linearFits && stack.fits, usedWidthIn: stack.usedWidthIn, usedHeightIn: Math.max(plan.linearHeightIn, stack.usedHeightIn)};
+}
+
+/** Cable positions for the SVG (x from the left wall, y up from the tray bottom). */
+export function drawLayout(plan, width, depth, limit = 1500) {
   const placed = [], groups = [], gaps = [];
-  let x = 0, previous = null;
-  const put = (s, atX, atY, unitIndex) => {
-    const groupId = `${s.id || s.tag}-${unitIndex}`;
-    const offsets = s.kind === 'trefoil' ? [[0,0,'A'],[s.d,0,'B'],[s.d/2,s.d*Math.sqrt(3)/2,'C']] : [[0,0,null]];
-    if (atX+s.width > width+EPS || atY+s.height > depth+EPS || placed.length+offsets.length > limit) return;
-    if (s.kind==='trefoil') groups.push({id:groupId,tag:s.tag,x:atX,y:atY,width:s.width,height:s.height,d:s.d});
-    for (const [dx,dy,phase] of offsets) placed.push({d:s.d,cat:s.cat,tag:s.tag,large:s.large,x:atX+dx,y:atY+dy,phase,groupId:phase?groupId:null});
+  const put = (s, atX, atY, unit) => {
+    const offsets = s.kind === 'trefoil' ? [[0, 0, 'A'], [s.d, 0, 'B'], [s.d / 2, s.d * Math.sqrt(3) / 2, 'C']] : [[0, 0, null]];
+    if (atX + s.width > width + EPS || atY + s.height > depth + EPS || placed.length + offsets.length > limit) return false;
+    if (s.kind === 'trefoil') groups.push({id: `${s.id}-${unit}`, x: atX, y: atY, width: s.width, height: s.height, d: s.d});
+    for (const [dx, dy, phase] of offsets) placed.push({id: s.id, d: s.d, cat: s.cat, x: atX + dx, y: atY + dy, phase});
+    return true;
   };
-  if (plan.linear) {
-    for (const s of plan.segments) {
-      if (previous) {
-        const gap = clearGap(previous,s);
-        if (gap && x+gap<=width+EPS) gaps.push({x,width:gap,factor:Math.max(previous.factor,s.factor)});
-        x += gap;
-      }
-      // Skip units that cannot fit; advance by their full analytical width.
-      const visible = Math.min(s.count, Math.max(0,Math.floor((width-x+s.factor*s.d+EPS)/(s.width+s.factor*s.d))), Math.floor((limit-placed.length)/s.cablesPerUnit));
-      for (let i=0;i<visible;i++) {
-        const at = x + i*(s.width+s.factor*s.d);
-        put(s,at,0,i);
-        if (i && s.factor) gaps.push({x:at-s.factor*s.d,width:s.factor*s.d,factor:s.factor});
-      }
-      x += s.count*s.width+(s.count-1)*s.factor*s.d;
-      previous=s;
+  let x = 0, prev = null;
+  for (const s of plan.linear) {
+    if (prev) {
+      const gap = clearGap(prev, s);
+      if (gap && x + gap <= width + EPS) gaps.push({x, width: gap, factor: Math.max(prev.gap, s.gap)});
+      x += gap;
     }
-  } else {
-    const mixed = /^392\.22\(A\).*\(c\)$/.test(fillResult.rule);
-    const sorted = [...plan.segments].sort((a,b)=>b.d-a.d);
-    let lane = 0;
-    if (mixed) for (const s of sorted.filter(s=>s.large)) {
-      for (let i=0;i<Math.min(s.count,limit);i++) put(s,lane+i*s.d,0,i);
-      lane+=s.count*s.d;
+    const pitch = s.width + s.gap * s.d;
+    for (let i = 0; i < s.count; i++) {
+      const at = x + i * pitch;
+      if (at + s.width > width + EPS || !put(s, at, 0, i)) break;
+      if (i && s.gap) gaps.push({x: at - s.gap * s.d, width: s.gap * s.d, factor: s.gap});
     }
-    x=lane; let y=0,rowHeight=0;
-    for (const s of sorted.filter(s=>!mixed||!s.large)) {
-      for(let i=0;i<s.count && placed.length<limit;i++) {
-        if(x+s.d>width+EPS && x>lane){x=lane;y+=rowHeight;rowHeight=0;}
-        if(y+s.d>depth+EPS || s.d>width-lane+EPS) break;
-        put(s,x,y,i);x+=s.d;rowHeight=Math.max(rowHeight,s.d);
-      }
+    x += s.count * s.width + (s.count - 1) * s.gap * s.d;
+    prev = s;
+  }
+  const lane = plan.linearWidthIn + plan.zoneGapIn;
+  let cx = lane, y = 0, rowH = 0;
+  for (const s of plan.stacked) {
+    for (let i = 0; i < s.count && placed.length < limit; i++) {
+      if (cx + s.d > width + EPS && cx > lane) { cx = lane; y += rowH; rowH = 0; }
+      if (y + s.d > depth + EPS || lane + s.d > width + EPS) break;
+      put({...s, width: s.d, height: s.d}, cx, y, i); cx += s.d; rowH = Math.max(rowH, s.d);
     }
   }
-  return {placed,groups,gaps,omitted:plan.cableCount-placed.length,total:plan.cableCount};
+  return {placed, groups, gaps, omitted: plan.cableCount - placed.length};
 }

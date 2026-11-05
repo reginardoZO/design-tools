@@ -1,375 +1,332 @@
-import {calculateCompartment, SOURCES, sizeToKcmil, isMC, isMV} from './nec.js';
-import {RULESET_VERSION, METHODS, CIRCUIT_CLASSES, REVIEW_CHECKS, assessProject, evaluateMethod, stampBasis, stampReview, issueRecord} from './compliance.js';
-import {compartmentsOf, validateProject, migrateProject, resizeProject, suggestWidth, layoutCables, projectCSV, projectCable} from './project.js';
-import {arrangementSettings, requiresTrefoil, isTrefoil, circuitPolicyIssues, arrangementLabel} from './arrangement.js';
+import {MULTI_LAYOUTS, SINGLE_LAYOUTS, drawLayout} from './arrangement.js';
+import {blankTray, compartmentsOf, validateTray, resizeTray, evaluateTray, suggestSize, cableSnapshot, TRAY_TYPES} from './project.js';
 import {formatNumber as fmt, formatInteger as integer, dimension, cableSize} from './format.js';
 
-const $=(s,r=document)=>r.querySelector(s); const $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const uid=()=>crypto.randomUUID?.()||`tl-${Date.now().toString(36)}-${crypto.getRandomValues(new Uint32Array(3)).join('-')}`;
-const colors={power:'var(--accent)',control:'var(--warn)',vfd:'var(--plate-edge)',mv:'var(--ok)'};
-const labels={power:'LV power',control:'Control',vfd:'VFD',mv:'Medium voltage'};
-const ICONS={tray:'M3 5v14h18V5M8 7v12M16 7v12M3 12h18',grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',book:'M4 4h6l2 2 2-2h6v15h-6l-2 2-2-2H4zM12 6v15',plus:'M12 5v14M5 12h14',download:'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',upload:'M12 16V4m-5 5 5-5 5 5M4 17v4h16v-4',arrow:'M5 12h14m-5-5 5 5-5 5',chevron:'m9 5 7 7-7 7',chevdown:'m6 9 6 6 6-6',check:'m5 12 4 4L19 6',search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',close:'m6 6 12 12M6 18 18 6',trash:'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',edit:'m3 17 14-14 4 4L7 21H3zM14 6l4 4',copy:'M8 8h12v13H8zM4 16H2V2h12v2',file:'M5 2h10l4 4v16H5zM15 2v5h4M9 12h6M9 16h6',alert:'m12 3 10 18H2zM12 9v5M12 17h.01',info:'M12 11v6M12 7h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',settings:'M4 7h16M4 17h16M8 4v6M16 14v6',cable:'M8 3v6a4 4 0 0 0 8 0V3M12 13v8M5 3h6M13 3h6',scale:'M4 17h16M6 17 8 7h8l2 10M12 7V4',external:'M14 3h7v7m-1-6L10 14M10 4H3v17h17v-7',refresh:'M20 7a9 9 0 1 0 1 7M20 3v5h-5',print:'M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6z',folder:'M3 5h7l2 3h9v12H3z',move:'M12 3v18M3 12h18m-12-6 3-3 3 3m-6 12 3 3 3-3m-9-9-3 3 3 3m12-6 3 3-3 3'};
-const icon=name=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name]||ICONS.info}"/></svg>`;
-const btn=(action,text,cls='',extra='')=>`<button class="${cls}" data-action="${action}" ${extra}>${text}</button>`;
-const opt=(v,l,current)=>`<option value="${esc(v)}" ${String(v)===String(current)?'selected':''}>${esc(l)}</option>`;
-const field=(label,input)=>`<label class="field"><span>${label}</span>${input}</label>`;
-const numberInput=(key,value,min,max,step='any',unit='')=>`<div class="input-unit"><input type="number" data-project="${key}" value="${value}" min="${min}" max="${max}" step="${step}">${unit?`<span>${unit}</span>`:''}</div>`;
-let catalog=[],meta={},byId=new Map(),project,activeTab='project',selectedComp,selectedCable=null,filter={q:'',category:'',voltage:'',conductors:'',material:'',page:0},toastTimer,storageOK=true, replacingCircuitId=null, currentAssessment=null;
-const STORE='traylab-project-v1';
-const inputDim=v=>Math.round(v*10000)/10000;
-const fromDim=v=>v;
-const u=()=>'in';
-const circuitCable=c=>projectCable(c,byId);
-function toast(t){$('#toast').textContent=t;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),3700)}
-function save(){project.updatedAt=new Date().toISOString();try{localStorage.setItem(STORE,JSON.stringify(project));storageOK=true}catch{storageOK=false}}
-function blankProject(){return {schemaVersion:1,complianceSchema:1,name:'New tray design',trayTag:'CT-001',widthIn:24,depthIn:4,trayType:'ladder',dividerThicknessIn:.125,dividers:[],compartments:[{id:uid(),name:'Compartment A',controlOnly:false,spacing:'touching',trefoilSpacing:'2.15D',vfdSpacing:'touching'}],circuits:[],covered:false,solidBarriers:true,barrierAdequacyConfirmed:false,industrialQualified:false,location:'unknown',coverType:'unknown',coverLengthIn:0,ambientF:86,rungSpacingIn:9,units:'in',reserve:0,ambient:30,createdAt:new Date().toISOString()}}
-function exampleProject(){const p=blankProject();p.name='Example · 480 / 120 V cable tray study';p.widthIn=30;p.dividers=[8,20];p.compartments=[{id:uid(),name:'120 V',controlOnly:false,spacing:'touching',trefoilSpacing:'2.15D',vfdSpacing:'touching'},{id:uid(),name:'480 V · Power',controlOnly:false,spacing:'touching',trefoilSpacing:'2.15D',vfdSpacing:'touching'},{id:uid(),name:'480 V · 350 kcmil',controlOnly:false,spacing:'touching',trefoilSpacing:'2.15D',vfdSpacing:'touching'}];
-const add=(cable,qty,comp,voltage,tag)=>{if(cable)p.circuits.push({id:uid(),tag,cableId:cable.id,cableSnapshot:cable,qty,cablesPerRun:1,compartmentId:p.compartments[comp].id,voltage})};
-add(byId.get('sw-45104-4626')||catalog.find(c=>c.spec==='45104'&&c.conductors===2&&c.size==='10'),50,0,120,'UTIL-120V');
-for(const [size,qty,tag] of [['8',7,'MTR-008'],['1',1,'MTR-001'],['6',4,'MTR-006'],['2/0',1,'FDR-2/0'],['1/0',2,'FDR-1/0'],['2',4,'MTR-002']])add(catalog.find(c=>c.spec==='45252'&&c.size===size&&c.conductors===3),qty,size==='350'?2:1,480,tag);
-const phaseCable=byId.get('sw-45003-2042');if(phaseCable)p.circuits.push({id:uid(),tag:'FDR-350',cableId:phaseCable.id,cableSnapshot:phaseCable,qty:2,cablesPerRun:3,compartmentId:p.compartments[2].id,voltage:480,purpose:'power'});
-return p}
-function getCompartments(){return compartmentsOf(project)}
-function results(){return assessProject(project,byId).results}
-const statusPill=r=>r.status==='empty'?'<span class="pill neutral">Empty</span>':r.status==='fail'?'<span class="pill fail">Layout blocked</span>':r.status==='review'?'<span class="pill warn">Unsupported / incomplete</span>':'<span class="pill">Fill / geometry pass</span>';
-function overallChecks(rs){
-  const a=currentAssessment||assessProject(project,byId);
-  const out=a.issues.map(i=>({status:'fail',title:`${i.kind==='unsupported'?'Outside supported scope':i.kind==='missing'?'Verification required':'Conflict'} · ${i.rule}`,note:i.message}));
-  for(const {comp,result:r} of rs)if(r.status==='pass')out.push({status:'pass',title:`${comp.name}: implemented fill and geometry checks pass.`,note:`${r.rule}. This result alone does not release the installation.`});
-  return out;
-}
-function render(){const conditionsOpen=$('.advanced-config')?.open;if(!project.compartments.some(c=>c.id===selectedComp))selectedComp=project.compartments[0].id;project.selectedCompartmentId=selectedComp;save();currentAssessment=assessProject(project,byId);const rs=currentAssessment.results;const maxRatio=Math.max(0,...rs.map(x=>x.result.ratio??0));const cableCount=rs.reduce((n,x)=>n+(x.result.count||0),0);const weight=rs.reduce((n,x)=>n+(x.result.weightLbFt||0),0);const reviews=overallChecks(rs).filter(x=>x.status!=='pass').length;
-$('#app').innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="brand"><span class="brand-symbol">${icon('tray')}</span><div class="brand-text">TrayLab<small>ELECTRICAL DESIGN</small></div></div><div class="nav-label">WORKSPACE</div>${nav()}<div class="side-project"><p>CURRENT PROJECT</p><strong>${esc(project.name)}</strong><div class="tiny muted">${esc(project.trayTag)} · ${project.compartments.length} compartments</div></div><div class="side-bottom"><div class="side-source"><strong>Southwire® Catalog</strong><p>${integer(catalog.length)} catalog items.<br>Traceable manufacturer dimensions.</p><a href="https://cabletechsupport.southwire.com/en/tile/1/?country=US" target="_blank" rel="noreferrer">Open official catalog ↗</a></div><div class="profile"><span class="avatar">US</span><div><div style="font-size:11px">U.S. customary units</div><div class="tiny muted">Engineering workspace</div></div></div></div></aside><div class="workspace"><header class="topbar"><div class="breadcrumb">${icon('folder')}<span class="hide-mobile">Projects</span><span>/</span><strong>${esc(project.trayTag)}</strong><span>/</span><span>Tray sizing</span></div><div class="top-actions"><span class="saved">${icon('check')}${storageOK?'Saved in this browser':'Export to save'}</span>${btn('import',icon('upload')+'<span class="hide-mobile">Import</span>','quiet')}${btn('export',icon('download')+'<span class="hide-mobile">Export project</span>','','aria-label="Export project"')}${btn('print',icon('print')+'Issue report','',currentAssessment.canIssue?'':'disabled title="Resolve all blocking items before issue."')}${btn('draft-report','Draft report','quiet')}</div></header><nav class="mobile-nav">${nav()}</nav><main class="page"><div class="print-header">TrayLab · Cable tray installation review · NEC 2023 · ${new Date().toLocaleDateString('en-US')} · Southwire catalog</div>${activeTab==='project'?projectPage(rs,maxRatio,cableCount,weight,reviews):activeTab==='catalog'?catalogPage():criteriaPage()}<footer class="footer"><span>TrayLab / Southwire · Code basis: NEC 2023</span><span>Nominal manufacturer data · Confirm the locally adopted code edition</span></footer></main></div></div>`;
-if(conditionsOpen&&$('.advanced-config'))$('.advanced-config').open=true;if(activeTab==='project')bindTrayDrag();if(activeTab==='catalog')bindCatalog($('#app'));}
-function nav(){return[['project','tray','Tray sizing'],['catalog','grid','Cable catalog'],['criteria','book','NEC criteria']].map(([t,i,l])=>`<button data-tab="${t}" class="nav-btn ${activeTab===t?'active':''}">${icon(i)}<span>${l}</span>${t==='catalog'?`<span class="count">${integer(catalog.length)}</span>`:''}</button>`).join('')}
-function projectPage(rs,maxRatio,cableCount,weight,reviews){return `<div class="page-heading"><div><div class="eyebrow">Project / ${esc(project.trayTag)}</div><div class="flex"><h1>Cable tray sizing</h1>${btn('rename',icon('edit'),'quiet icon-btn','aria-label="Rename project"')}</div><p>${esc(project.name)} <span style="margin:0 7px">·</span> Arrange. Size. Verify.</p></div><div class="heading-actions"><span class="pill neutral hide-small">NEC 2023</span>${btn('projects',icon('folder')+'Projects','hide-small')}${btn('new',icon('plus')+'New','hide-small')}${btn('catalog',icon('plus')+'Add circuit','primary')}</div></div>${releaseBanner()}<div class="metrics"><div class="metric accent"><div class="metric-label">Highest NEC fill</div><div class="metric-value">${fmt(maxRatio*100,1)}<small>%</small></div><div class="meter"><span style="width:${Math.min(100,maxRatio*100)}%;background:${maxRatio>1?'var(--bad)':''}"></span></div><div class="metric-foot">${rs.some(x=>x.result.status==='review')?'Conditions require engineering review':'Relative to the applicable NEC limit'}</div></div><div class="metric"><div class="metric-label">Cables in tray</div><span class="metric-ico">${icon('cable')}</span><div class="metric-value">${integer(cableCount)}<small>cables</small></div><div class="metric-foot">${project.circuits.length} circuit rows · runs × cables/run</div></div><div class="metric"><div class="metric-label">Cable load</div><span class="metric-ico">${icon('scale')}</span><div class="metric-value">${fmt(weight,2)}<small>lb/ft</small></div><div class="metric-foot">${rs.some(x=>x.result.weightComplete===false)?'Partial weight · missing catalog data':'Combined cable weight · tray excluded'}</div></div><div class="metric"><div class="metric-label">Compartments</div><span class="metric-ico">${icon('tray')}</span><div class="metric-value">${project.compartments.length}<small>spaces</small></div><div class="metric-foot">${project.dividers.length} dividers · ${reviews} ${reviews===1?'review item':'review items'}</div></div></div><div class="main-grid"><div><section class="card"><div class="card-head"><div><h2>Tray layout</h2><div class="sub">${esc(project.trayTag)} · ${dimension(project.widthIn)} × ${dimension(project.depthIn)} · ${project.trayType==='ladder'?'Ladder tray':project.trayType==='solid'?'Solid bottom':'Ventilated trough'}</div></div>${btn('add-divider',icon('plus')+'Add divider','quiet','style="font-size:11px"')}</div><div class="viewer-top"><span class="view-name">MINIMUM-SPACING CROSS SECTION</span><span class="pill neutral">Dimensions in inches</span></div><div class="tray-stage">${traySvg(rs)}</div><div class="viewer-note"><div class="legend">${Object.entries(labels).map(([c,l])=>`<span><i style="background:${colors[c]}"></i>${l}</span>`).join('')}</div><span class="drag-hint">${icon('move')}Drag dividers · distribute and secure cables in the field</span></div><div class="comp-cards" style="grid-template-columns:repeat(${Math.min(project.compartments.length,4)},1fr)">${rs.map(compartmentCard).join('')}</div></section>${schedule(rs)}${basisPanel()}${validation(rs)}</div>${configuration()}</div><div class="report-only">This report records implemented fill, physical layout and external installation-method checks. Drafts are not for construction. It does not replace ampacity, protection, voltage drop, short-circuit, mechanical support, or grounding calculations. Catalog date: ${esc(meta.retrievedAt||meta.generatedAt||'October 21, 2026')}. Divider thickness is deducted from the usable width.</div>`}
-function compartmentCard({comp,result:r},i){
-  const settings=arrangementSettings(comp);
-  const controls=[];
-  if(r.arrangement.trefoilGroups)controls.push(field('Trefoil clear gap',`<select aria-label="Trefoil clear gap for ${esc(comp.name)}" data-comp-id="${comp.id}" data-comp-field="trefoilSpacing">${opt('1D','1 × cable OD',settings.trefoilSpacing)}${opt('2.15D','2.15 × cable OD',settings.trefoilSpacing)}</select>`));
-  if(r.arrangement.vfdCables)controls.push(field('VFD cable spacing',`<select aria-label="VFD cable spacing for ${esc(comp.name)}" data-comp-id="${comp.id}" data-comp-field="vfdSpacing">${opt('touching','Touching',settings.vfdSpacing)}${opt('1D','1 × cable OD',settings.vfdSpacing)}</select>`));
-  return `<div class="comp-card ${comp.id===selectedComp?'selected':''}" data-comp="${comp.id}" role="group" aria-label="${esc(comp.name)} layout and spacing"><button class="comp-title comp-select" type="button" data-comp="${comp.id}" aria-label="Select ${esc(comp.name)}" aria-pressed="${comp.id===selectedComp}"><strong>${esc(comp.name)}</strong><span class="tag">${String.fromCharCode(65+i)}</span></button><div class="comp-stat">${r.status==='empty'?'0':r.ratio==null||r.fillStatus==='review'?'—':fmt(r.ratio*100,1)}<small>% NEC fill</small></div><div class="comp-bar ${r.status==='fail'?'fail':(r.ratio>.85||r.status==='review')?'warn':''}"><span style="width:${Math.min(100,(r.ratio||0)*100)}%"></span></div><div class="comp-rule">${dimension(comp.widthIn)} clear · ${r.count||0} cables</div>${statusPill(r)}${r.count?`<div class="arrangement-summary">${r.arrangement.trefoilGroups?`${r.arrangement.trefoilGroups} trefoils · ${esc(settings.trefoilSpacing)} gap<br>`:''}${r.arrangement.vfdCables?`VFD · ${esc(settings.vfdSpacing)}<br>`:''}${r.arrangement.linear?`<strong>${dimension(r.arrangementWidthIn)} layout width</strong><br>${fmt(r.arrangementWidthIn/comp.widthIn*100,1)}% of clear width · includes gaps`:'Standard packing'}</div>`:''}${controls.length?`<div class="comp-spacing-controls">${controls.join('')}<span class="tiny muted">Changes apply immediately to this compartment.</span></div>`:''}</div>`;
-}
-function configuration(){const c=project.compartments.find(x=>x.id===selectedComp);return `<aside class="card config-card"><div class="card-head"><h2>Tray configuration</h2>${icon('settings')}</div><div class="card-body"><div class="form-row">${field(`Inside width (${u()})`,numberInput('widthIn',inputDim(project.widthIn),inputDim(.5),inputDim(120),'any',u()))}${field(`Usable depth (${u()})`,numberInput('depthIn',inputDim(project.depthIn),inputDim(.25),inputDim(24),'any',u()))}</div><div class="form-row">${field('Tray type',`<select data-project="trayType">${opt('ladder','Ladder',project.trayType)}${opt('ventilated','Ventilated trough',project.trayType)}${opt('solid','Solid bottom',project.trayType)}</select>`)}</div><div class="form-row">${field('Divider thickness',numberInput('dividerThicknessIn',inputDim(project.dividerThicknessIn),0,inputDim(1),'any',u()))}${field('Design reserve',numberInput('reserve',project.reserve,0,75,'1','%'))}</div><label class="check"><input type="checkbox" data-project="covered" ${project.covered?'checked':''}>Covered tray</label>${project.covered?`<div class="form-row">${field('Cover construction',`<select data-project="coverType">${opt('unknown','Select cover type',project.coverType)}${opt('solid-unventilated','Solid, unventilated',project.coverType)}${opt('ventilated','Ventilated (review outside scope)',project.coverType)}</select>`)}</div><div class="form-row">${field('Continuous cover length',numberInput('coverLengthIn',project.coverLengthIn??0,0,120000,'any','in'))}</div><p class="config-note">The explicit covered-tray percentage applies to solid unventilated coverage longer than 72 in. Other covered conditions are blocked pending a validated method.</p>`:''}<div class="form-row">${field('Design ambient temperature',numberInput('ambientF',project.ambientF??86,-58,194,'any','°F'))}</div><div class="form-row">${field('Installation location',`<select data-project="location">${opt('unknown','Select installation scope',project.location)}${opt('ordinary','Ordinary industrial location',project.location)}${opt('hazardous','Hazardous / classified (unsupported)',project.location)}${opt('prohibited','Hoistway / severe physical damage',project.location)}</select>`)}</div><label class="check"><input type="checkbox" data-project="solidBarriers" ${project.solidBarriers?'checked':''}>Solid, fixed dividers</label><details class="advanced-config"><summary>Installation conditions</summary><div class="form-row">${field(`Rung spacing (${u()})`,numberInput('rungSpacingIn',inputDim(project.rungSpacingIn??9),inputDim(1),inputDim(48),'any',u()))}</div><label class="check"><input type="checkbox" data-project="industrialQualified" ${project.industrialQualified?'checked':''}>Industrial conditions of 392.10(B) confirmed</label><label class="check"><input type="checkbox" data-project="barrierAdequacyConfirmed" ${project.barrierAdequacyConfirmed?'checked':''}>Barrier continuity and materials confirmed</label></details><div class="section-line"></div><div class="section-title">Divider positions <span class="tiny">centerline from left</span></div><div class="divider-block">${project.dividers.length?project.dividers.map((d,i)=>`<div class="divider-row"><span class="divider-index">D${i+1}</span><div class="input-unit"><input aria-label="Divider position ${i+1}" type="number" step="any" data-divider="${i}" value="${inputDim(d)}"><span>${u()}</span></div>${btn('remove-divider',icon('trash'),'quiet icon-btn',`data-index="${i}" aria-label="Remove divider ${i+1}"`)}</div>`).join(''):'<div class="tiny muted" style="margin:10px 0">No internal dividers.</div>'}${btn('add-divider',icon('plus')+'Split selected compartment','quiet','style="width:100%;font-size:10px;border:1px dashed var(--steel);margin-top:4px"')}</div><div class="section-line"></div><div class="section-title">Selected compartment</div><div class="form-row">${field('Edit compartment',`<select data-select-comp>${project.compartments.map(co=>opt(co.id,co.name,selectedComp)).join('')}</select>`)}</div><div class="form-row">${field('Name',`<input data-comp-field="name" data-comp-id="${c.id}" value="${esc(c.name)}" maxlength="40">`)}</div><div class="arrangement-policy"><strong>4/0 AWG and larger → trefoil</strong><p>Three 1/C phase cables per run. VFD cables and a separate EGC are excluded from this project rule.</p></div><div class="form-row">${field('Trefoil clear gap',`<select data-comp-field="trefoilSpacing" data-comp-id="${c.id}">${opt('1D','1 × cable OD',arrangementSettings(c).trefoilSpacing)}${opt('2.15D','2.15 × cable OD',arrangementSettings(c).trefoilSpacing)}</select>`)}</div><div class="form-row">${field('VFD cable spacing',`<select data-comp-field="vfdSpacing" data-comp-id="${c.id}">${opt('touching','Touching',arrangementSettings(c).vfdSpacing)}${opt('1D','1 × cable OD',arrangementSettings(c).vfdSpacing)}</select>`)}</div><p class="config-note">Applies within this compartment. D = one complete cable's outside diameter. Gaps are measured edge to edge; the larger adjacent OD governs. One isolated trefoil needs no inter-group gap.</p><div class="form-row">${field('Other cable arrangement',`<select data-comp-field="spacing" data-comp-id="${c.id}">${opt('touching','Standard NEC fill',c.spacing)}${opt('one-diameter','Single layer + 1 × OD',c.spacing)}</select>`)}</div><label class="check"><input type="checkbox" data-comp-field="controlOnly" data-comp-id="${c.id}" ${c.controlOnly?'checked':''}>Control / signal circuits only</label><p class="config-note">This setting declares circuit function. A 120 V rating alone does not make a circuit a control circuit.</p><div class="section-line"></div>${btn('recommend',icon('tray')+'Suggest tray width','lime','style="width:100%;font-size:11px"')}<p class="config-note">The suggestion preserves compartment proportions and includes the design reserve. Divider thickness is deducted from the usable width.</p></div><div class="status-strip">${icon('info')}<span>Issue is blocked until the modeled installation and declared external sizing basis pass all supported checks.</span></div></aside>`}
-function traySvg(rs){const W=850,margin=43,usable=W-margin*2,s=usable/project.widthIn,dep=Math.max(45,project.depthIn*s),base=80+dep,H=base+62;let sv=`<svg id="traySvg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" aria-label="Tray cross section with cables and dividers"><defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" x2="0" y1="0" y2="5" stroke="var(--steel)" stroke-width="1"/></pattern></defs><line x1="${margin}" y1="32" x2="${W-margin}" y2="32" stroke="var(--steel)"/><path d="M${margin} 27v10M${W-margin} 27v10" stroke="var(--steel)"/><rect x="${W/2-65}" y="20" width="130" height="22" fill="var(--field)"/><text x="${W/2}" y="35" text-anchor="middle" font-family="monospace" font-size="12" fill="var(--muted)">${esc(dimension(project.widthIn))}</text>`;
-for(const{comp,circuits,result:r}of rs){const x=margin+comp.startIn*s,w=comp.widthIn*s;sv+=`<g data-comp="${comp.id}" class="tray-compartment"><rect x="${x}" y="${base-dep}" width="${Math.max(0,w)}" height="${dep}" fill="${comp.id===selectedComp?'var(--accent-wash)':'var(--field)'}" opacity=".6" data-comp="${comp.id}"/><text x="${x+w/2}" y="${base-dep-12}" text-anchor="middle" font-family="DM Sans,Arial" font-size="10" fill="var(--muted)">${esc(comp.name.length>20?comp.name.slice(0,18)+'…':comp.name)}</text>`;
-const layout=layoutCables(circuits,comp.widthIn,project.depthIn,r,comp);
-for(const d of layout.placed){const R=d.d*s/2,X=x+(d.x+d.d/2)*s,Y=base-(d.y+d.d/2)*s;sv+=`<circle cx="${X}" cy="${Y}" r="${R}" fill="${colors[d.cat]||colors.power}" fill-opacity=".15" stroke="${colors[d.cat]||colors.power}" stroke-width="1.1"><title>${esc(d.tag)}${d.phase?' · Phase '+d.phase+' · trefoil':''} · Ø ${fmt(d.d,3)} in</title></circle>`;if(d.phase&&R>6)sv+=`<text x="${X}" y="${Y+3}" text-anchor="middle" font-family="Arial" font-size="${Math.min(11,R)}" fill="var(--ink)">${d.phase}</text>`;else if(R>10)sv+=`<circle cx="${X}" cy="${Y}" r="${R*.23}" fill="${colors[d.cat]||colors.power}" opacity=".5"/>`}
-for(const gap of layout.gaps){if(gap.width*s<18)continue;const gx=x+gap.x*s,gw=gap.width*s;sv+=`<g><title>Clear gap ${dimension(gap.width)} · ${gap.factor} × larger adjacent cable OD</title><path d="M${gx+2} ${base-5}h${Math.max(0,gw-4)}M${gx+2} ${base-9}v8M${gx+gw-2} ${base-9}v8" stroke="var(--muted)" fill="none"/><text x="${gx+gw/2}" y="${base-13}" text-anchor="middle" font-family="monospace" font-size="9" fill="var(--muted)">${gap.factor}D</text></g>`;}
-sv+=`<line x1="${x+2}" y1="${base+23}" x2="${x+w-2}" y2="${base+23}" stroke="var(--steel)"/><path d="M${x+2} ${base+19}v8M${x+w-2} ${base+19}v8" stroke="var(--steel)"/><rect x="${x+w/2-43}" y="${base+12}" width="86" height="19" fill="var(--field)"/><text x="${x+w/2}" y="${base+25}" text-anchor="middle" font-family="monospace" font-size="10" fill="var(--muted)">${esc(dimension(comp.widthIn))}</text><text x="${x+w/2}" y="${base+43}" text-anchor="middle" font-family="DM Sans,Arial" font-size="9" fill="var(--muted)">CLEAR WIDTH${layout.omitted?' · +'+layout.omitted+' outside view':''}</text></g>`;}
-sv+=`<path d="M${margin-3} ${base-dep-2}v${dep+7}H${W-margin+3}v-${dep+7}" fill="none" stroke="var(--muted)" stroke-width="5" stroke-linejoin="round"/>`;
-if(project.covered)sv+=`<line x1="${margin-5}" y1="${base-dep-5}" x2="${W-margin+5}" y2="${base-dep-5}" stroke="var(--muted)" stroke-width="4"/>`;
-project.dividers.forEach((d,i)=>{const x=margin+d*s;sv+=`<g class="drag-divider" data-drag-divider="${i}"><rect x="${x-8}" y="${base-dep-10}" width="16" height="${dep+14}" fill="transparent"/><rect x="${x-Math.max(project.dividerThicknessIn*s,2)/2}" y="${base-dep}" width="${Math.max(project.dividerThicknessIn*s,2)}" height="${dep}" fill="var(--muted)"/><rect x="${x-7}" y="${base-dep+3}" width="14" height="22" rx="4" fill="var(--bg)" stroke="var(--muted)"/><path d="M${x-2} ${base-dep+9}v10M${x+2} ${base-dep+9}v10" stroke="var(--muted)"/></g>`});return sv+'</svg>'}
-function schedule(rs){return `<section class="card schedule"><div class="card-head"><div class="flex"><h2>Circuit schedule</h2><span class="pill neutral">${project.circuits.length}</span></div><div class="flex">${btn('export-csv',icon('download')+'Issue CSV','quiet',`style="font-size:10px" ${currentAssessment.canIssue?'':'disabled'}`)}${btn('draft-csv','Draft CSV','quiet','style="font-size:10px"')}${btn('catalog',icon('plus')+'Add','quiet','style="font-size:11px"')}</div></div>${project.circuits.length?`<div class="table-wrap"><table><thead><tr><th>Circuit / cable</th><th>Outside diameter</th><th>Qty.</th><th>Cables/run</th><th>Voltage</th><th>Compartment</th><th></th></tr></thead><tbody>${project.circuits.map(c=>{const ca=circuitCable(c);return `<tr><td><div class="cable-title"><span class="category-dot" style="background:${colors[ca.category]}"></span>${esc(c.tag)}</div><div class="cable-sub"><a href="${esc(ca.sourceUrl)}" target="_blank" rel="noreferrer" title="Southwire data sheet">${esc(cableSize(ca))}</a> · ${esc(ca.spec)}${ca.stock?' / '+esc(ca.stock):''}</div><div class="arrangement-summary ${circuitPolicyIssues({...c,cable:ca}).length?'policy-error':''}">${esc(arrangementLabel({...c,cable:ca},project.compartments.find(co=>co.id===c.compartmentId)))}</div></td><td class="mono">${dimension(ca.odIn)}</td><td><input class="table-input" type="number" min="1" max="9999" step="1" data-circuit="${c.id}" data-key="qty" value="${c.qty}" aria-label="Quantity ${esc(c.tag)}"></td><td><input class="table-input" type="number" min="1" max="20" step="1" data-circuit="${c.id}" data-key="cablesPerRun" value="${c.cablesPerRun}" ${requiresTrefoil(ca,c.purpose)?'readonly title="Trefoil phase circuits require 3 single-conductor cables per run. Use Edit to correct a saved row."':''} aria-label="Cables per run ${esc(c.tag)}"></td><td><input class="table-input" style="width:62px" type="number" min="0" max="69000" step="any" data-circuit="${c.id}" data-key="voltage" value="${c.voltage}" aria-label="Voltage ${esc(c.tag)}"> <span class="tiny muted">V</span></td><td><select class="assign" data-circuit="${c.id}" data-key="compartmentId" aria-label="Compartment ${esc(c.tag)}">${project.compartments.map(co=>opt(co.id,co.name,c.compartmentId)).join('')}</select></td><td>${btn('basis',icon('book'),'quiet icon-btn',`data-id="${c.id}" aria-label="Sizing basis ${esc(c.tag)}"`)}${btn('edit-circuit',icon('edit'),'quiet icon-btn',`data-id="${c.id}" aria-label="Edit ${esc(c.tag)}"`)}${btn('delete-circuit',icon('trash'),'quiet icon-btn',`data-id="${c.id}" aria-label="Delete ${esc(c.tag)}"`)}</td></tr>`}).join('')}</tbody></table></div><div class="schedule-footer"><span>Qty. = number of identical circuit runs. Each run contains the specified number of physical cables.</span><span>Add a separate EGC as its own row.</span></div>`:`<div class="empty-state"><strong>Start your cable tray design</strong>Choose a Southwire cable and assign it to a compartment.<br>${btn('catalog',icon('plus')+'Choose from catalog','primary')}</div>`}</section>`}
-function validation(rs){const checks=overallChecks(rs);return `<section class="card validation"><div class="card-head"><h2>Design checks</h2>${btn('criteria','View criteria '+icon('arrow'),'quiet','style="font-size:10px"')}</div><div class="card-body">${checks.map(v=>`<div class="validation-item ${v.status}"><span class="status-icon">${icon(v.status==='pass'?'check':v.status==='fail'?'close':'alert')}</span><div><p>${esc(v.title)}</p><small>${esc(v.note)}</small></div></div>`).join('')}<details class="calculation-details" style="margin-top:12px"><summary class="tiny muted">Calculation details by compartment</summary>${rs.map(({comp,result:r})=>`<div style="margin-top:12px;font-size:11px;line-height:1.7"><strong>${esc(comp.name)}</strong> · ${esc(r.rule)}<br>Used: ${fmt(r.used,4)} ${esc(r.unit)} / allowable: ${fmt(r.allowed,4)} ${esc(r.unit)} · total cable area: ${fmt(r.areaIn2,4)} in² · sum of diameters: ${fmt(r.sumOdIn,4)} in<br>${r.arrangement.linear?`Selected layout: ${dimension(r.arrangementWidthIn)} wide × ${dimension(r.arrangementHeightIn)} high<br>`:''}Trefoil clear gap: ${esc(r.arrangement.settings.trefoilSpacing)} · VFD spacing: ${esc(r.arrangement.settings.vfdSpacing)}<br>${(r.notes||[]).map(esc).join('<br>')}</div>`).join('')}</details></div></section>`}
-function catalogContent(){return `<div class="catalog-layout"><div class="catalog-main"><div class="catalog-tools"><div class="search-box">${icon('search')}<input type="search" data-filter="q" value="${esc(filter.q)}" placeholder="Search stock, SPEC, AWG/kcmil, insulation…" aria-label="Search catalog"></div></div><div class="filters"><select data-filter="category" aria-label="Category">${opt('','All applications',filter.category)}${Object.entries(labels).map(([k,v])=>opt(k,v,filter.category)).join('')}</select><select data-filter="voltage" aria-label="Voltage rating">${opt('','All voltages',filter.voltage)}${[...new Set(catalog.map(c=>c.voltage))].sort((a,b)=>a-b).map(v=>opt(v,`${v>=1000?fmt(v/1000, v%1000?1:0)+' kV':v+' V'}`,filter.voltage)).join('')}</select><select data-filter="conductors" aria-label="Conductor count">${opt('','All conductor counts',filter.conductors)}${[...new Set(catalog.map(c=>c.conductors))].sort((a,b)=>a-b).map(v=>opt(v,v+(v===1?' conductor':' conductors'),filter.conductors)).join('')}</select><select data-filter="material" aria-label="Material">${opt('','All materials',filter.material)}${[...new Set(catalog.map(c=>c.material))].sort().map(v=>opt(v,v,filter.material)).join('')}</select></div><div data-catalog-results></div></div><aside class="catalog-detail" data-catalog-detail></aside></div>`}
-function catalogPage(){return `<div class="page-heading"><div><div class="eyebrow">Technical library</div><h1>Southwire catalog</h1><p>Nominal dimensions and product identification from Southwire CableTech Support.</p></div><span class="pill">${integer(catalog.length)} items</span></div><div class="coverage">${coverageText()} <a href="catalog-metadata.json" target="_blank">View catalog import manifest ↗</a></div><div class="catalog-page">${catalogContent()}</div>`}
-function coverageText(){const specs=new Set(catalog.map(c=>c.spec)).size;return `<strong>${integer(catalog.length)} items · ${specs} imported families.</strong> Public U.S. Power & Control, Medium Voltage, and industrial metal-clad catalogs, plus VFD search results, retrieved October 21–22, 2026. Includes power, control, LV/MV VFD, and medium-voltage cables. Coverage is limited to the listed families in this snapshot; it does not include every Southwire product. ${meta.excludedRows?.length||0} records with ambiguous data were excluded. Dimensions are nominal and may be revised by the manufacturer.`}
-function filteredCatalog(){const q=filter.q.toLowerCase().trim().split(/\s+/).filter(Boolean);return catalog.filter(c=>(!filter.category||c.category===filter.category)&&(!filter.voltage||c.voltage===+filter.voltage)&&(!filter.conductors||c.conductors===+filter.conductors)&&(!filter.material||c.material===filter.material)&&q.every(t=>`${c.stock} ${c.spec} ${cableSize(c)} ${c.title} ${c.insulation} ${c.conductors}C ${labels[c.category]}`.toLowerCase().includes(t)))}
-function updateCatalog(root){const all=filteredCatalog();const pages=Math.max(1,Math.ceil(all.length/40));filter.page=Math.max(0,Math.min(filter.page,pages-1));const items=all.slice(filter.page*40,filter.page*40+40);$('[data-catalog-results]',root).innerHTML=`<div class="catalog-count"><span>${integer(all.length)} items found</span><span>Select a cable to add →</span></div><div class="table-wrap"><table class="catalog-table"><thead><tr><th>Cable / application</th><th>SPEC · Stock</th><th>Ø (${u()})</th><th class="hide-mobile">Voltage</th><th></th></tr></thead><tbody>${items.map(c=>`<tr data-select-cable="${esc(c.id)}" class="${selectedCable?.id===c.id?'chosen':''}" tabindex="0"><td><div class="catalog-size"><span class="category-dot" style="background:${colors[c.category]}"></span><a class="catalog-pdf" href="${esc(c.pdfUrl||c.sourceUrl)}" target="_blank" rel="noreferrer" title="Open Southwire PDF data sheet (SPEC ${esc(c.spec)})">${esc(cableSize(c))} <span aria-hidden="true">↗</span></a></div><div class="title-wrap muted">${esc(c.title)}</div></td><td class="mono">${esc(c.spec)}<div class="cable-sub">${esc(c.stock||'Contact manufacturer')}</div></td><td class="mono">${fmt(inputDim(c.odIn),3)}</td><td class="hide-mobile mono">${c.voltage>=1000?fmt(c.voltage/1000,1)+' kV':c.voltage+' V'}</td><td>${icon('plus')}</td></tr>`).join('')}</tbody></table>${items.length?'':'<div class="empty-state">No items match these filters.</div>'}</div><div class="pagination">${btn('catalog-prev',icon('chevron'),'icon-btn',`style="transform:rotate(180deg)" ${filter.page===0?'disabled':''} aria-label="Previous page"`)}<span>${filter.page+1} / ${pages}</span>${btn('catalog-next',icon('chevron'),'icon-btn',`${filter.page===pages-1?'disabled':''} aria-label="Next page"`)}</div>`;}
-function renderCatalogDetail(root){
-  const c=selectedCable,el=$('[data-catalog-detail]',root),existing=project.circuits.find(r=>r.id===replacingCircuitId);
-  if(!c){el.innerHTML=`<span class="brand-symbol" style="width:45px;height:45px;margin-bottom:20px">${icon('cable')}</span><h3>${existing?'Choose a replacement cable.':'The right cable, in the right space.'}</h3><p class="description">${existing?`Replacing ${esc(existing.tag)}. The new product's actual outside diameter and weight will be used.`:'Select a catalog item to review its data and assign the circuit to a compartment.'}</p><div class="arrangement-policy"><strong>4/0 AWG and larger → trefoil</strong><p>Select a 1/C product for non-VFD phase circuits. Each run uses three physical cables. VFD products retain their complete cable construction.</p></div>`;return;}
-  const ground=existing?existing.purpose==='ground':c.groundOnly;
-  const perRun=ground?1:requiresTrefoil(c)?3:c.conductors===1?3:1;
-  el.innerHTML=`<span class="pill neutral">${esc(labels[c.category])} · SPEC ${esc(c.spec)}</span><h3>${esc(cableSize(c))}</h3><p class="description">${esc(c.title)}</p><div class="specs"><div><small>OUTSIDE DIAMETER</small><strong class="mono">${dimension(c.odIn)}</strong></div><div><small>FAMILY VOLTAGE RATING</small><strong>${c.voltage>=1000?fmt(c.voltage/1000,1)+' kV':c.voltage+' V'}</strong></div><div><small>NOMINAL WEIGHT</small><strong>${c.weightLbKft!=null?fmt(c.weightLbKft/1000,3)+' lb/ft':'Not provided'}</strong></div><div><small>STOCK</small><strong class="mono">${esc(c.stock||'Contact manufacturer')}</strong></div></div><div class="flex" style="gap:12px"><a href="${esc(c.sourceUrl)}" target="_blank" rel="noreferrer">Southwire data sheet ↗</a><a href="${esc(c.pdfUrl)}" target="_blank" rel="noreferrer">Official PDF ↗</a></div>${c.trayRated===false?'<p class="description policy-error">This product is not identified as suitable for cable tray use. The design check will flag it as incompatible.</p>':c.trayRated==null?'<p class="description">Confirm cable tray suitability from its marking and specification.</p>':''}<div class="section-line"></div><div class="form-row">${field('Circuit tag',`<input name="newTag" value="${esc(existing?.tag||'CIR-'+String(project.circuits.length+1).padStart(3,'0'))}" maxlength="80">`)}</div><div class="form-row">${field('Compartment',`<select name="newComp">${project.compartments.map(co=>opt(co.id,co.name,existing?.compartmentId||selectedComp)).join('')}</select>`)}</div><div class="form-row">${field('Quantity / runs',`<input name="newQty" type="number" min="1" max="9999" step="1" value="${existing?.qty||1}">`)}${field('Cables per run',`<input name="newCables" type="number" min="1" max="20" step="1" value="${perRun}">`)}</div><div class="form-row">${field('Operating voltage (V)',`<input name="newVoltage" type="number" min="0" max="69000" value="${existing?.voltage??(ground?0:c.voltage>2000?(c.voltage>=15000?13800:4160):c.category==='control'?120:480)}">`)}</div><label class="check"><input type="checkbox" name="newGround" ${ground?'checked':''} ${c.conductors!==1?'disabled':''}>Separate equipment grounding conductor (EGC)</label><div data-new-arrangement></div>${btn('add-circuit',icon(existing?'refresh':'plus')+(existing?'Replace & review basis':'Add draft & set basis'),'primary')}`;
-  refreshNewArrangement(root);
-}
-function refreshNewArrangement(root){
-  const c=selectedCable;if(!c)return;
-  const ground=$('[name="newGround"]',root).checked,perRun=$('[name="newCables"]',root);
-  const required=requiresTrefoil(c,ground?'ground':'power');
-  perRun.readOnly=required;
-  if(required)perRun.value=c.conductors===1?3:1;
-  const row={cable:c,cablesPerRun:Number(perRun.value),purpose:ground?'ground':'power'};
-  const issues=circuitPolicyIssues(row),comp=project.compartments.find(co=>co.id===$('[name="newComp"]',root).value),settings=arrangementSettings(comp);
-  let body=issues.length?`<p class="policy-error">${issues.map(esc).join(' ')}</p>`:required?'<p class="config-note"><strong>Touching trefoil · 3 × 1/C per run.</strong> Each run contributes three physical cables to fill and weight.</p>':c.category==='vfd'&&!ground?'<p class="config-note">VFD exception: keep the complete multiconductor cable. No trefoil conversion is applied.</p>':'<p class="config-note">Quantity counts equal runs; cables/run counts complete physical cables. A separate EGC is its own row.</p>';
-  if(!ground&&(required||c.category==='vfd'))body+=required?field('Trefoil clear gap in this compartment',`<select name="newTrefoilSpacing">${opt('1D','1 × cable OD',settings.trefoilSpacing)}${opt('2.15D','2.15 × cable OD',settings.trefoilSpacing)}</select>`):field('VFD spacing in this compartment',`<select name="newVfdSpacing">${opt('touching','Touching',settings.vfdSpacing)}${opt('1D','1 × cable OD',settings.vfdSpacing)}</select>`);
-  if(!ground&&(required||c.category==='vfd'))body+='<p class="config-note">This selection applies to every cable of this arrangement in the selected compartment. D is one complete cable OD; spacing is edge to edge.</p>';
-  $('[data-new-arrangement]',root).innerHTML=body;
-  $('[data-action="add-circuit"]',root).disabled=issues.length>0;
+const $ = (s, r = document) => r.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const uid = () => crypto.randomUUID?.() || `tl-${Date.now().toString(36)}-${crypto.getRandomValues(new Uint32Array(2)).join('-')}`;
+const colors = {power: 'var(--accent)', control: 'var(--warn)', vfd: 'var(--plate-edge)', mv: 'var(--ok)'};
+const labels = {power: 'LV power', control: 'Control', vfd: 'VFD', mv: 'Medium voltage'};
+const ICONS = {
+  tray: 'M3 5v14h18V5M8 7v12M16 7v12M3 12h18', plus: 'M12 5v14M5 12h14', search: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+  close: 'm6 6 12 12M6 18 18 6', trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7', check: 'm5 12 4 4L19 6',
+  alert: 'm12 3 10 18H2zM12 9v5M12 17h.01', info: 'M12 11v6M12 7h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+  cable: 'M8 3v6a4 4 0 0 0 8 0V3M12 13v8M5 3h6M13 3h6', scale: 'M4 17h16M6 17 8 7h8l2 10M12 7V4', chevron: 'm9 5 7 7-7 7',
+  refresh: 'M20 7a9 9 0 1 0 1 7M20 3v5h-5', print: 'M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6z',
+  move: 'M12 3v18M3 12h18m-12-6 3-3 3 3m-6 12 3 3 3-3m-9-9-3 3 3 3m12-6 3 3-3 3', settings: 'M4 7h16M4 17h16M8 4v6M16 14v6'
+};
+const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name] || ICONS.info}"/></svg>`;
+const btn = (action, text, cls = '', extra = '') => `<button class="${cls}" data-action="${action}" ${extra}>${text}</button>`;
+const opt = (v, l, current) => `<option value="${esc(v)}" ${String(v) === String(current) ? 'selected' : ''}>${esc(l)}</option>`;
+const field = (label, input) => `<label class="field"><span>${label}</span>${input}</label>`;
+const numberInput = (key, value, min, max, step = 'any', unit = '') => `<div class="input-unit"><input type="number" data-tray="${key}" value="${value}" min="${min}" max="${max}" step="${step}">${unit ? `<span>${unit}</span>` : ''}</div>`;
+const voltageText = v => v >= 1000 ? fmt(v / 1000, v % 1000 ? 1 : 0) + ' kV' : v ? v + ' V' : 'Bare';
+const pdfOf = c => c.pdfUrl || c.sourceUrl;
+
+const STORE = 'traylab-tray-v2';
+let catalog = [], meta = {}, tray, selectedComp, selectedCable = null, evaluation, toastTimer, smallHandler = null, lastAdded = '';
+let filter = {q: '', category: '', voltage: '', conductors: '', page: 0};
+
+function toast(text) { const t = $('#toast'); t.textContent = text; t.classList.add('visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('visible'), 3500); }
+function save() { try { localStorage.setItem(STORE, JSON.stringify(tray)); } catch { /* storage is a convenience only */ } }
+function commit(change) {
+  try {
+    const next = structuredClone(tray);
+    const result = change(next) || next;
+    validateTray(result);
+    tray = result; render(); return true;
+  } catch (e) { toast(e.message); render(); return false; }
 }
 
-function bindCatalog(root){updateCatalog(root);renderCatalogDetail(root)}
-function openCatalog(id=null){
-  replacingCircuitId=typeof id==='string'?id:null;
-  const existing=project.circuits.find(r=>r.id===replacingCircuitId);
-  if(existing){const c=circuitCable(existing);selectedCable=null;filter={q:String(c.size),category:c.category,voltage:'',conductors:requiresTrefoil(c,existing.purpose)?'1':'',material:'',page:0};}
-  const d=$('#catalogDialog');d.innerHTML=`<div class="dialog-header"><div><h2>${existing?'Replace circuit cable':'Add circuit'}</h2><p>Southwire catalog · ${integer(catalog.length)} items · Choose a cable and its compartment</p></div>${btn('close-catalog',icon('close'),'quiet icon-btn','aria-label="Close catalog"')}</div>${catalogContent()}`;bindCatalog(d);d.showModal();$('[data-filter="q"]',d).focus();
+/* ---------- page ---------- */
+function render() {
+  if (!tray.compartments.some(c => c.id === selectedComp)) selectedComp = tray.compartments[0].id;
+  save();
+  evaluation = evaluateTray(tray);
+  $('#app').innerHTML = `<main class="page">${heading()}${reportSummary()}${metrics()}<div class="main-grid"><div>${layoutCard()}${cableTable()}${resultsCard()}</div>${configPanel()}</div><footer class="footer"><span>TrayLab · NEC 2023 392.22 fill and physical layout</span><span>Southwire catalog snapshot ${esc(meta.extendedRetrievedAt || meta.initialRetrievedAt || '')} · ${integer(catalog.length)} copper items · nominal dimensions</span></footer></main>`;
+  bindTrayDrag();
 }
-function criteriaPage(){return `<div class="page-heading"><div><div class="eyebrow">Methodology and sources</div><h1>Cable tray design criteria</h1><p>NEC 2023 installation methods, blocking rules and documented engineering review.</p></div><span class="pill neutral">NEC 2023</span></div>
-<div class="criteria-grid">
-<section class="card criteria-card"><h3>01 / Each compartment is checked</h3><p>NEC 392.22(A): fill is calculated separately for each divided section. Divider thickness is deducted from the specified inside width. Divider positions are measured to their centerlines from the left inside edge.</p><p>Non-tabulated widths conservatively use the next smaller table width. The application uses the next smaller listed width as a conservative software policy, not a NEC interpolation rule. Very narrow compartments may require review.</p></section>
-<section class="card criteria-card"><h3>02 / Multiconductor cables up to 2,000 V</h3><p>NEC 392.22(A): in ladder or ventilated trays, cables with conductors 4/0 AWG or larger use the sum-of-diameters limit in a single layer. Smaller cables use an area limit. Mixed sizes deduct the space occupied by larger cables under the applicable rule.</p><p>For exclusive control/signal use, the designer must declare the compartment function. Voltage alone does not establish this condition. Mixed circuit classes require review of the applicable articles.</p></section>
-<section class="card criteria-card"><h3>03 / Single-conductor and MV cables</h3><p>NEC 392.22(B): LV single-conductor criteria depend on conductor size and tray type. Mixed single-conductor and multiconductor arrangements without an implemented rule block report issue until a supported method is available.</p><p>NEC 392.22(C): cables rated above 2,000 V are checked for a single layer and the sum of individual diameters. A trefoil drawing does not automatically replace the width required by this rule. Cable voltage rating determines the fill criterion.</p></section>
-<section class="card criteria-card"><h3>04 / Trefoil policy and spacing</h3><p>The project rule requires non-VFD phase cables at 4/0 AWG and larger to use three 1/C cables per run in touching trefoil. This is a project requirement, not a universal NEC mandate. Separate EGC rows are excluded. Multiconductor products cannot be split using their jacket OD.</p><p>Each compartment independently selects 1D or 2.15D clear spacing between trefoils, and touching or 1D for VFD cables. D is the outside diameter of one cable. Unequal adjacent cables use the larger OD; the higher requirement governs at mixed boundaries. No gap crosses a divider.</p><p>A touching trefoil is 2D wide and approximately 1.866D high. For N equal groups, width = 2ND + (N − 1)kD. The NEC fill test still counts all three individual cables. Trefoil and VFD compartments use one layer of groups/cables.</p></section>
-<section class="card criteria-card full"><h3>External sizing must use the matching installation method</h3><p>For cables rated up to 2,000 V, 392.80(A)(2)(c) addresses individually spaced single conductors; 392.80(A)(2)(d) addresses grouped configurations with 2.15D clearance. The corresponding MV provisions are 392.80(B)(2)(2) and (3). For LV 2.15D trefoils, Table 310.20 is the messenger-supported-conductor basis (40°C / 104°F ambient), not unadjusted Table 310.17. A 1D gap between touching trefoils does not establish that grouped route; the ordinary-tray reduced method may apply.</p><p>VFD multiconductor cables follow the applicable multiconductor method: 392.80(A)(1) for LV, or 392.80(B)(1) for MV. Selecting 1D does not turn a VFD cable into three individual conductors. This app calculates geometry and fill, not allowable current. Confirm the adopted edition, uncovered-tray conditions, secured spacing, temperature, terminal limits and the complete installation.</p></section>
-<section class="card criteria-card"><h3>05 / Separation and construction</h3><p>NEC 392.20(B): mixing circuits above 1,000 V with circuits up to 1,000 V requires review of solid, fixed barriers and other applicable conditions. The entered operating voltage is used for this check.</p><p>Dividers alone do not establish EMC compliance or separation of control and instrumentation classes. Material compatibility, continuity, grounding, support capacity, and access clearances must be verified for the installation.</p></section>
-<section class="card criteria-card"><h3>06 / Catalog and project files</h3><p>${coverageText()}</p><p>Projects are saved in this browser. Export a JSON file for backup or use on another computer. Print the report or save it as a PDF. The comma-separated CSV contains the circuit schedule, conductor sizes in AWG/kcmil, outside diameters in inches, and cable weights in lb/ft.</p><p>All tray dimensions use inches. Reports use U.S. Letter landscape format. Number formatting uses decimal points and comma thousands separators.</p></section>
-<section class="card criteria-card full"><h3>Technical sources</h3><ul><li><a href="https://cabletechsupport.southwire.com/en/tile/1/?country=US" target="_blank" rel="noreferrer">Southwire CableTech · Power & Control</a></li><li><a href="https://cabletechsupport.southwire.com/en/tile/2/?country=US" target="_blank" rel="noreferrer">Southwire CableTech · Medium Voltage</a></li><li><a href="https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70" target="_blank" rel="noreferrer">NFPA 70 / NEC · Official code</a></li><li><a href="https://www.eaton.com/content/dam/eaton/products/support-systems/cable-management/ct-manual.pdf" target="_blank" rel="noreferrer">Eaton B-Line · Cable Tray Manual (explanatory reference, 2014 edition)</a></li>${SOURCES.slice(0,2).map(s=>`<li><a href="${s.url}" target="_blank" rel="noreferrer">${esc(s.title)}</a></li>`).join('')}<li><a href="catalog-metadata.json" target="_blank">Complete catalog import manifest</a></li></ul><p>The NEC edition adopted by the local authority having jurisdiction and project-specific requirements take precedence. Reports are blocked by unresolved or unsupported conditions. An engineering review record does not override a conflict. This implementation has been checked against identified NFPA public records; it is not NFPA certification or a substitute for the final adopted NEC text.</p></section></div>`}
 
-function releaseBanner(){
-  const a=currentAssessment;
-  return `<section class="release-banner ${a.canIssue?'ready':'blocked'}" aria-live="polite"><div><strong>${a.canIssue?'Checks complete · engineering review recorded':'ISSUE BLOCKED · NOT FOR CONSTRUCTION'}</strong><p>${a.canIssue?'The implemented checks pass and the external sizing basis is recorded. This is not NFPA certification.':`${a.issues.length} unresolved items. Resolve conflicts, unsupported conditions and missing evidence before issuing a report or schedule.`}</p><small>Ruleset ${esc(RULESET_VERSION)} · Cable ampacity is not calculated.</small>${project.installationReview?.reviewer?`<p class="review-record">Review record: ${esc(project.installationReview.reviewer)} · ${esc(project.installationReview.reference)}${a.canIssue?'':' · Issue remains blocked'}</p>`:''}</div>${btn('installation-review','Installation review',a.canIssue?'':'primary')}</section>`;
+function heading() {
+  return `<div class="page-heading"><div><div class="eyebrow">Southwire catalog · NEC 2023</div><h1>Cable tray sizing</h1><p>Add cables, choose how each compartment is arranged and find the tray size.</p></div><div class="heading-actions">${btn('clear', icon('refresh') + 'Clear')}${btn('print', icon('print') + 'Issue report')}${btn('catalog', icon('plus') + 'Add cable', 'primary')}</div></div>`;
 }
-function basisPanel(){
-  const a=currentAssessment;
-  return `<section class="card basis-panel"><div class="card-head"><div><h2>External circuit sizing basis</h2><div class="sub">The installed arrangement must match the method used in the external calculation.</div></div></div><div class="card-body"><p class="config-note">Table 310.20 is the LV 2.15D grouped-cable messenger route, based on 40°C (104°F) ambient. A 1D gap between touching trefoils requires another applicable method. VFD cables use multiconductor methods. No current or correction factor is calculated here.</p>${a.basis.map(x=>`<article class="basis-row"><div class="basis-heading"><strong>${esc(x.row.tag)}</strong><span class="pill ${x.problems.length?'fail':''}">${x.problems.length?'Basis unresolved':'Basis recorded'}</span>${btn('basis','Review basis','quiet',`data-id="${x.row.id}"`)}</div><p><strong>${esc(x.method?.label||'No external method declared')}</strong>${x.method?` · ${esc(x.method.rule)}`:''}</p><p>${esc(x.required)}</p>${x.advisories.map(t=>`<p class="method-advisory">${esc(t)}</p>`).join('')}${x.row.basis?.reference?`<small>Calculation: ${esc(x.row.basis.reference)} · Engineer: ${esc(x.row.basis.designer)} · Ambient: ${fmt(project.ambientF,1)}°F<br>Verified marking: ${esc(x.row.markedVoltage)} V · Insulation: ${esc(x.row.markedTempC)}°C · Table column: ${esc(x.row.basis.conductorTempC)}°C${x.row.basis.currentCarrying?` · CCC / insulated: ${esc(x.row.basis.currentCarrying)} / ${esc(x.row.basis.insulatedCount)}`:''}</small>`:''}${x.problems.length?`<p class="policy-error">${esc(x.problems[0].message)}${x.problems.length>1?` (${x.problems.length} basis items unresolved.)`:''}</p>`:''}</article>`).join('')||'<p class="muted">Add a circuit to declare its external sizing basis.</p>'}</div></section>`;
+
+function reportSummary() {
+  const rows = [['Tray tag', tray.trayTag || '—'], ['Inside width', dimension(tray.widthIn)], ['Usable depth', dimension(tray.depthIn)], ['Tray type', TRAY_TYPES[tray.trayType]],
+    ['Cover', tray.covered ? 'Yes' : 'No'], ['Dividers', tray.dividers.length ? `${tray.dividers.length} × ${dimension(tray.dividerThicknessIn)} at ${tray.dividers.map(d => fmt(d, 3)).join(', ')} in` : 'None'],
+    ['Spare reserve', `${fmt(tray.reserve, 0)}%`], ['Result', evaluation.ok ? 'All compartments fit' : 'Over capacity']];
+  return `<section class="report-only report-summary"><div class="report-title"><strong>TrayLab · Cable tray sizing report</strong><span>${esc(new Date().toLocaleString('en-US', {dateStyle: 'long', timeStyle: 'short'}))}</span></div><dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>`;
 }
-function basisFields(c){
-  const b=c.basis||{},ca=circuitCable(c);
-  return `<p class="config-note">Record the method actually used by the external sizing tool. This form verifies compatibility; it does not recalculate ampacity.</p>
-    <div class="form-row">${field('Circuit classification',`<select name="basisClass" required>${opt('','Select circuit function',c.circuitClass)}${CIRCUIT_CLASSES.map(([v,l])=>opt(v,l,c.circuitClass)).join('')}</select>`)}</div>
-    <div class="form-row">${field('Verified cable marking (V)',`<input name="markedVoltage" type="number" min="1" max="69000" required value="${c.markedVoltage??''}" placeholder="Verify stock-specific marking">`)}</div><p class="config-note">Catalog family rating: ${esc((c.cableSnapshot||ca).voltage)} V. A family may contain multiple voltage ratings. Confirm the actual stock or cable marking.</p>
-    <div class="form-row">${field('Verified insulation temperature',`<select name="markedTemperature" required>${opt('','Select actual cable rating',c.markedTempC)}${[60,75,90,105,125,150,200,250].map(t=>opt(t,`${t}°C (${t*9/5+32}°F)`,c.markedTempC)).join('')}</select>`)}</div>
-    <div class="form-row">${field('External installation method',`<select name="basisMethod" required>${opt('','Select the method used externally',b.method)}${METHODS.map(m=>opt(m.id,m.label,b.method)).join('')}</select>`)}</div>
-    <div class="method-preview" data-method-preview></div>
-    <div class="form-row">${field('Conductor column used',`<select name="basisTemperature" required>${opt('','Select temperature column',b.conductorTempC)}${[60,75,90,105].map(t=>opt(t,`${t}°C (${t*9/5+32}°F)`,b.conductorTempC)).join('')}</select>`)}</div>
-    ${ca.conductors>1?`<div class="form-row">${field('Current-carrying / cable',`<input type="number" name="basisCCC" min="1" max="${ca.conductors}" required value="${b.currentCarrying??''}">`)}${field('Total insulated / cable',`<input type="number" name="basisInsulated" min="${ca.conductors}" max="1000" required value="${b.insulatedCount??''}">`)}</div><p class="config-note">Include insulated grounds in the total insulated count. Determine current-carrying conductors using the applicable neutral rules; grounds are not current-carrying conductors.</p>`:''}
-    <div class="form-row">${field('Calculation document / revision',`<input name="basisReference" required minlength="3" maxlength="240" value="${esc(b.reference||'')}" placeholder="Calculation ID, revision and applicable section">`)}</div>
-    <div class="form-row">${field('Basis verified by',`<input name="basisDesigner" required minlength="3" maxlength="100" value="${esc(b.designer||'')}" placeholder="Responsible engineer">`)}</div>
-    <label class="check basis-confirm"><input type="checkbox" name="basisMV">For an MV method, I verified the table-specific shielding/bonding, voltage class, conductor arrangement and 40°C (104°F) ambient basis.</label>
-    <label class="check basis-confirm"><input type="checkbox" name="basisConfirmed" required>I checked this exact arrangement against the external calculation, including actual cable construction, table voltage/material/size range, temperature correction, tray percentage, conductor-count adjustment and terminal limits.</label>
-    <p class="config-note">Changing cables, quantity, geometry, gaps, cover, ambient or relevant installation conditions invalidates this confirmation. A generic confirmation cannot override an incompatible method.</p>`;
+
+function metrics() {
+  const ev = evaluation, limit = 100 - tray.reserve, over = ev.results.filter(r => r.status === 'over').length;
+  const noRule = ev.cableCount > 0 && !ev.results.some(r => r.fill.rule);
+  return `<div class="metrics"><div class="metric accent"><div class="metric-label">Highest NEC fill</div><div class="metric-value">${noRule ? '—' : fmt(ev.maxRatio * 100, 1)}<small>${noRule ? 'no NEC rule' : '%'}</small></div><div class="meter"><span style="width:${Math.min(100, ev.maxRatio * 100)}%;${ev.maxRatio * 100 > limit + 1e-9 ? 'background:var(--bad)' : ''}"></span></div><div class="metric-foot">Limit ${fmt(limit, 0)}%${tray.reserve ? ` · ${fmt(tray.reserve, 0)}% spare reserve` : ''}</div></div>`
+    + `<div class="metric"><div class="metric-label">Cables in tray</div><span class="metric-ico">${icon('cable')}</span><div class="metric-value">${integer(ev.cableCount)}<small>cables</small></div><div class="metric-foot">${tray.cables.length} ${tray.cables.length === 1 ? 'cable type' : 'cable types'}</div></div>`
+    + `<div class="metric"><div class="metric-label">Cable weight</div><span class="metric-ico">${icon('scale')}</span><div class="metric-value">${fmt(ev.weightLbFt, 2)}<small>lb/ft</small></div><div class="metric-foot">Catalog nominal weights · tray excluded</div></div>`
+    + `<div class="metric ${over ? 'bad' : ''}"><div class="metric-label">Tray size</div><span class="metric-ico">${icon('tray')}</span><div class="metric-value">${fmt(tray.widthIn, 2).replace(/\.00$/, '')} × ${fmt(tray.depthIn, 2).replace(/\.00$/, '')}<small>in</small></div><div class="metric-foot">${!ev.cableCount ? 'Add cables to check the size' : over ? `${over} ${over === 1 ? 'compartment' : 'compartments'} over capacity` : 'All compartments fit'}</div></div></div>`;
 }
-function refreshBasisPreview(){
-  const el=$('[data-method-preview]');if(!el)return;
-  const m=METHODS.find(x=>x.id===$('[name="basisMethod"]')?.value);
-  el.innerHTML=m?`<strong>${esc(m.rule)}</strong><p>${esc(m.basis)}</p>${m.spaced?'<p>Requires an uncovered tray with maintained clear spacing. The same rule must remain valid along the entire cable route.</p>':''}`:'Choose the method to see its required installation conditions.';
+
+const statusPill = r => r.status === 'empty' ? '<span class="pill neutral">Empty</span>' : r.status === 'over' ? '<span class="pill fail">Over capacity</span>' : '<span class="pill">Fits</span>';
+
+function layoutSelect(comp, kind, compact = false) {
+  const key = kind === 'multi' ? 'multiLayout' : 'singleLayout';
+  const options = kind === 'multi' ? MULTI_LAYOUTS : SINGLE_LAYOUTS;
+  return field(kind === 'multi' ? 'Multiconductor cables' : 'Single-conductor cables', `<select data-comp-id="${comp.id}" data-comp-field="${key}" ${compact ? 'data-compact' : ''} aria-label="${kind === 'multi' ? 'Multiconductor' : 'Single-conductor'} arrangement for ${esc(comp.name)}">${Object.entries(options).map(([v, o]) => opt(v, o.label, comp[key])).join('')}</select>`);
 }
-function editBasis(id){
-  const c=project.circuits.find(r=>r.id===id);if(!c)return;
-  if(c.purpose==='ground'){smallDialog('Separate EGC review','<p>The separate EGC is retained in physical geometry and weight. Combined fill treatment is outside this release workflow, so this design remains blocked. Do not remove an installed EGC from the model to clear the block.</p>','Close',()=>{});return;}
-  smallDialog(`External basis · ${esc(c.tag)}`,basisFields(c),'Confirm external basis',form=>{
-    const f=new FormData(form),next=structuredClone(project),row=next.circuits.find(r=>r.id===id);
-    row.circuitClass=f.get('basisClass');row.markedVoltage=Number(f.get('markedVoltage'));row.markedTempC=Number(f.get('markedTemperature'));
-    row.basis={method:f.get('basisMethod'),reference:f.get('basisReference').trim(),designer:f.get('basisDesigner').trim(),conductorTempC:Number(f.get('basisTemperature')),conditionsConfirmed:f.has('basisConfirmed'),mvTableConditions:f.has('basisMV')};
-    if(f.has('basisCCC'))row.basis.currentCarrying=Number(f.get('basisCCC'));
-    if(f.has('basisInsulated'))row.basis.insulatedCount=Number(f.get('basisInsulated'));
-    validateProject(next,byId);stampBasis(next,row,byId);
-    const a=assessProject(next,byId),method=evaluateMethod(next,row,next.compartments.find(co=>co.id===row.compartmentId),byId);
-    const problems=[...method.problems,...a.issues.filter(i=>i.circuitId===id&&(/^(MARKING|CLASS|CONTROL_ONLY)/.test(i.code)))];
-    if(problems.length)throw new Error(problems[0].message);
-    if(!commit(()=>next))return false;toast('External sizing basis recorded. Other installation checks still apply.');
+
+function layoutCard() {
+  const n = tray.compartments.length;
+  return `<section class="card"><div class="card-head"><div><h2>Tray layout</h2><div class="sub">${esc(tray.trayTag || 'Tray')} · ${dimension(tray.widthIn)} × ${dimension(tray.depthIn)} · ${TRAY_TYPES[tray.trayType]}${tray.covered ? ' · covered' : ''}</div></div>${btn('add-divider', icon('plus') + 'Add divider', 'quiet small-btn')}</div><div class="tray-stage">${traySvg()}</div><div class="viewer-note"><div class="legend">${Object.entries(labels).map(([c, l]) => `<span><i style="background:${colors[c]}"></i>${l}</span>`).join('')}</div><span class="drag-hint">${icon('move')}Drag a divider to resize compartments</span></div><div class="comp-cards" style="grid-template-columns:repeat(${Math.min(n, 4)},minmax(0,1fr))">${evaluation.results.map(compCard).join('')}</div></section>`;
+}
+
+function compCard(r, i) {
+  const {comp, fill, plan, fit} = r;
+  const stat = r.status === 'empty' ? '0' : fill.rule ? fmt(fill.ratio * 100, 1) : '—';
+  const bar = Math.min(100, (fill.rule ? fill.ratio : fit.usedWidthIn / comp.widthIn) * 100 || 0);
+  return `<div class="comp-card ${comp.id === selectedComp ? 'selected' : ''}" data-comp="${comp.id}" role="group" aria-label="${esc(comp.name)}"><button class="comp-title comp-select" type="button" data-comp="${comp.id}" aria-pressed="${comp.id === selectedComp}"><strong>${esc(comp.name)}</strong><span class="tag">${String.fromCharCode(65 + i)}</span></button><div class="comp-stat">${stat}<small>${fill.rule || r.status === 'empty' ? '% NEC fill' : ' no NEC fill rule'}</small></div><div class="comp-bar ${r.status === 'over' ? 'fail' : bar > 85 ? 'warn' : ''}"><span style="width:${bar}%"></span></div><div class="comp-rule">${dimension(comp.widthIn)} clear · ${plan.cableCount} cables</div>${statusPill(r)}${plan.cableCount ? `<div class="arrangement-summary">Layout width <strong>${dimension(fit.usedWidthIn)}</strong> · ${fmt(r.widthUse * 100, 0)}% of clear width${plan.trefoils ? `<br>${plan.trefoils} ${plan.trefoils === 1 ? 'trefoil' : 'trefoils'}` : ''}${plan.looseSingles ? `${plan.trefoils ? ' · ' : '<br>'}${plan.looseSingles} single(s) not in a trefoil` : ''}</div>` : ''}<div class="comp-spacing-controls">${layoutSelect(comp, 'multi', true)}${layoutSelect(comp, 'single', true)}</div></div>`;
+}
+
+function traySvg() {
+  const W = 850, margin = 52, usable = W - margin * 2, s = usable / tray.widthIn, dep = Math.max(45, tray.depthIn * s), top = 72, base = top + dep, H = base + 62;
+  const limit = 1 - tray.reserve / 100;
+  const label = new Map(tray.cables.map(r => [r.id, r.cable]));
+  let sv = `<svg id="traySvg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tray cross section with cables and dividers"><defs><pattern id="spare" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" x2="0" y1="0" y2="6" stroke="var(--steel)" stroke-width="1.2"/></pattern></defs>`;
+  sv += `<line x1="${margin}" y1="24" x2="${W - margin}" y2="24" stroke="var(--steel)"/><path d="M${margin} 19v10M${W - margin} 19v10" stroke="var(--steel)"/><rect x="${W / 2 - 60}" y="13" width="120" height="20" fill="var(--field)"/><text x="${W / 2}" y="28" text-anchor="middle" font-size="12" fill="var(--muted)">${esc(dimension(tray.widthIn))}</text>`;
+  sv += `<line x1="${margin - 22}" y1="${top}" x2="${margin - 22}" y2="${base}" stroke="var(--steel)"/><path d="M${margin - 27} ${top}h10M${margin - 27} ${base}h10" stroke="var(--steel)"/><text transform="translate(${margin - 28} ${top + dep / 2}) rotate(-90)" text-anchor="middle" font-size="10" fill="var(--muted)">${esc(dimension(tray.depthIn))}</text>`;
+  for (const r of evaluation.results) {
+    const {comp} = r, x = margin + comp.startIn * s, w = comp.widthIn * s;
+    sv += `<g data-comp="${comp.id}" class="tray-compartment"><rect x="${x}" y="${top}" width="${Math.max(0, w)}" height="${dep}" fill="${comp.id === selectedComp ? 'var(--accent-wash)' : 'var(--field)'}" opacity=".7"/>`;
+    if (tray.reserve > 0) sv += `<rect x="${x + w * limit}" y="${top}" width="${w * (1 - limit)}" height="${dep}" fill="url(#spare)" opacity=".8"><title>Spare reserve ${fmt(tray.reserve, 0)}%</title></rect>`;
+    sv += `<text x="${x + w / 2}" y="${top - 10}" text-anchor="middle" font-size="10" fill="var(--muted)">${esc(comp.name.length > 22 ? comp.name.slice(0, 20) + '…' : comp.name)}</text>`;
+    const layout = drawLayout(r.plan, comp.widthIn * limit, tray.depthIn); // same width the fit check uses
+    for (const d of layout.placed) {
+      const R = d.d * s / 2, X = x + (d.x + d.d / 2) * s, Y = base - (d.y + d.d / 2) * s, color = colors[d.cat] || colors.power, c = label.get(d.id);
+      sv += `<circle cx="${X}" cy="${Y}" r="${R}" fill="${color}" fill-opacity=".16" stroke="${color}" stroke-width="1.1"><title>${esc(c ? cableSize(c) : '')}${d.phase ? ' · trefoil phase ' + d.phase : ''} · Ø ${fmt(d.d, 3)} in</title></circle>`;
+      if (d.phase && R > 6) sv += `<text x="${X}" y="${Y + 3}" text-anchor="middle" font-size="${Math.min(11, R)}" fill="var(--ink)">${d.phase}</text>`;
+      else if (R > 10) sv += `<circle cx="${X}" cy="${Y}" r="${R * .23}" fill="${color}" opacity=".45"/>`;
+    }
+    for (const g of layout.gaps) {
+      if (g.width * s < 18) continue;
+      const gx = x + g.x * s, gw = g.width * s;
+      sv += `<g><title>Clear gap ${dimension(g.width)}</title><path d="M${gx + 2} ${base - 5}h${Math.max(0, gw - 4)}M${gx + 2} ${base - 9}v8M${gx + gw - 2} ${base - 9}v8" stroke="var(--muted)" fill="none"/><text x="${gx + gw / 2}" y="${base - 13}" text-anchor="middle" font-size="9" fill="var(--muted)">${g.factor}D</text></g>`;
+    }
+    sv += `<line x1="${x + 2}" y1="${base + 23}" x2="${x + w - 2}" y2="${base + 23}" stroke="var(--steel)"/><path d="M${x + 2} ${base + 19}v8M${x + w - 2} ${base + 19}v8" stroke="var(--steel)"/><rect x="${x + w / 2 - 40}" y="${base + 13}" width="80" height="18" fill="var(--field)"/><text x="${x + w / 2}" y="${base + 26}" text-anchor="middle" font-size="10" fill="var(--muted)">${esc(dimension(comp.widthIn))}</text>${layout.omitted ? `<text x="${x + w / 2}" y="${base + 44}" text-anchor="middle" font-size="9" fill="var(--bad)">+${layout.omitted} cables do not fit</text>` : ''}</g>`;
+  }
+  sv += `<path d="M${margin - 3} ${top - 2}v${dep + 7}H${W - margin + 3}v-${dep + 7}" fill="none" stroke="var(--muted)" stroke-width="5" stroke-linejoin="round"/>`;
+  if (tray.covered) sv += `<rect x="${margin - 8}" y="${top - 9}" width="${usable + 16}" height="5" rx="1.5" fill="var(--muted)"><title>Cover (drawing only)</title></rect>`;
+  tray.dividers.forEach((d, i) => {
+    const x = margin + d * s, t = Math.max(tray.dividerThicknessIn * s, 2);
+    sv += `<g class="drag-divider" data-drag-divider="${i}"><rect x="${x - 8}" y="${top - 10}" width="16" height="${dep + 14}" fill="transparent"/><rect x="${x - t / 2}" y="${top}" width="${t}" height="${dep}" fill="var(--muted)"/><rect x="${x - 7}" y="${top + 3}" width="14" height="22" rx="4" fill="var(--bg)" stroke="var(--muted)"/><path d="M${x - 2} ${top + 9}v10M${x + 2} ${top + 9}v10" stroke="var(--muted)"/></g>`;
   });
-  $('#smallDialog').classList.add('review-dialog');refreshBasisPreview();
-}
-function recordInstallationReview(){
-  const r=project.installationReview||{};
-  smallDialog('Installation review record',`<p>Complete this record after resolving the layout and circuit sizing basis. It records engineering verification; it cannot override a conflict or unsupported condition.</p><div class="form-row">${field('Responsible engineer',`<input name="reviewer" required minlength="3" maxlength="100" value="${esc(r.reviewer||'')}">`)}</div><div class="form-row">${field('Installation review document / revision',`<input name="reference" required minlength="3" maxlength="240" value="${esc(r.reference||'')}">`)}</div>${REVIEW_CHECKS.map(c=>`<label class="check review-check"><input type="checkbox" name="review-${c.id}" required><span><strong>${esc(c.rule)}</strong><br>${esc(c.text)}</span></label>`).join('')}<p class="config-note">These checks must be reconfirmed for the current revision. Unsupported circuit classes, separate-EGC fill, mixed fill methods and divided-tray thermal interactions remain blocked until the application has a validated rule for them.</p>`,'Record current review',form=>{
-    const f=new FormData(form),next=structuredClone(project);
-    next.installationReview={reviewer:f.get('reviewer').trim(),reference:f.get('reference').trim(),confirmations:Object.fromEntries(REVIEW_CHECKS.map(c=>[c.id,f.has('review-'+c.id)]))};
-    stampReview(next,byId);if(!commit(()=>next))return false;toast(currentAssessment.canIssue?'Checks complete. Report issue is available.':'Review recorded; unresolved design items still block issue.');
-  });$('#smallDialog').classList.add('review-dialog');
-}
-let issuedPrint=false;
-function printReport(issue){
-  try{if(issue)issueRecord(project,byId);issuedPrint=issue;activeTab='project';render();document.body.classList.toggle('printing-draft',!issue);$$('.calculation-details').forEach(d=>d.open=true);window.print();}catch(e){toast(e.message)}
+  return sv + '</svg>';
 }
 
-const PROJECTS_STORE='traylab-saved-projects-v1';
-let smallHandler=null, importCandidate=null, recommended=null;
-function commit(change){
-  try{
-    const next=structuredClone(project);
-    const result=change(next)||next;
-    validateProject(result,byId);
-    project=result;render();return true;
-  }catch(e){toast(e.message);render();return false}
+function cableTable() {
+  if (!tray.cables.length) return `<section class="card schedule"><div class="card-head"><h2>Cables</h2></div><div class="empty-state"><strong>No cables yet</strong>Pick Southwire cables and set how many go in each compartment.<br>${btn('catalog', icon('plus') + 'Add cable', 'primary')}</div></section>`;
+  const comps = tray.compartments;
+  return `<section class="card schedule"><div class="card-head"><div class="flex"><h2>Cables</h2><span class="pill neutral">${tray.cables.length}</span></div>${btn('catalog', icon('plus') + 'Add cable', 'quiet small-btn')}</div><div class="table-wrap"><table><thead><tr><th>Cable</th><th>SPEC · Stock</th><th>Ø (in)</th><th>Qty.</th><th>Compartment</th><th>Weight (lb/ft)</th><th><span class="sr-only">Remove</span></th></tr></thead><tbody>${tray.cables.map(r => {
+    const c = r.cable;
+    return `<tr><td><div class="cable-title"><span class="category-dot" style="background:${colors[c.category] || colors.power}"></span><a href="${esc(pdfOf(c))}" target="_blank" rel="noreferrer" title="Open the Southwire PDF data sheet">${esc(cableSize(c))} <span aria-hidden="true">↗</span></a></div><div class="cable-sub wrap">${esc(c.title)}</div></td><td class="mono">${esc(c.spec)}<div class="cable-sub">${esc(c.stock || '—')}</div></td><td class="mono">${fmt(c.odIn, 3)}</td><td><input class="table-input" type="number" min="1" max="9999" step="1" data-row="${r.id}" data-key="qty" value="${r.qty}" aria-label="Quantity of ${esc(cableSize(c))}"></td><td><select class="assign" data-row="${r.id}" data-key="compartmentId" aria-label="Compartment for ${esc(cableSize(c))}">${comps.map(co => opt(co.id, co.name, r.compartmentId)).join('')}</select></td><td class="mono">${Number.isFinite(c.weightLbKft) ? fmt(r.qty * c.weightLbKft / 1000, 3) : '—'}</td><td>${btn('delete-row', icon('trash'), 'quiet icon-btn', `data-id="${r.id}" aria-label="Remove ${esc(cableSize(c))}"`)}</td></tr>`;
+  }).join('')}</tbody></table></div><div class="schedule-footer"><span>Qty. = number of physical cables. Single conductors are grouped in threes when the compartment uses trefoil.</span></div></section>`;
 }
-function archiveCurrent(){
-  try{
-    const all=JSON.parse(localStorage.getItem(PROJECTS_STORE)||'{}');
-    project.projectId ||= uid();all[project.projectId]=project;
-    localStorage.setItem(PROJECTS_STORE,JSON.stringify(all));return true;
-  }catch{toast('Not enough browser storage for another project. Export the current project before continuing.');return false}
+
+function resultsCard() {
+  const items = evaluation.results.map(r => {
+    const {comp, fill, fit, layout, plan} = r;
+    const fillLine = r.status === 'empty' ? 'No cables.' : fill.rule
+      ? `NEC ${esc(fill.rule)}: ${fmt(fill.used, 3)} / ${fmt(fill.allowed, 3)} ${esc(fill.unit)} allowed → <strong>${fmt(fill.ratio * 100, 1)}%</strong>`
+      : 'No NEC fill rule for this mix of cables. The physical layout governs.';
+    const layoutLine = plan.cableCount ? `Layout: ${esc(layout.multi.label)} (multiconductor) · ${esc(layout.single.label)} (single conductor). Uses ${dimension(fit.usedWidthIn)} of ${dimension(comp.widthIn)} clear width and ${dimension(fit.usedHeightIn)} of ${dimension(tray.depthIn)} depth.` : '';
+    const notes = [...r.problems.map(p => `<span class="policy-error">${esc(p)}</span>`), ...fill.notes.map(esc)];
+    return `<div class="validation-item ${r.status === 'over' ? 'fail' : r.status === 'ok' ? 'pass' : 'review'}"><span class="status-icon">${icon(r.status === 'over' ? 'close' : r.status === 'ok' ? 'check' : 'info')}</span><div><p><strong>${esc(comp.name)}</strong> · ${dimension(comp.widthIn)} clear · ${plan.cableCount} cables · ${fmt(r.weightLbFt, 2)} lb/ft</p><small>${fillLine}${layoutLine ? '<br>' + layoutLine : ''}${notes.length ? '<br>' + notes.join('<br>') : ''}</small></div></div>`;
+  }).join('');
+  return `<section class="card validation"><div class="card-head"><h2>Sizing check</h2></div><div class="card-body">${items}<p class="config-note">Fill follows NEC 2023 392.22 using catalog outside diameters; D is one cable's outside diameter, gaps are edge to edge. Cable sizing is assumed done elsewhere.</p></div></section>`;
 }
-function smallDialog(title,body,actionLabel,onSubmit){
-  const d=$('#smallDialog');smallHandler=onSubmit;
-  d.className='small-dialog';
-  d.innerHTML=`<div class="dialog-header"><h2>${title}</h2>${btn('close-small',icon('close'),'quiet icon-btn','aria-label="Close"')}</div><form id="smallForm"><div class="small-body">${body}<p class="form-error" role="alert"></p></div><div class="small-footer">${btn('close-small','Cancel','','type="button"')}<button class="primary" type="submit">${actionLabel}</button></div></form>`;
-  if(!d.open)d.showModal();
-  $('input,select,button[type="submit"]',d)?.focus();
+
+function configPanel() {
+  const c = tray.compartments.find(x => x.id === selectedComp);
+  return `<aside class="card config-card"><div class="card-head"><h2>Tray</h2>${icon('settings')}</div><div class="card-body">`
+    + `<div class="form-row">${field('Tray tag', `<input data-tray="trayTag" value="${esc(tray.trayTag)}" maxlength="50">`)}</div>`
+    + `<div class="form-row">${field('Inside width', numberInput('widthIn', tray.widthIn, .5, 120, 'any', 'in'))}${field('Usable depth', numberInput('depthIn', tray.depthIn, .25, 24, 'any', 'in'))}</div>`
+    + `<div class="form-row">${field('Tray type', `<select data-tray="trayType">${Object.entries(TRAY_TYPES).map(([v, l]) => opt(v, l, tray.trayType)).join('')}</select>`)}</div>`
+    + `<div class="form-row">${field('Divider thickness', numberInput('dividerThicknessIn', tray.dividerThicknessIn, 0, 1, 'any', 'in'))}${field('Spare reserve', numberInput('reserve', tray.reserve, 0, 75, '1', '%'))}</div>`
+    + `<label class="check"><input type="checkbox" data-tray="covered" ${tray.covered ? 'checked' : ''}>Show cover on the drawing</label>`
+    + `<div class="section-line"></div><div class="section-title">Dividers <span class="tiny">centerline from left wall</span></div><div class="divider-block">${tray.dividers.length ? tray.dividers.map((d, i) => `<div class="divider-row"><span class="divider-index">D${i + 1}</span><div class="input-unit"><input aria-label="Divider ${i + 1} position" type="number" step="any" data-divider="${i}" value="${Math.round(d * 10000) / 10000}"><span>in</span></div>${btn('remove-divider', icon('trash'), 'quiet icon-btn', `data-index="${i}" aria-label="Remove divider ${i + 1}"`)}</div>`).join('') : '<div class="tiny muted" style="margin:6px 0 10px">No dividers. The whole tray is one compartment.</div>'}${btn('add-divider', icon('plus') + 'Split selected compartment', 'quiet dashed-btn')}</div>`
+    + `<div class="section-line"></div><div class="section-title">Compartment</div><div class="form-row">${field('Selected', `<select data-select-comp>${tray.compartments.map(co => opt(co.id, co.name, selectedComp)).join('')}</select>`)}</div><div class="form-row">${field('Name', `<input data-comp-field="name" data-comp-id="${c.id}" value="${esc(c.name)}" maxlength="40">`)}</div><div class="form-row">${layoutSelect(c, 'multi')}</div><div class="form-row">${layoutSelect(c, 'single')}</div><p class="config-note">Random fill stacks multiconductor cables. Single-layer and flat options lay cables side by side; trefoil groups three single conductors. D = one cable's outside diameter.</p>`
+    + `<div class="section-line"></div>${btn('suggest', icon('tray') + 'Suggest tray size', 'lime full-btn')}<p class="config-note">Smallest standard width (6–48 in) at this depth, then deeper trays (3–6 in). Compartment proportions and arrangements are kept.</p></div></aside>`;
 }
-function download(name,content,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-const filename=()=>project.trayTag.replace(/[^a-zA-Z0-9_-]/g,'_')||'TrayLab';
-function changeDivider(index,value){
-  return commit(p=>{p.dividers[index]=value});
+
+/* ---------- dividers ---------- */
+function addDivider() {
+  if (tray.dividers.length >= 11) { toast('Maximum of 12 compartments per tray.'); return; }
+  const i = tray.compartments.findIndex(c => c.id === selectedComp);
+  const c = compartmentsOf(tray)[i];
+  if (c.widthIn < tray.dividerThicknessIn + .5) { toast('This compartment is too narrow to split.'); return; }
+  const used = new Set(tray.compartments.map(x => x.name));
+  let letter = 0; while (used.has(`Compartment ${String.fromCharCode(65 + letter)}`)) letter++;
+  const nextId = uid();
+  if (commit(t => {
+    t.dividers.splice(i, 0, c.startIn + c.widthIn / 2);
+    t.compartments.splice(i + 1, 0, {id: nextId, name: `Compartment ${String.fromCharCode(65 + letter)}`, multiLayout: c.multiLayout, singleLayout: c.singleLayout});
+  })) { selectedComp = nextId; render(); toast('Divider added. Existing cables stay in the left compartment.'); }
 }
-function addDivider(){
-  if(project.dividers.length>=11){toast('Maximum of 12 compartments per tray.');return}
-  const i=project.compartments.findIndex(c=>c.id===selectedComp);
-  const c=getCompartments()[i];
-  if(c.widthIn < project.dividerThicknessIn+.5){toast('This compartment is too narrow to split.');return}
-  const nextId=uid();
-  if(commit(p=>{
-    p.dividers.splice(i,0,c.startIn+c.widthIn/2);
-    p.compartments.splice(i+1,0,{id:nextId,name:`Compartment ${String.fromCharCode(65+p.compartments.length)}`,controlOnly:false,spacing:'touching',trefoilSpacing:'2.15D',vfdSpacing:'touching'});
-  })){selectedComp=nextId;render();toast('Divider added. Existing circuits remain in the left compartment.');}
+function removeDivider(i) {
+  if (!Number.isInteger(i) || i < 0 || i >= tray.dividers.length) return;
+  const left = tray.compartments[i], right = tray.compartments[i + 1];
+  selectedComp = left.id;
+  if (commit(t => {
+    t.dividers.splice(i, 1); t.compartments.splice(i + 1, 1);
+    t.cables.forEach(r => { if (r.compartmentId === right.id) r.compartmentId = left.id; });
+  })) toast(`Divider removed. Cables from ${right.name} moved to ${left.name}.`);
 }
-function removeDivider(i){
-  if(!Number.isInteger(i)||i<0||i>=project.dividers.length)return;
-  const left=project.compartments[i],right=project.compartments[i+1];
-  selectedComp=left.id;
-  if(commit(p=>{
-    p.dividers.splice(i,1);p.compartments.splice(i+1,1);
-    p.circuits.forEach(c=>{if(c.compartmentId===right.id)c.compartmentId=left.id});
-    p.compartments[i].controlOnly=left.controlOnly&&right.controlOnly;
-    p.compartments[i].spacing=left.spacing==='one-diameter'||right.spacing==='one-diameter'?'one-diameter':'touching';
-    p.compartments[i].trefoilSpacing=arrangementSettings(left).trefoilSpacing==='2.15D'||arrangementSettings(right).trefoilSpacing==='2.15D'?'2.15D':'1D';
-    p.compartments[i].vfdSpacing=arrangementSettings(left).vfdSpacing==='1D'||arrangementSettings(right).vfdSpacing==='1D'?'1D':'touching';
-  }))toast('Compartments merged. All circuits were preserved.');
-}
-function bindTrayDrag(){
-  const svg=$('#traySvg');if(!svg)return;
-  svg.addEventListener('pointerdown',e=>{
-    const handle=e.target.closest('[data-drag-divider]');if(!handle||e.button!==0)return;
-    e.preventDefault();const i=+handle.dataset.dragDivider;const rect=svg.getBoundingClientRect();
-    const toX=px=>((px-rect.left)/rect.width*850-43)/764*project.widthIn;
-    const minimum=(i===0?0:project.dividers[i-1]+project.dividerThicknessIn/2)+project.dividerThicknessIn/2+.25;
-    const maximum=(i===project.dividers.length-1?project.widthIn:project.dividers[i+1]-project.dividerThicknessIn/2)-project.dividerThicknessIn/2-.25;
-    const move=ev=>{ev.preventDefault();project.dividers[i]=Math.max(minimum,Math.min(maximum,toX(ev.clientX)));render()};
-    const stop=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',stop);document.removeEventListener('pointercancel',stop);render()};
-    document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',stop);document.addEventListener('pointercancel',stop);
+function bindTrayDrag() {
+  const svg = $('#traySvg'); if (!svg) return;
+  svg.addEventListener('pointerdown', e => {
+    const handle = e.target.closest('[data-drag-divider]'); if (!handle || e.button !== 0) return;
+    e.preventDefault();
+    const i = +handle.dataset.dragDivider, rect = svg.getBoundingClientRect(), half = tray.dividerThicknessIn / 2;
+    const toX = px => ((px - rect.left) / rect.width * 850 - 52) / 746 * tray.widthIn;
+    const min = (i === 0 ? 0 : tray.dividers[i - 1] + half) + half + .25;
+    const max = (i === tray.dividers.length - 1 ? tray.widthIn : tray.dividers[i + 1] - half) - half - .25;
+    const move = ev => { ev.preventDefault(); tray.dividers[i] = Math.max(min, Math.min(max, toX(ev.clientX))); render(); };
+    const stop = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', stop); document.removeEventListener('pointercancel', stop); render(); };
+    document.addEventListener('pointermove', move, {passive: false}); document.addEventListener('pointerup', stop); document.addEventListener('pointercancel', stop);
   });
 }
-function catalogRoot(el){return el.closest('#catalogDialog')||$('#app')}
-function addCircuit(root){
-  if(!selectedCable)return;
-  const value=name=>$(`[name="${name}"]`,root)?.value;
-  const tag=(value('newTag')||'').trim();
-  const c={id:replacingCircuitId||uid(),tag,cableId:selectedCable.id,cableSnapshot:structuredClone(selectedCable),qty:Number(value('newQty')),cablesPerRun:Number(value('newCables')),voltage:Number(value('newVoltage')),compartmentId:value('newComp'),purpose:$('[name="newGround"]',root)?.checked?'ground':'power'};
-  const issues=circuitPolicyIssues({...c,cable:selectedCable});
-  const size=Number(selectedCable.sizeKcmil)||sizeToKcmil(selectedCable.size);
-  if(c.purpose!=='ground'&&selectedCable.trayRated!==true)issues.push('Insertion blocked: cable-tray suitability is not established in this catalog record.');
-  if(selectedCable.conductors===1&&size<(c.purpose==='ground'?41.64:105.5))issues.push('Insertion blocked: the single conductor is below the supported NEC tray minimum size.');
-  if(c.voltage>selectedCable.voltage)issues.push('Insertion blocked: operating voltage exceeds the catalog rating.');
-  if(issues.length){toast(issues[0]);return;}
-  selectedComp=c.compartmentId;
-  if(commit(p=>{
-    const co=p.compartments.find(x=>x.id===c.compartmentId);
-    if(value('newTrefoilSpacing'))co.trefoilSpacing=value('newTrefoilSpacing');
-    if(value('newVfdSpacing'))co.vfdSpacing=value('newVfdSpacing');
-    if(replacingCircuitId)p.circuits[p.circuits.findIndex(x=>x.id===replacingCircuitId)]=c;else p.circuits.push(c);
-  })){
-    const replaced=!!replacingCircuitId;replacingCircuitId=null;
-    if($('#catalogDialog').open)$('#catalogDialog').close();
-    toast(`${tag} ${replaced?'updated':'added'} as a draft. Confirm its external installation basis.`);
-    editBasis(c.id);
+
+/* ---------- catalog ---------- */
+function catalogContent() {
+  const voltages = [...new Set(catalog.map(c => c.voltage))].sort((a, b) => a - b);
+  const counts = [...new Set(catalog.map(c => c.conductors))].sort((a, b) => a - b);
+  return `<div class="catalog-layout"><div class="catalog-main"><div class="catalog-tools"><div class="search-box">${icon('search')}<input type="search" data-filter="q" value="${esc(filter.q)}" placeholder="Search stock, SPEC, AWG/kcmil, insulation…" aria-label="Search catalog"></div></div><div class="filters"><select data-filter="category" aria-label="Application">${opt('', 'All applications', filter.category)}${Object.entries(labels).map(([k, v]) => opt(k, v, filter.category)).join('')}</select><select data-filter="voltage" aria-label="Voltage rating">${opt('', 'All voltages', filter.voltage)}${voltages.map(v => opt(v, voltageText(v), filter.voltage)).join('')}</select><select data-filter="conductors" aria-label="Conductor count">${opt('', 'All conductor counts', filter.conductors)}${counts.map(v => opt(v, v + (v === 1 ? ' conductor' : ' conductors'), filter.conductors)).join('')}</select></div><div data-catalog-results></div></div><aside class="catalog-detail" data-catalog-detail></aside></div>`;
+}
+function filteredCatalog() {
+  const q = filter.q.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  return catalog.filter(c => (!filter.category || c.category === filter.category) && (!filter.voltage || c.voltage === +filter.voltage) && (!filter.conductors || c.conductors === +filter.conductors)
+    && q.every(t => `${c.stock} ${c.spec} ${cableSize(c)} ${c.title} ${c.insulation} ${c.conductors}C ${labels[c.category]}`.toLowerCase().includes(t)));
+}
+function updateCatalog(root) {
+  const all = filteredCatalog(), pages = Math.max(1, Math.ceil(all.length / 40));
+  filter.page = Math.max(0, Math.min(filter.page, pages - 1));
+  const items = all.slice(filter.page * 40, filter.page * 40 + 40);
+  $('[data-catalog-results]', root).innerHTML = `<div class="catalog-count"><span>${integer(all.length)} items found</span><span>Click a row to add it · click the size for the PDF</span></div><div class="table-wrap"><table class="catalog-table"><thead><tr><th>Cable / application</th><th>SPEC · Stock</th><th>Ø (in)</th><th class="hide-mobile">Voltage</th><th></th></tr></thead><tbody>${items.map(c => `<tr data-select-cable="${esc(c.id)}" class="${selectedCable?.id === c.id ? 'chosen' : ''}" tabindex="0"><td><div class="catalog-size"><span class="category-dot" style="background:${colors[c.category]}"></span><a class="catalog-pdf" href="${esc(pdfOf(c))}" target="_blank" rel="noreferrer" title="Open Southwire PDF data sheet (SPEC ${esc(c.spec)})">${esc(cableSize(c))} <span aria-hidden="true">↗</span></a></div><div class="title-wrap muted">${esc(c.title)}</div></td><td class="mono">${esc(c.spec)}<div class="cable-sub">${esc(c.stock || '—')}</div></td><td class="mono">${fmt(c.odIn, 3)}</td><td class="hide-mobile mono">${voltageText(c.voltage)}</td><td>${icon('plus')}</td></tr>`).join('')}</tbody></table>${items.length ? '' : '<div class="empty-state">No items match these filters.</div>'}</div><div class="pagination">${btn('catalog-prev', icon('chevron'), 'icon-btn flip', `${filter.page === 0 ? 'disabled' : ''} aria-label="Previous page"`)}<span>${filter.page + 1} / ${pages}</span>${btn('catalog-next', icon('chevron'), 'icon-btn', `${filter.page === pages - 1 ? 'disabled' : ''} aria-label="Next page"`)}</div>`;
+}
+function renderCatalogDetail(root) {
+  const c = selectedCable, el = $('[data-catalog-detail]', root);
+  if (!c) { el.innerHTML = `<span class="brand-symbol">${icon('cable')}</span><h3>Choose a cable</h3><p class="description">Select a catalog row, then set the quantity and the compartment. Add as many cable types as you need; this window stays open.</p>${lastAdded ? `<p class="added-note">${icon('check')}${esc(lastAdded)}</p>` : ''}`; return; }
+  const single = c.conductors === 1;
+  el.innerHTML = `<span class="pill neutral">${esc(labels[c.category])} · SPEC ${esc(c.spec)}</span><h3>${esc(cableSize(c))}</h3><p class="description">${esc(c.title)}</p><div class="specs"><div><small>OUTSIDE DIAMETER</small><strong class="mono">${dimension(c.odIn)}</strong></div><div><small>VOLTAGE RATING</small><strong>${voltageText(c.voltage)}</strong></div><div><small>NOMINAL WEIGHT</small><strong>${c.weightLbKft != null ? fmt(c.weightLbKft / 1000, 3) + ' lb/ft' : '—'}</strong></div><div><small>STOCK</small><strong class="mono">${esc(c.stock || '—')}</strong></div></div><div class="flex links"><a href="${esc(pdfOf(c))}" target="_blank" rel="noreferrer">Southwire PDF ↗</a><a href="${esc(c.sourceUrl)}" target="_blank" rel="noreferrer">Product page ↗</a></div><div class="section-line"></div><div class="form-row">${field('Compartment', `<select name="newComp">${tray.compartments.map(co => opt(co.id, co.name, selectedComp)).join('')}</select>`)}</div><div class="form-row">${field('Quantity (cables)', `<input name="newQty" type="number" min="1" max="9999" step="1" value="${single ? 3 : 1}">`)}</div>${single ? '<p class="config-note">Single conductor: each 3 cables form one trefoil when the compartment uses a trefoil arrangement.</p>' : ''}${btn('add-cable', icon('plus') + 'Add to tray', 'primary full-btn')}${lastAdded ? `<p class="added-note">${icon('check')}${esc(lastAdded)}</p>` : ''}`;
+}
+function addCable(root) {
+  if (!selectedCable) return;
+  const qty = Number($('[name="newQty"]', root)?.value), compartmentId = $('[name="newComp"]', root)?.value;
+  if (!Number.isInteger(qty) || qty < 1 || qty > 9999) { lastAdded = ''; renderCatalogDetail(root); $('[name="newQty"]', root).focus(); return; }
+  const comp = tray.compartments.find(c => c.id === compartmentId);
+  if (commit(t => {
+    const existing = t.cables.find(r => r.cable.id === selectedCable.id && r.compartmentId === compartmentId);
+    if (existing) existing.qty = Math.min(9999, existing.qty + qty);
+    else t.cables.push({id: uid(), cable: cableSnapshot(selectedCable), qty, compartmentId});
+  })) {
+    selectedComp = compartmentId;
+    lastAdded = `Added ${qty} × ${cableSize(selectedCable)} to ${comp?.name}.`;
+    renderCatalogDetail(root);
   }
 }
-function editCircuit(id){
-  const c=project.circuits.find(c=>c.id===id);if(!c)return;
-  const ca=circuitCable(c),required=requiresTrefoil(ca,c.purpose),issues=circuitPolicyIssues({...c,cable:ca});
-  smallDialog('Edit circuit',`<p><strong>${esc(cableSize(ca))}</strong> · SPEC ${esc(ca.spec)} · Stock ${esc(ca.stock)}</p>${issues.length?`<p class="policy-error">${issues.map(esc).join(' ')}</p>`:''}${btn('replace-circuit','Replace catalog cable','quiet',`data-id="${c.id}" type="button"`)}<div class="form-row">${field('Circuit tag',`<input name="tag" required maxlength="80" value="${esc(c.tag)}">`)}</div><div class="form-row">${field('Compartment',`<select name="comp">${project.compartments.map(co=>opt(co.id,co.name,c.compartmentId)).join('')}</select>`)}</div><div class="form-row">${field('Quantity / runs',`<input name="qty" type="number" min="1" max="9999" required value="${c.qty}">`)}${field('Cables per run',`<input name="perRun" type="number" min="1" max="20" ${required?'readonly':''} required value="${required&&ca.conductors===1?3:c.cablesPerRun}">`)}</div><div class="form-row">${field('Operating voltage (V)',`<input name="voltage" type="number" min="0" max="69000" step="any" required value="${c.voltage}">`)}</div><label class="check"><input type="checkbox" name="ground" data-edit-id="${c.id}" ${c.purpose==='ground'?'checked':''} ${ca.conductors!==1?'disabled':''}>Separate equipment grounding conductor (EGC)</label><p class="config-note">Trefoil phase circuits require 3 × 1/C per run. Select the compartment to change its trefoil and VFD spacing.</p>`,'Save changes',form=>{
-    const f=new FormData(form),updates={tag:f.get('tag').trim(),compartmentId:f.get('comp'),qty:+f.get('qty'),cablesPerRun:+f.get('perRun'),voltage:+f.get('voltage'),purpose:f.has('ground')?'ground':'power'};
-    const problems=circuitPolicyIssues({...c,...updates,cable:ca});if(problems.length)throw new Error(problems[0]);
-    if(!commit(p=>{Object.assign(p.circuits.find(x=>x.id===id),updates)}))return false;
-    toast('Circuit updated.');
-  });
+function openCatalog() {
+  const d = $('#catalogDialog');
+  lastAdded = '';
+  d.innerHTML = `<div class="dialog-header"><div><h2>Add cables</h2><p>Southwire catalog · ${integer(catalog.length)} copper items · multiconductor up to 2/0 AWG</p></div>${btn('close-catalog', icon('close'), 'quiet icon-btn', 'aria-label="Close catalog"')}</div>${catalogContent()}`;
+  updateCatalog(d); renderCatalogDetail(d); d.showModal(); $('[data-filter="q"]', d).focus();
 }
-function recommend(){
-  recommended=suggestWidth(project,byId);
-  if(!recommended){smallDialog('Tray width suggestion',`<p>No width between 6 and 120 in satisfies the current layout and design reserve.</p><p>${project.circuits.length?'Review outstanding conditions, cable types, and compartment proportions. Unsupported combinations need engineering review before a width can be suggested.':'Add at least one circuit to size the tray.'}</p>`,'Got it',()=>{});return}
-  const next=recommended.project;
-  smallDialog('Suggested width',`<div class="suggested-width">${dimension(next.widthIn)}</div><p>Requested reserve: ${fmt(project.reserve,0)}%. The layout preserves the proportions of the clear compartment widths.</p><ul>${compartmentsOf(next).map((c,i)=>`<li>${esc(c.name)}: ${dimension(c.widthIn)} clear · ${fmt(recommended.checks[i].ratio*100,1)}% fill</li>`).join('')}</ul><p>The suggestion meets the implemented fill checks. It does not verify mechanical capacity or ampacity.</p>`,'Apply width',()=>{commit(()=>next);toast('Tray width and divider positions updated.');});
+
+/* ---------- dialogs ---------- */
+function smallDialog(title, body, actionLabel, onSubmit) {
+  const d = $('#smallDialog'); smallHandler = onSubmit;
+  d.innerHTML = `<div class="dialog-header"><h2>${title}</h2>${btn('close-small', icon('close'), 'quiet icon-btn', 'aria-label="Close"')}</div><form id="smallForm"><div class="small-body">${body}<p class="form-error" role="alert"></p></div><div class="small-footer">${btn('close-small', 'Cancel', '', 'type="button"')}<button class="primary" type="submit">${actionLabel}</button></div></form>`;
+  if (!d.open) d.showModal();
+  $('button[type="submit"]', d)?.focus();
 }
-function showProjects(){
-  if(!archiveCurrent())return;
-  const saved=Object.fromEntries(Object.entries(JSON.parse(localStorage.getItem(PROJECTS_STORE)||'{}')).map(([id,p])=>[id,migrateProject(p)]));
-  smallDialog('Your projects',`<p>Saved in this browser. Export a project to move it to another computer.</p>${field('Select a design',`<select name="savedProject">${Object.values(saved).sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||'')).map(p=>opt(p.projectId,`${p.trayTag} · ${p.name}`,project.projectId)).join('')}</select>`)}`,'Open project',form=>{
-    const selected=saved[new FormData(form).get('savedProject')];validateProject(selected,byId);project=structuredClone(selected);activeTab='project';selectedComp=project.compartments.some(c=>c.id===project.selectedCompartmentId)?project.selectedCompartmentId:project.compartments[0].id;render();
-  });
+function suggest() {
+  const found = suggestSize(tray);
+  if (!found) {
+    smallDialog('Suggested tray size', `<p>${tray.cables.length ? 'No standard tray up to 48 × 6 in fits these cables with the current dividers, arrangements and spare reserve. Try more compartments, another arrangement or a lower reserve, or enter a larger width manually.' : 'Add cables first.'}</p>`, 'OK', () => {});
+    return;
+  }
+  const t = found.tray;
+  smallDialog('Suggested tray size', `<div class="suggested-width">${fmt(t.widthIn, 0)} × ${fmt(t.depthIn, 2).replace(/\.00$/, '')} in</div><p>Smallest standard size that fits every compartment${tray.reserve ? ` with ${fmt(tray.reserve, 0)}% spare reserve` : ''}.</p><ul>${found.evaluation.results.map(r => `<li>${esc(r.comp.name)}: ${dimension(r.comp.widthIn)} clear · ${r.fill.rule ? fmt(r.fill.ratio * 100, 1) + '% NEC fill' : 'layout only'} · layout ${dimension(r.fit.usedWidthIn)}</li>`).join('')}</ul>`, 'Apply size', () => { commit(() => t); toast(`Tray set to ${fmt(t.widthIn, 0)} × ${fmt(t.depthIn, 2).replace(/\.00$/, '')} in.`); });
 }
-const actions={
-  'catalog':()=>openCatalog(),'close-catalog':()=>{$('#catalogDialog').close();replacingCircuitId=null},'close-small':()=>$('#smallDialog').close(),
-  'add-divider':addDivider,'remove-divider':el=>removeDivider(+el.dataset.index),
-  'criteria':()=>{activeTab='criteria';render()},'recommend':recommend,'projects':showProjects,
-  'edit-circuit':el=>editCircuit(el.dataset.id),
-  'replace-circuit':el=>{$('#smallDialog').close();openCatalog(el.dataset.id)},
-  'delete-circuit':el=>{commit(p=>{p.circuits=p.circuits.filter(c=>c.id!==el.dataset.id)});toast('Circuit removed.');},
-  'catalog-prev':el=>{filter.page--;updateCatalog(catalogRoot(el))},'catalog-next':el=>{filter.page++;updateCatalog(catalogRoot(el))},
-  'add-circuit':el=>addCircuit(catalogRoot(el)),
-  'export':()=>{save();const a=assessProject(project,byId);const data={...project,exportStatus:'DRAFT — NOT FOR CONSTRUCTION',exportedRuleset:RULESET_VERSION,unresolvedItems:a.issues.map(i=>({code:i.code,rule:i.rule,message:i.message}))};download(filename()+'.draft.traylab.json',JSON.stringify(data,null,2),'application/json');toast('Draft project exported. Opening a file always rechecks the current ruleset.');},
-  'export-csv':()=>{try{const record=issueRecord(project,byId);download(filename()+'.issued.csv',projectCSV(project,byId,record),'text/csv;charset=utf-8')}catch(e){toast(e.message)}},
-  'draft-csv':()=>download(filename()+'.draft.csv',projectCSV(project,byId),'text/csv;charset=utf-8'),
-  'basis':el=>editBasis(el.dataset.id), 'installation-review':recordInstallationReview,
-  'draft-report':()=>printReport(false),
-  'import':()=>{$('#fileImport').value='';$('#fileImport').click()},
-  'print':()=>printReport(true),
-  'rename':()=>smallDialog('Project identification',`<div class="form-row">${field('Project name',`<input name="name" required maxlength="120" value="${esc(project.name)}">`)}</div><div class="form-row">${field('Tray tag',`<input name="tag" required maxlength="50" value="${esc(project.trayTag)}">`)}</div>`,'Save',form=>{const f=new FormData(form);return commit(p=>{p.name=f.get('name').trim();p.trayTag=f.get('tag').trim()})}),
-  'new':()=>smallDialog('New tray design',`<p>The current project will remain saved in this browser.</p><div class="form-row">${field('Project name','<input name="name" required maxlength="120" value="New tray design">')}</div><div class="form-row">${field('Tray tag','<input name="tag" required maxlength="50" value="CT-002">')}</div><label class="check"><input name="example" type="checkbox">Load the 480 / 120 V example circuits</label>`,'Create project',form=>{
-    if(!archiveCurrent())return false;const f=new FormData(form);
-    const next=f.has('example')?exampleProject():blankProject();next.projectId=uid();next.name=f.get('name').trim();next.trayTag=f.get('tag').trim();validateProject(next,byId);project=next;activeTab='project';selectedComp=project.compartments.some(c=>c.id===project.selectedCompartmentId)?project.selectedCompartmentId:project.compartments[0].id;render();
-  })
+
+const actions = {
+  'catalog': openCatalog,
+  'close-catalog': () => $('#catalogDialog').close(),
+  'close-small': () => $('#smallDialog').close(),
+  'add-cable': el => addCable(el.closest('#catalogDialog')),
+  'catalog-prev': el => { filter.page--; updateCatalog(el.closest('#catalogDialog')); },
+  'catalog-next': el => { filter.page++; updateCatalog(el.closest('#catalogDialog')); },
+  'add-divider': addDivider,
+  'remove-divider': el => removeDivider(+el.dataset.index),
+  'delete-row': el => { commit(t => { t.cables = t.cables.filter(r => r.id !== el.dataset.id); }); },
+  'suggest': suggest,
+  'print': () => window.print(),
+  'clear': () => smallDialog('Clear tray', '<p>Remove all cables and dividers and reset the tray to its defaults?</p>', 'Clear', () => { tray = blankTray(uid); selectedComp = tray.compartments[0].id; render(); toast('Tray cleared.'); })
 };
 
-document.addEventListener('click',event=>{
-  const action=event.target.closest('[data-action]');
-  if(action){event.preventDefault();actions[action.dataset.action]?.(action);return}
-  const tab=event.target.closest('[data-tab]');if(tab){replacingCircuitId=null;activeTab=tab.dataset.tab;render();return}
-  if(event.target.closest('[data-comp-field]'))return;
-  const comp=event.target.closest('[data-comp]');if(comp){selectedComp=comp.dataset.comp;render();return}
-  if(event.target.closest('a[href]'))return;
-  const cable=event.target.closest('[data-select-cable]');if(cable){selectedCable=byId.get(cable.dataset.selectCable);const root=catalogRoot(cable);updateCatalog(root);renderCatalogDetail(root);if(matchMedia('(max-width:580px)').matches)$('[data-catalog-detail]',root).scrollIntoView({behavior:'smooth',block:'start'});}
+document.addEventListener('click', event => {
+  const action = event.target.closest('[data-action]');
+  if (action) { event.preventDefault(); actions[action.dataset.action]?.(action); return; }
+  if (event.target.closest('a[href], select, input, label')) return;
+  const comp = event.target.closest('[data-comp]');
+  if (comp) { selectedComp = comp.dataset.comp; render(); return; }
+  const row = event.target.closest('[data-select-cable]');
+  if (row) { const root = row.closest('#catalogDialog'); selectedCable = catalog.find(c => c.id === row.dataset.selectCable); lastAdded = ''; updateCatalog(root); renderCatalogDetail(root); if (matchMedia('(max-width:580px)').matches) $('[data-catalog-detail]', root).scrollIntoView({behavior: 'smooth', block: 'start'}); }
 });
-document.addEventListener('keydown',e=>{
-  if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-comp],[data-select-cable]')){e.preventDefault();e.target.click()}
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-comp],[data-select-cable]')) { e.preventDefault(); e.target.click(); }
 });
-document.addEventListener('input',e=>{
-  if(e.target.matches('[data-filter="q"]')){filter.q=e.target.value;filter.page=0;updateCatalog(catalogRoot(e.target));}
+document.addEventListener('input', e => {
+  if (e.target.matches('[data-filter="q"]')) { filter.q = e.target.value; filter.page = 0; updateCatalog(e.target.closest('#catalogDialog')); }
 });
-document.addEventListener('change',e=>{
-  const el=e.target;
-  if(el.name==='basisMethod'){refreshBasisPreview();return;}
-  if(el.matches('[data-filter]')){filter[el.dataset.filter]=el.value;filter.page=0;updateCatalog(catalogRoot(el));return}
-  if(el.matches('[data-project]')){
-    const key=el.dataset.project;let value=el.type==='checkbox'?el.checked:el.type==='number'?Number(el.value):el.value;
-    if(el.type==='number'&&(el.value===''||!el.checkValidity())){toast('Enter a value within the specified limits.');render();return}
-    if(['widthIn','depthIn','dividerThicknessIn','rungSpacingIn'].includes(key))value=fromDim(value);
-    commit(p=>{if(key==='widthIn')return resizeProject(p,value);p[key]=value});return;
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.matches('[data-filter]')) { filter[el.dataset.filter] = el.value; filter.page = 0; updateCatalog(el.closest('#catalogDialog')); return; }
+  if (el.matches('[data-tray]')) {
+    const key = el.dataset.tray;
+    if (el.type === 'number' && (el.value === '' || !el.checkValidity())) { toast('Enter a value within the limits shown.'); render(); return; }
+    const value = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value.trim();
+    commit(t => key === 'widthIn' ? resizeTray(t, value) : void (t[key] = value));
+    return;
   }
-  if(el.matches('[data-divider]')){changeDivider(+el.dataset.divider,fromDim(Number(el.value)));return}
-  if(el.matches('[data-select-comp]')){selectedComp=el.value;render();return}
-  if(el.matches('[data-comp-field]')){
-    const id=el.dataset.compId,key=el.dataset.compField,value=el.type==='checkbox'?el.checked:el.value.trim(),sidePanel=!!el.closest('.config-card');
-    selectedComp=id;
-    if(commit(p=>{const co=p.compartments.find(c=>c.id===id);if(!co)throw new Error('Select an existing compartment.');co[key]=value;})){
-      const updated=$$('[data-comp-field]').find(x=>x.dataset.compId===id&&x.dataset.compField===key&&!!x.closest('.config-card')===sidePanel);updated?.focus({preventScroll:true});
-      if(key==='trefoilSpacing'||key==='vfdSpacing'){const {comp,result:r}=results().find(x=>x.comp.id===id);toast(`${comp.name}: ${key==='trefoilSpacing'?'trefoil':'VFD'} spacing ${value}. ${r.arrangement.linear?'Layout width '+dimension(r.arrangementWidthIn)+'.':'Setting saved for this compartment.'}`);}
-    }return;
+  if (el.matches('[data-divider]')) { commit(t => { t.dividers[+el.dataset.divider] = Number(el.value); }); return; }
+  if (el.matches('[data-select-comp]')) { selectedComp = el.value; render(); return; }
+  if (el.matches('[data-comp-field]')) {
+    const id = el.dataset.compId, key = el.dataset.compField, compact = el.hasAttribute('data-compact');
+    selectedComp = id;
+    if (commit(t => { t.compartments.find(c => c.id === id)[key] = el.value.trim(); })) {
+      [...document.querySelectorAll(`[data-comp-id="${id}"][data-comp-field="${key}"]`)].find(x => x.hasAttribute('data-compact') === compact)?.focus({preventScroll: true});
+    }
+    return;
   }
-  if(el.matches('[data-circuit]')){commit(p=>{p.circuits.find(c=>c.id===el.dataset.circuit)[el.dataset.key]=el.type==='number'?Number(el.value):el.value});return}
-  if(el.name==='newGround'){const root=catalogRoot(el);if(el.checked){$('[name="newCables"]',root).value=1;$('[name="newVoltage"]',root).value=0;}refreshNewArrangement(root);}
-  if(el.name==='newComp')refreshNewArrangement(catalogRoot(el));
-  if(el.name==='ground'&&el.dataset.editId){const c=project.circuits.find(c=>c.id===el.dataset.editId);const required=requiresTrefoil(circuitCable(c),el.checked?'ground':'power'),perRun=$('[name="perRun"]',$('#smallDialog'));perRun.readOnly=required;if(required)perRun.value=3;if(el.checked)perRun.value=1;}
+  if (el.matches('[data-row]')) {
+    const value = el.dataset.key === 'qty' ? Number(el.value) : el.value;
+    commit(t => { t.cables.find(r => r.id === el.dataset.row)[el.dataset.key] = value; });
+  }
 });
-document.addEventListener('submit',e=>{
-  if(e.target.id!=='smallForm')return;e.preventDefault();
-  try{if(smallHandler?.(e.target)!==false)$('#smallDialog').close()}catch(error){$('.form-error',e.target).textContent=error.message}
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'smallForm') return;
+  e.preventDefault();
+  try { if (smallHandler?.(e.target) !== false) $('#smallDialog').close(); } catch (error) { $('.form-error', e.target).textContent = error.message; }
 });
-$('#fileImport').addEventListener('change',async e=>{
-  const file=e.target.files[0];if(!file)return;
-  try{
-    if(file.size>10*1024*1024)throw new Error('The file exceeds 10 MB.');
-    const imported=migrateProject(JSON.parse(await file.text()));validateProject(imported,byId);
-    importCandidate=imported;
-    smallDialog('Open imported project',`<p><strong>${esc(imported.name)}</strong><br>${esc(imported.trayTag)} · ${imported.circuits.length} rows · ${imported.compartments.length} compartments</p><p>The current project will remain saved. Cable diameters and data in the imported file will be preserved. Rows that conflict with the current trefoil rule will be flagged for correction; products and quantities are never silently replaced.</p>`,'Open',()=>{
-      if(!archiveCurrent())return false;project=importCandidate;project.projectId=uid();activeTab='project';selectedComp=project.compartments.some(c=>c.id===project.selectedCompartmentId)?project.selectedCompartmentId:project.compartments[0].id;render();toast('Project imported.');
-    });
-  }catch(error){toast('Unable to import: '+(error instanceof SyntaxError?'Invalid JSON file.':error.message))}
-});
-window.addEventListener('beforeprint',()=>{const a=assessProject(project,byId);if(!a.canIssue||!issuedPrint)document.body.classList.add('printing-draft');$$('.calculation-details').forEach(d=>d.open=true)});
-window.addEventListener('afterprint',()=>{issuedPrint=false;document.body.classList.remove('printing-draft');});
-async function start(){
-  try{
-    const loaded=await Promise.all(['catalog.json','catalog-metadata.json'].map(async path=>{const r=await fetch(path);if(!r.ok)throw new Error('Unable to load '+path);return r.json()}));
-    [catalog,meta]=loaded;byId=new Map(catalog.map(c=>[c.id,c]));
-    let recovery=false;
-    try{const raw=localStorage.getItem(STORE);if(raw){project=validateProject(migrateProject(JSON.parse(raw)),byId)}}catch{recovery=true;try{localStorage.setItem('traylab-recovery',localStorage.getItem(STORE)||'')}catch{}}
-    project ||= exampleProject();project.projectId ||= uid();selectedComp=project.compartments.some(c=>c.id===project.selectedCompartmentId)?project.selectedCompartmentId:project.compartments[0].id;render();
-    if(recovery)toast('Unable to open the saved project. A copy has been retained for recovery.');
-  }catch(error){$('#app').innerHTML=`<div class="boot"><h1>TrayLab</h1><p>${esc(error.message)}</p><button onclick="location.reload()">Try again</button></div>`}
+
+async function start() {
+  try {
+    [catalog, meta] = await Promise.all(['catalog.json', 'catalog-metadata.json'].map(async path => { const r = await fetch(path); if (!r.ok) throw new Error('Unable to load ' + path); return r.json(); }));
+    try { const raw = localStorage.getItem(STORE); if (raw) tray = validateTray(JSON.parse(raw)); } catch { tray = null; }
+    tray ||= blankTray(uid);
+    selectedComp = tray.compartments[0].id;
+    render();
+  } catch (error) {
+    $('#app').innerHTML = `<div class="boot"><h1>TrayLab</h1><p>${esc(error.message)}</p><button onclick="location.reload()">Try again</button></div>`;
+  }
 }
 start();

@@ -7,10 +7,10 @@ const root = new URL('../', import.meta.url);
 const app = new URL('apps/traylab-southwire/', root);
 const read = path => readFileSync(new URL(path, root), 'utf8');
 
-test('reviewed TrayLab has one hub card and is included in the static build', () => {
+test('TrayLab has one hub card and is included in the static build', () => {
   const hub = read('index.html');
   assert.equal(hub.match(/href="apps\/traylab-southwire\/index.html"/g)?.length, 1);
-  assert.match(hub, /TrayLab &middot; NEC 2023/);
+  assert.match(hub, /TrayLab &middot; Cable Tray Sizing/);
   assert.match(read('scripts/build.mjs'), /const STATIC_APPS = \[[^\]]*'traylab-southwire'/);
 });
 
@@ -28,17 +28,16 @@ test('TrayLab links resolve locally and under a GitHub Pages project path', () =
   assert.match(html, /<noscript>/);
 });
 
-test('reviewed modules and local catalog replace the superseded installation implementation', () => {
+test('TrayLab is a geometry/fill sizing tool built from local modules and catalog', () => {
   const js = read('apps/traylab-southwire/app.js');
-  for (const module of ['nec', 'project', 'arrangement', 'compliance', 'format']) {
+  for (const module of ['nec', 'project', 'arrangement', 'format']) {
     assert.ok(existsSync(new URL(`${module}.js`, app)));
-    assert.ok(js.includes(`'./${module}.js'`));
   }
-  assert.equal(existsSync(new URL('installation.js', app)), false);
-  assert.equal(JSON.parse(read('apps/traylab-southwire/catalog.json')).length, 2195);
-  assert.ok(JSON.parse(read('apps/traylab-southwire/catalog-metadata.json')));
-  assert.match(js, /assessProject/);
-  assert.match(js, /issueRecord/);
+  for (const module of ['project', 'arrangement', 'format']) assert.ok(js.includes(`'./${module}.js'`));
+  for (const removed of ['compliance.js', 'installation.js']) assert.equal(existsSync(new URL(removed, app)), false);
+  assert.doesNotMatch(js, /ampacity|ambient|installationReview|fileImport|localStorage\.getItem\('traylab-saved/i);
+  const catalog = JSON.parse(read('apps/traylab-southwire/catalog.json'));
+  assert.equal(JSON.parse(read('apps/traylab-southwire/catalog-metadata.json')).totalRecords, catalog.length);
 });
 
 test('TrayLab uses hub color and typography tokens without its former palette', () => {
@@ -49,5 +48,5 @@ test('TrayLab uses hub color and typography tokens without its former palette', 
   assert.doesNotMatch(css, /fonts\.googleapis\.com|DM Sans|Manrope/);
   assert.match(css, /var\(--ui\)/);
   assert.match(css, /var\(--data\)/);
-  assert.match(css, /@media print \{ \.hub-nav \{ display: none !important; \}/);
+  assert.match(css, /@media print \{[\s\S]*\.hub-nav,/);
 });

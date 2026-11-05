@@ -88,16 +88,13 @@ npm test
   values worked by hand from the code tables.
 - `tests/conduit-fill.test.js` checks NEC Chapter 9 fill factors and the
   Schedule 40 conduit geometry used by the Conduit Fill tool.
-- `tests/traylab-nec.test.js` and `tests/traylab-project.test.js` preserve the
-  TrayLab regression checks for NEC fill, divider geometry, project migration,
-  catalog integrity, width suggestions and CSV exports.
-- `tests/traylab-arrangement.test.js` checks trefoil/VFD arrangements,
-  spacing, migration and physical geometry.
-- `tests/traylab-compliance.test.js` preserves the reviewed source's 45
-  compliance scenarios, including 80 deterministic packing comparisons,
-  external calculation basis, review invalidation and fail-closed issue gates.
+- `tests/traylab-nec.test.js`, `tests/traylab-arrangement.test.js` and
+  `tests/traylab-project.test.js` check TrayLab's NEC 392.22 fill rules,
+  compartment arrangements (random fill, single layer, trefoil, flat),
+  physical fit, divider geometry, spare reserve, size suggestion and the
+  filtered copper catalog.
 - `tests/traylab-hub.test.js` checks hub registration, theme integration,
-  local asset resolution and the absence of the superseded installation module.
+  local asset resolution and the absence of the removed review/ampacity workflow.
 
 ## Design system
 
@@ -132,35 +129,22 @@ deliberate exceptions stay outside:
 
 New work should use the shared tokens rather than adding a third palette.
 
-## TrayLab - NEC 2023 / Southwire
+## TrayLab - Cable Tray Sizing / Southwire
 
 [`apps/traylab-southwire`](apps/traylab-southwire/README.md) is a static,
-browser-local cable tray fill tool with a 2,195-item Southwire catalog,
-individually checked compartments, draggable dividers, design reserve and
-tray-width suggestions. It supports saved projects, JSON import/export, CSV
-export and printable U.S. Letter landscape reports.
+browser-local cable tray sizing tool. It is purely geometric/mathematical:
+the cables are assumed to be sized already, so there is no ampacity,
+voltage-drop, temperature or installation-condition input.
 
-This integration uses `traylab-nec2023-reviewed-complete-source`, replacing
-the earlier TrayLab implementation. Its calculation, arrangement, compliance
-and project modules are preserved. Large single-conductor phase cables use
-ABC trefoils with per-compartment 1D/2.15D clearance; multiconductor/VFD
-spacing is modeled separately. Physical fit and NEC fill are independent.
-
-External calculation-basis records and installation review must match the
-current configuration before reports or CSVs can be issued. Incomplete or
-unsupported configurations remain drafts. The application does not calculate
-ampacity or certify NEC compliance; the responsible engineer must verify the
-adopted code and project evidence.
-
-The interface, including the tray diagram, uses `shared/theme.css` tokens,
-shared typography and a return link to the hub. The catalog and provenance manifest are served
-locally; no runtime backend, package installation or separate build is needed.
-Project storage remains local to the browser and origin; export JSON for backup
-or to transfer projects from another site.
-
-See [calculation scope and verification](apps/traylab-southwire/NEC-NOTES.md)
-and the [supplied source audit](apps/traylab-southwire/AUDIT-2023.md).
-Fill checks do not establish ampacity or mechanical approval.
+Pick cables from a 1,469-item Southwire copper catalog (multiconductor up to
+2/0 AWG, single conductors in all sizes), set quantities, split the tray with
+draggable dividers and choose each compartment's arrangement: random fill,
+single layer (touching or 1D) for multiconductor cables, trefoil (touching,
+1D or 2.15D) or flat for single conductors. Each compartment is checked
+against NEC 2023 392.22 fill and the physical fit of the drawn layout, with an
+optional spare reserve. **Suggest tray size** finds the smallest standard
+width, then depth. **Issue report** prints the current configuration;
+**Clear** starts over. The working tray is kept in browser storage.
 
 ## The Neher-McGrath app
 

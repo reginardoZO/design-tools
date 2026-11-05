@@ -12,12 +12,12 @@
   "scope": "Specification families enumerated on the US Power & Control, Medium Voltage and industrial metal-clad section indexes, plus the official VFD search. Rows without an identifiable conductor count, diameter, size or voltage are excluded. Not a guarantee of every current Southwire product worldwide.",
   "discoveredSpecs": 171,
   "importedSpecs": 167,
-  "totalRecords": 2195,
+  "totalRecords": 1469,
   "categories": {
-    "power": 757,
+    "power": 429,
     "control": 489,
-    "vfd": 149,
-    "mv": 800
+    "vfd": 87,
+    "mv": 464
   },
   "specs": [
     {
@@ -30,15 +30,6 @@
       "trayRated": null
     },
     {
-      "spec": "25076",
-      "title": "AL 1000V LSZH RW90 SOLONONplus™",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/25076/?country=US",
-      "records": 12,
-      "voltage": 1000,
-      "trayRated": null
-    },
-    {
       "spec": "25077",
       "title": "CU 1000V LSZH Solononplus™ Insulation. RW90",
       "category": "power",
@@ -46,15 +37,6 @@
       "records": 16,
       "voltage": 1000,
       "trayRated": null
-    },
-    {
-      "spec": "25260",
-      "title": "AL 2000V EPDM Insulation Thermoset CPE Jacket. RHH/RHW-2/RW90 UL & CSA MSHA Approved",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/25260/?country=US",
-      "records": 0,
-      "voltage": 2000,
-      "trayRated": true
     },
     {
       "spec": "45002",
@@ -93,15 +75,6 @@
       "trayRated": true
     },
     {
-      "spec": "45007",
-      "title": "AL 600V XLPE Insulation XHHW-2. CT Rated - Sunlight Resistant - Silicone Free",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45007/?country=US",
-      "records": 10,
-      "voltage": 1000,
-      "trayRated": true
-    },
-    {
       "spec": "45010",
       "title": "TCU 600V NLEPR Insulation Thermoset LSZH-TS Jacket RHH/RHW-2/USE-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
@@ -115,7 +88,7 @@
       "title": "CU 600V Power Drop Cable",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45028/?country=US",
-      "records": 4,
+      "records": 3,
       "voltage": 600,
       "trayRated": true
     },
@@ -187,7 +160,7 @@
       "title": "Southwire® Machine Flex® CU 600/1000V THHN Insulation Black TPE Jacket. Silicone-Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45047/?country=US",
-      "records": 18,
+      "records": 11,
       "voltage": 1000,
       "trayRated": true
     },
@@ -367,7 +340,7 @@
       "title": "CU 600/1000V XLPE Insulation PVC Jacket XHHW-2 with Bare or Green Ground. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45240/?country=US",
-      "records": 15,
+      "records": 7,
       "voltage": 1000,
       "trayRated": true
     },
@@ -376,7 +349,7 @@
       "title": "CU 600V PVC-Nylon Insulation PVC Jacket THHN/THWN-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45251/?country=US",
-      "records": 14,
+      "records": 7,
       "voltage": 600,
       "trayRated": true
     },
@@ -385,7 +358,7 @@
       "title": "CU 600/1000V XLPE Insulation PVC Jacket XHHW-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45252/?country=US",
-      "records": 26,
+      "records": 9,
       "voltage": 1000,
       "trayRated": true
     },
@@ -394,7 +367,7 @@
       "title": "CU 600/1000V XLPE Insulation Thermoplastic CPE-TP Jacket XHHW-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45253/?country=US",
-      "records": 14,
+      "records": 7,
       "voltage": 1000,
       "trayRated": true
     },
@@ -403,7 +376,7 @@
       "title": "CU 600/1000V XLPE Insulation Thermoplastic LSZH-TP XHHW-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45254/?country=US",
-      "records": 13,
+      "records": 6,
       "voltage": 1000,
       "trayRated": true
     },
@@ -412,7 +385,7 @@
       "title": "TCU 600/1000V EPR Insulation XHHW-2 Thermoplastic CPE-TP Jacket. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45255/?country=US",
-      "records": 15,
+      "records": 7,
       "voltage": 1000,
       "trayRated": true
     },
@@ -421,7 +394,7 @@
       "title": "CU 600V PVC-Nylon Insulation PVC Jacket THHN/THWN-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45257/?country=US",
-      "records": 17,
+      "records": 7,
       "voltage": 600,
       "trayRated": true
     },
@@ -430,7 +403,7 @@
       "title": "CU 600/1000V XLPE Insulation PVC Jacket XHHW-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45258/?country=US",
-      "records": 23,
+      "records": 7,
       "voltage": 1000,
       "trayRated": true
     },
@@ -439,7 +412,7 @@
       "title": "FLEXTOR™ CU 600V PVC-Nylon Insulation PVC Jacket THHN/THWN-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45260/?country=US",
-      "records": 13,
+      "records": 7,
       "voltage": 600,
       "trayRated": true
     },
@@ -448,7 +421,7 @@
       "title": "CU 600/1000V EPR Insulation LSZH-TP Jacket XHHW-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45261/?country=US",
-      "records": 7,
+      "records": 3,
       "voltage": 1000,
       "trayRated": true
     },
@@ -457,44 +430,8 @@
       "title": "TCU 600/1000V EPR Insulation XHHW-2 Thermoplastic CPE-TP Jacket. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45262/?country=US",
-      "records": 14,
+      "records": 7,
       "voltage": 1000,
-      "trayRated": true
-    },
-    {
-      "spec": "45263",
-      "title": "AL 600V PVC-Nylon Insulation PVC Jacket THHN/THWN-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45263/?country=US",
-      "records": 19,
-      "voltage": 600,
-      "trayRated": true
-    },
-    {
-      "spec": "45264",
-      "title": "AL 600/1000V XLPE Insulation PVC Jacket XHHW-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45264/?country=US",
-      "records": 24,
-      "voltage": 1000,
-      "trayRated": true
-    },
-    {
-      "spec": "45265",
-      "title": "AL 600/1000V XLPE Insulation PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45265/?country=US",
-      "records": 25,
-      "voltage": 1000,
-      "trayRated": true
-    },
-    {
-      "spec": "45268",
-      "title": "AL 600V PVC-Nylon Insulation PVC Jacket THHN/THWN-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45268/?country=US",
-      "records": 17,
-      "voltage": 600,
       "trayRated": true
     },
     {
@@ -502,7 +439,7 @@
       "title": "CU 600/1000V XLPE Insulation AIA PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45301/?country=US",
-      "records": 16,
+      "records": 8,
       "voltage": 1000,
       "trayRated": true
     },
@@ -511,7 +448,7 @@
       "title": "CU 600/1000V XLPE Insulation ARMOR-X® Thermoplastic LSZH-TP Jacket XHHW-2. VFD Cable - CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "vfd",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45302/?country=US",
-      "records": 12,
+      "records": 6,
       "voltage": 1000,
       "trayRated": true
     },
@@ -520,7 +457,7 @@
       "title": "CU 600/1000V XLPE Insulation 50% Ground AIA PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45303/?country=US",
-      "records": 10,
+      "records": 2,
       "voltage": 1000,
       "trayRated": true
     },
@@ -529,7 +466,7 @@
       "title": "CU 600/1000V XLPE Insulation GSIA PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45304/?country=US",
-      "records": 5,
+      "records": 3,
       "voltage": 1000,
       "trayRated": true
     },
@@ -538,7 +475,7 @@
       "title": "CU 600/1000V XLPE Insulation AIA PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45307/?country=US",
-      "records": 16,
+      "records": 7,
       "voltage": 1000,
       "trayRated": true
     },
@@ -547,43 +484,7 @@
       "title": "CU 600/1000V XLPE Insulation 50% Ground AIA PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45309/?country=US",
-      "records": 9,
-      "voltage": 1000,
-      "trayRated": true
-    },
-    {
-      "spec": "45311",
-      "title": "AL 600/1000V XLPE Insulation AIA PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45311/?country=US",
-      "records": 16,
-      "voltage": 1000,
-      "trayRated": true
-    },
-    {
-      "spec": "45312",
-      "title": "AL 600/1000V XLPE Insulation 50% Ground AIA PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45312/?country=US",
-      "records": 11,
-      "voltage": 1000,
-      "trayRated": true
-    },
-    {
-      "spec": "45313",
-      "title": "AL 600/1000V XLPE Insulation AIA PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45313/?country=US",
-      "records": 11,
-      "voltage": 1000,
-      "trayRated": true
-    },
-    {
-      "spec": "45314",
-      "title": "AL 600/1000V XLPE Insulation AIA PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45314/?country=US",
-      "records": 10,
+      "records": 2,
       "voltage": 1000,
       "trayRated": true
     },
@@ -592,7 +493,7 @@
       "title": "CU 600/1000V XLPE Insulation ARMOR-X® PVC Jacket XHHW-2. VFD Cable - CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "vfd",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45351/?country=US",
-      "records": 14,
+      "records": 6,
       "voltage": 1000,
       "trayRated": true
     },
@@ -601,7 +502,7 @@
       "title": "CU 600/1000V XLPE Insulation ARMOR-X® PVC Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45352/?country=US",
-      "records": 13,
+      "records": 6,
       "voltage": 1000,
       "trayRated": true
     },
@@ -610,7 +511,7 @@
       "title": "CU 600/1000V XLPE Insulation ARMOR-X® Thermoplastic LSZH-TP Jacket XHHW-2. CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45354/?country=US",
-      "records": 12,
+      "records": 6,
       "voltage": 1000,
       "trayRated": true
     },
@@ -619,18 +520,9 @@
       "title": "CU 600/1000V XLPE Insulation PVC AIA PVC Jacket XHHW-2. Teck - CT Rated -Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/45360/?country=US",
-      "records": 7,
+      "records": 3,
       "voltage": 1000,
       "trayRated": true
-    },
-    {
-      "spec": "45410",
-      "title": "AL 2000V XLPE Insulation. RHH/RHW-2 PV",
-      "category": "power",
-      "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45410/?country=US",
-      "records": 17,
-      "voltage": 2000,
-      "trayRated": null
     },
     {
       "spec": "45411",
@@ -709,7 +601,7 @@
       "title": "CU 2000V XLPE Insulation Three Grounds Cu Tape Shield PVC Jacket. RHH/RHW-2 Variable Frequency Drive (VFD)",
       "category": "vfd",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45451/?country=US",
-      "records": 20,
+      "records": 10,
       "voltage": 2000,
       "trayRated": true
     },
@@ -718,7 +610,7 @@
       "title": "Flexible CU 2000V XLPE Insulation Three Grounds Cu Tape Shield PVC Jacket. RHH/RHW-2 Variable Frequency Drive (VFD)",
       "category": "vfd",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45453/?country=US",
-      "records": 11,
+      "records": 4,
       "voltage": 2000,
       "trayRated": true
     },
@@ -727,7 +619,7 @@
       "title": "CU 2000V XLPE Insulation Three Grounds Cu Tape Shield Thermoplastic CPE-TP Jacket. RHH/RHW-2 Variable Frequency Drive (VFD)",
       "category": "vfd",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45455/?country=US",
-      "records": 20,
+      "records": 10,
       "voltage": 2000,
       "trayRated": true
     },
@@ -781,7 +673,7 @@
       "title": "CU Compressed 2.4kV NLEPR Insulation 100% IL PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46006/?country=US",
-      "records": 6,
+      "records": 2,
       "voltage": 2400,
       "trayRated": true
     },
@@ -790,7 +682,7 @@
       "title": "CU Compressed 2.4kV NLEPR Insulation 100% IL AIA PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46026/?country=US",
-      "records": 7,
+      "records": 3,
       "voltage": 2400,
       "trayRated": true
     },
@@ -799,7 +691,7 @@
       "title": "CU Compressed 2.4kV NLEPR Insulation 100% IL ARMOR-X® PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial - VFD Cable",
       "category": "vfd",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46027/?country=US",
-      "records": 8,
+      "records": 3,
       "voltage": 2400,
       "trayRated": true
     },
@@ -811,15 +703,6 @@
       "records": 4,
       "voltage": 2400,
       "trayRated": true
-    },
-    {
-      "spec": "46051",
-      "title": "CU Compressed 5kV XLPE Insulation Airport Lighting",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46051/?country=US",
-      "records": 0,
-      "voltage": 5000,
-      "trayRated": null
     },
     {
       "spec": "46101",
@@ -867,15 +750,6 @@
       "trayRated": null
     },
     {
-      "spec": "46110",
-      "title": "AL Compact 5/8kV NLEPR Insulation 133/100% IL SIM-PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46110/?country=US",
-      "records": 12,
-      "voltage": 8000,
-      "trayRated": true
-    },
-    {
       "spec": "46117",
       "title": "CU Compressed 5/8kV NLEPR Insulation 133/100% IL LSZH-TS Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
@@ -898,7 +772,7 @@
       "title": "CU Compressed 5/8kV NLEPR Insulation 133/100% IL PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46202/?country=US",
-      "records": 9,
+      "records": 3,
       "voltage": 8000,
       "trayRated": true
     },
@@ -907,7 +781,7 @@
       "title": "CU Compressed 5/8kV NLEPR Insulation 133/100% IL CPE-TP Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46203/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 8000,
       "trayRated": true
     },
@@ -916,16 +790,7 @@
       "title": "CU Compressed 5/8kV NLEPR Insulation 133/100% IL LSZH-TP Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46204/?country=US",
-      "records": 10,
-      "voltage": 8000,
-      "trayRated": true
-    },
-    {
-      "spec": "46205",
-      "title": "AL Compact 5/8kV NLEPR Insulation 133/100% IL PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46205/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 8000,
       "trayRated": true
     },
@@ -934,7 +799,7 @@
       "title": "CU Compressed 5/8kV TRXLPE Insulation 133/100% IL PVC Jacket. MV 105 - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46206/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 8000,
       "trayRated": null
     },
@@ -943,7 +808,7 @@
       "title": "CU Compressed 5/8kV NLEPR Insulation 133/100% IL GSIA PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46253/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 8000,
       "trayRated": true
     },
@@ -952,7 +817,7 @@
       "title": "CU Compressed 5/8kV NLEPR Insulation 133/100% IL AIA PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46254/?country=US",
-      "records": 12,
+      "records": 4,
       "voltage": 8000,
       "trayRated": true
     },
@@ -961,16 +826,7 @@
       "title": "CU Compressed 5/8kV NLEPR Insulation 133/100% IL ARMOR-X® PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial - VFD Cable",
       "category": "vfd",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46255/?country=US",
-      "records": 10,
-      "voltage": 8000,
-      "trayRated": true
-    },
-    {
-      "spec": "46257",
-      "title": "AL Compact 5/8kV NLEPR Insulation 133/100% IL AIA PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46257/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 8000,
       "trayRated": true
     },
@@ -979,7 +835,7 @@
       "title": "CU Compressed 5/8kV NLEPR Insulation 133/100% IL AIA LSZH-TP Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46258/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 8000,
       "trayRated": true
     },
@@ -988,7 +844,7 @@
       "title": "CU Compressed 5/8kV NLEPR Insulation 133/100% IL AIA CPE-TP Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46259/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 8000,
       "trayRated": true
     },
@@ -1024,7 +880,7 @@
       "title": "CU Compressed 8kV NLEPR Insulation 133% IL AIA PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46280/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 8000,
       "trayRated": true
     },
@@ -1033,7 +889,7 @@
       "title": "CU Compressed 8kV NLEPR Insulation 133% IL ARMOR-X® PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial - VFD Cable",
       "category": "vfd",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46284/?country=US",
-      "records": 9,
+      "records": 4,
       "voltage": 8000,
       "trayRated": true
     },
@@ -1092,15 +948,6 @@
       "trayRated": null
     },
     {
-      "spec": "46311",
-      "title": "AL Compact 15kV NLEPR Insulation 133% IL Black SIM-PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46311/?country=US",
-      "records": 16,
-      "voltage": 15000,
-      "trayRated": true
-    },
-    {
       "spec": "46318",
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL Black LSZH-TS Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
@@ -1141,7 +988,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 100% IL Black PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46401/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1150,7 +997,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL Black PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46402/?country=US",
-      "records": 13,
+      "records": 3,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1159,16 +1006,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL Black CPE-TP Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46403/?country=US",
-      "records": 9,
-      "voltage": 15000,
-      "trayRated": true
-    },
-    {
-      "spec": "46405",
-      "title": "AL Compact 15kV NLEPR Insulation 133% IL Black PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46405/?country=US",
-      "records": 10,
+      "records": 3,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1177,7 +1015,7 @@
       "title": "CU Compressed 15kV TRXLPE Insulation 133% IL Black PVC Jacket. MV 105 - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46406/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 15000,
       "trayRated": null
     },
@@ -1186,7 +1024,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 100% IL AIA Red PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46451/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1195,7 +1033,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL AIA Red PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46453/?country=US",
-      "records": 8,
+      "records": 3,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1204,7 +1042,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL ARMOR-X® Red PVC Jacket. MV 105 Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46454/?country=US",
-      "records": 9,
+      "records": 3,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1213,7 +1051,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL AIA Red PVC Jacket. MV 105 - 50% Ground - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46455/?country=US",
-      "records": 8,
+      "records": 2,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1222,25 +1060,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL Three Grounds, ARMOR-X® Red PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "vfd",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46456/?country=US",
-      "records": 7,
-      "voltage": 15000,
-      "trayRated": true
-    },
-    {
-      "spec": "46457",
-      "title": "AL Compact 15kV NLEPR Insulation 133% IL AIA Black PVC Jacket. MV 105 - 50% Ground - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46457/?country=US",
-      "records": 9,
-      "voltage": 15000,
-      "trayRated": true
-    },
-    {
-      "spec": "46459",
-      "title": "AL Compact 15kV NLEPR Insulation 133% IL AIA Red PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46459/?country=US",
-      "records": 10,
+      "records": 2,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1249,7 +1069,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL AIA Red LSZH-TP Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46460/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1258,7 +1078,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL AIA Red CPE-TP Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46461/?country=US",
-      "records": 10,
+      "records": 4,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1267,7 +1087,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL GSIA Red PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46462/?country=US",
-      "records": 12,
+      "records": 5,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1276,7 +1096,7 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL AIA Black PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46468/?country=US",
-      "records": 8,
+      "records": 2,
       "voltage": 15000,
       "trayRated": true
     },
@@ -1285,15 +1105,6 @@
       "title": "CU Compressed 15kV NLEPR Insulation 133% IL AIA Black CPE Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46469/?country=US",
-      "records": 4,
-      "voltage": 15000,
-      "trayRated": true
-    },
-    {
-      "spec": "46470",
-      "title": "AL Compact 15kV NLEPR Insulation 173% IL AIA Black PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46470/?country=US",
       "records": 1,
       "voltage": 15000,
       "trayRated": true
@@ -1335,38 +1146,11 @@
       "trayRated": true
     },
     {
-      "spec": "46509",
-      "title": "AL Compact 25kV NLEPR Insulation 100% IL Black SIM-PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46509/?country=US",
-      "records": 9,
-      "voltage": 25000,
-      "trayRated": true
-    },
-    {
-      "spec": "46510",
-      "title": "AL Compact 25kV NLEPR Insulation 133% IL Black SIM-PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46510/?country=US",
-      "records": 10,
-      "voltage": 25000,
-      "trayRated": true
-    },
-    {
-      "spec": "46514",
-      "title": "AL Compact 25kV TRXLPE Insulation 133% IL Black SIM-PVC Jacket. MV 105 - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46514/?country=US",
-      "records": 9,
-      "voltage": 25000,
-      "trayRated": null
-    },
-    {
       "spec": "46602",
       "title": "CU Compressed 25kV NLEPR Insulation 133% IL Black PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46602/?country=US",
-      "records": 8,
+      "records": 3,
       "voltage": 25000,
       "trayRated": true
     },
@@ -1375,7 +1159,7 @@
       "title": "CU Compressed 25kV NLEPR Insulation 133% IL AIA Orange PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46653/?country=US",
-      "records": 9,
+      "records": 3,
       "voltage": 25000,
       "trayRated": true
     },
@@ -1384,7 +1168,7 @@
       "title": "CU Compressed 25kV NLEPR Insulation 133% IL ARMOR-X® Orange PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46654/?country=US",
-      "records": 9,
+      "records": 3,
       "voltage": 25000,
       "trayRated": true
     },
@@ -1434,33 +1218,6 @@
       "trayRated": null
     },
     {
-      "spec": "46709",
-      "title": "AL Compact 35kV NLEPR Insulation 100% IL Black SIM-PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46709/?country=US",
-      "records": 9,
-      "voltage": 35000,
-      "trayRated": true
-    },
-    {
-      "spec": "46710",
-      "title": "AL Compact 35kV NLEPR Insulation 133% IL Black SIM-PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46710/?country=US",
-      "records": 11,
-      "voltage": 35000,
-      "trayRated": true
-    },
-    {
-      "spec": "46715",
-      "title": "AL Compact 35kV TRXLPE Insulation 133% IL Black SIM-PVC Jacket. MV 105 - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46715/?country=US",
-      "records": 11,
-      "voltage": 35000,
-      "trayRated": null
-    },
-    {
       "spec": "46718",
       "title": "CU Compressed 35kV NLEPR Insulation 100% IL Black LSZH-TP Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
@@ -1483,7 +1240,7 @@
       "title": "CU Compressed 35kV NLEPR Insulation 100% IL Black PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46801/?country=US",
-      "records": 8,
+      "records": 2,
       "voltage": 35000,
       "trayRated": true
     },
@@ -1492,25 +1249,7 @@
       "title": "CU Compressed 35kV NLEPR Insulation 133% IL Black PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46802/?country=US",
-      "records": 8,
-      "voltage": 35000,
-      "trayRated": true
-    },
-    {
-      "spec": "46805",
-      "title": "AL Compact 35kV NLEPR Insulation 100% IL Black PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46805/?country=US",
-      "records": 7,
-      "voltage": 35000,
-      "trayRated": true
-    },
-    {
-      "spec": "46808",
-      "title": "AL Compact 35kV NLEPR Insulation 133% IL Black PVC Jacket. MV 105 - UL Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46808/?country=US",
-      "records": 6,
+      "records": 3,
       "voltage": 35000,
       "trayRated": true
     },
@@ -1519,7 +1258,7 @@
       "title": "CU Compressed 35kV NLEPR Insulation 100% IL ARMOR-X® Orange PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46852/?country=US",
-      "records": 6,
+      "records": 2,
       "voltage": 35000,
       "trayRated": true
     },
@@ -1528,36 +1267,9 @@
       "title": "CU Compressed 35kV NLEPR Insulation 133% IL ARMOR-X® Orange PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
       "category": "mv",
       "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46854/?country=US",
-      "records": 7,
+      "records": 2,
       "voltage": 35000,
       "trayRated": true
-    },
-    {
-      "spec": "46862",
-      "title": "AL Compact 35kV NLEPR Insulation 133% IL ARMOR-X® Orange PVC Jacket. MV 105 - Tray Rated - Sunlight Resistant - For Direct Burial",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/57/spec/46862/?country=US",
-      "records": 6,
-      "voltage": 35000,
-      "trayRated": true
-    },
-    {
-      "spec": "46911",
-      "title": "Southwire Re3TM All-in-One Cable Repair Kit for 600V & MV-105 Products",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46911/?country=US",
-      "records": 0,
-      "voltage": 600,
-      "trayRated": null
-    },
-    {
-      "spec": "46912",
-      "title": "Re3TM Nitrogen Purging Services or Equipment Rental to Restore Wet Cables",
-      "category": "mv",
-      "url": "https://cabletechsupport.southwire.com/en/tile/2/spec/46912/?country=US",
-      "records": 0,
-      "voltage": null,
-      "trayRated": null
     }
   ],
   "excludedRows": [
@@ -1955,6 +1667,9 @@
     }
   ],
   "problems": [],
-  "ampacityNote": "Catalog ampacities are raw published reference values; not corrected for this project, actual tray arrangement, ambient, current-carrying conductors, terminations, or load. Some families use different reference installations; consult linked datasheet before use.",
-  "trayRatingNote": "True means the family page explicitly mentions tray application; it does not certify every size or installation. Null means not confirmed from page, not approved for tray."
+  "appFilter": {
+    "appliedAt": "2026-11-05",
+    "sourceRecords": 2195,
+    "rule": "Copper and tinned-copper conductors only. Multiconductor cables up to and including 2/0 AWG; single-conductor cables in all sizes."
+  }
 }
