@@ -27,13 +27,32 @@ export function sizeToKcmil(size) {
 }
 export const kcmilOf = cable => Number(cable?.sizeKcmil) > 0 ? Number(cable.sizeKcmil) : sizeToKcmil(cable?.size);
 
-/** Tabulated allowable area. Non-tabulated widths use the next smaller row (never interpolated). */
+/**
+ * Keep the published area at each tabulated width. Between rows, use a linear
+ * engineering interpolation of the area at the actual clear width, including
+ * the width lost to dividers. Rounding 11.9375 in down to the 9 in row creates
+ * an artificial loss of nearly 25% of the capacity. No extrapolation outside
+ * the table: below 2 in is unsupported, above 36 in remains capped at 36 in.
+ * Interpolation is an engineering treatment, not an express NEC instruction.
+ * Basis: Eaton Cable Tray Manual, MAN-23 and MAN-44 (area/required-width method).
+ * See README.md for sources and the distinction from published table rows.
+ */
 export function tabulatedArea(widthIn, kind = 'multi-vent') {
+  const width = Number(widthIn);
+  if (!Number.isFinite(width)) return null;
   let index = -1;
-  TABLE_WIDTHS.forEach((w, i) => { if (w <= widthIn + EPS) index = i; });
+  TABLE_WIDTHS.forEach((w, i) => { if (w <= width + EPS) index = i; });
   if (index < 0) return null;
   const table = kind === 'single' ? SINGLE_VENT : kind === 'multi-solid' ? MULTI_SOLID : MULTI_VENT;
-  return {area: table[index], tableWidth: TABLE_WIDTHS[index], conservative: Math.abs(TABLE_WIDTHS[index] - widthIn) > EPS};
+  const lowerWidth = TABLE_WIDTHS[index];
+  if (Math.abs(width - lowerWidth) <= EPS || index === TABLE_WIDTHS.length - 1) {
+    return {area: table[index], tableWidth: lowerWidth, interpolated: false,
+      conservative: width > lowerWidth + EPS};
+  }
+  const upperWidth = TABLE_WIDTHS[index + 1];
+  const fraction = (width - lowerWidth) / (upperWidth - lowerWidth);
+  return {area: table[index] + fraction * (table[index + 1] - table[index]),
+    tableWidth: null, lowerWidth, upperWidth, interpolated: true, conservative: false};
 }
 
 const sum = (items, fn) => items.reduce((total, x) => total + fn(x), 0);
@@ -61,7 +80,8 @@ export function necFill({widthIn, trayType = 'ladder', rows = []} = {}) {
   const table = kind => {
     const t = tabulatedArea(width, kind);
     if (!t) { notes.push('Clear width under 2 in is below the NEC fill tables. Only the physical layout is checked.'); return null; }
-    if (t.conservative) notes.push(`Non-standard width: the ${round(t.tableWidth)} in table row is used (next smaller width, no interpolation).`);
+    if (t.interpolated) notes.push(`Non-tabulated clear width: ${round(t.area)} in² at ${round(width)} in, by engineering interpolation between the ${round(t.lowerWidth)} and ${round(t.upperWidth)} in table rows. Interpolation is not an express NEC instruction.`);
+    if (t.conservative) notes.push(`Clear width exceeds the table range: allowable area is capped at the ${round(t.tableWidth)} in table row (no extrapolation).`);
     return t.area;
   };
   const solid = trayType === 'solid';

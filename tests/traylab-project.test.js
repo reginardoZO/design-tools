@@ -70,6 +70,41 @@ test('evaluation applies NEC fill, the layout and the spare reserve', () => {
   assert.equal(e.ok, false);
 });
 
+test('21 Southwire cables from the reported case fit a 12 in ladder tray and its 11.9375 in compartment', () => {
+  // Preserve the exact stock numbers and ODs in the user's saved project.
+  // Some stocks no longer appear in the current Southwire catalog snapshot.
+  const rows = [
+    ['480590', '8', .688, 11], ['480616', '4', .815, 1],
+    ['480608', '6', .783, 4], ['480657', '2/0', 1.304, 2],
+    ['480624', '2', .982, 3]
+  ].map(([stock, size, odIn, qty]) => ({id: stock, compartmentId: 'a', qty,
+    cable: {stock, spec: '45252', size, odIn, conductors: 3, voltage: 1000, category: 'power'}}));
+  const compartment = name => ({id: name, name, multiLayout: 'stacked', singleLayout: 'trefoil-2.15d'});
+  const t = tray({widthIn: 24, depthIn: 4, dividers: [12], compartments: [compartment('a'), compartment('b')], cables: rows});
+  validateTray(t);
+  const e = evaluateTray(t), r = e.results[0];
+  assert.equal(e.cableCount, 21);
+  close(r.comp.widthIn, 11.9375);
+  close(r.fill.used, 11.480297686670115);
+  close(r.fill.allowed, 13.927083333333334);
+  close(r.fill.ratio * 100, 82.4314568377211);
+  assert.equal(r.fill.rule, '392.22(A)(1)(b)');
+  assert.equal(r.fit.fits, true);
+  close(r.fit.usedWidthIn, 11.565);
+  assert.equal(r.status, 'ok'); assert.equal(e.ok, true);
+  assert.equal(e.results[1].status, 'empty');
+
+  const undivided = {...t, widthIn: 12, dividers: [], compartments: [compartment('a')]};
+  const whole = evaluateTray(undivided).results[0];
+  close(whole.fill.allowed, 14);
+  close(whole.fill.ratio, 11.480297686670115 / 14);
+  assert.equal(whole.status, 'ok');
+  assert.equal(suggestSize(undivided).tray.widthIn, 12);
+  assert.equal(evaluateTray({...undivided, widthIn: 9}).ok, false);
+  assert.equal(evaluateTray({...t, trayType: 'solid'}).ok, false);
+  assert.equal(evaluateTray({...t, reserve: 20}).ok, false);
+});
+
 test('size suggestion picks the smallest standard width, then a deeper tray', () => {
   const t = tray();
   t.cables = [{id: 'r', cable: cableSnapshot(single500), qty: 6, compartmentId: t.compartments[0].id}];

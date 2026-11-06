@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {necFill, sizeToKcmil, tabulatedArea} from '../apps/traylab-southwire/nec.js';
+import {necFill, sizeToKcmil, tabulatedArea, TABLE_WIDTHS} from '../apps/traylab-southwire/nec.js';
 
 const cable = (o = {}) => ({odIn: 0.5, sizeKcmil: 10.38, size: '10', conductors: 3, voltage: 600, category: 'power', ...o});
 const fill = (rows, o = {}) => necFill({widthIn: 12, trayType: 'ladder', rows, ...o});
@@ -12,9 +12,36 @@ test('multiconductor cables smaller than 4/0 use the tabulated area of 392.22(A)
   assert.equal(r.rule, '392.22(A)(1)(b)'); close(r.allowed, 14); close(r.used, 50 * Math.PI * .25 / 4); assert.equal(r.unit, 'in²');
   assert.equal(fill(rows, {trayType: 'solid'}).rule, '392.22(A)(3)(b)'); close(fill(rows, {trayType: 'solid'}).allowed, 11);
   r = fill(rows, {widthIn: 7.9});
-  close(r.allowed, 7); assert.match(r.notes[0], /6 in table row/); // next smaller width, never interpolated
+  close(r.allowed, 9.375); assert.match(r.notes[0], /interpolat.*6.*8/i);
   assert.equal(tabulatedArea(1.9), null);
   close(fill(rows, {widthIn: 48}).allowed, 42); // NEC table ends at 36 in
+});
+
+test('intermediate clear widths interpolate between table rows without a capacity cliff', () => {
+  close(tabulatedArea(11.9375).area, 13.927083333333334);
+  assert.equal(tabulatedArea(11.9375).interpolated, true);
+  close(tabulatedArea(11.9375, 'multi-solid').area, 10.9375);
+  close(tabulatedArea(11.9375, 'single').area, 12.927083333333334);
+  for (const kind of ['multi-vent', 'multi-solid', 'single']) {
+    for (const width of TABLE_WIDTHS.slice(1)) {
+      const exact = tabulatedArea(width, kind);
+      assert.equal(exact.tableWidth, width);
+      assert.equal(exact.interpolated, false);
+      assert.ok(Math.abs(tabulatedArea(width - .000001, kind).area - exact.area) < .000002);
+    }
+    close(tabulatedArea(48, kind).area, tabulatedArea(36, kind).area);
+    assert.equal(tabulatedArea(48, kind).conservative, true);
+    assert.equal(tabulatedArea(1.9, kind), null);
+  }
+  assert.equal(tabulatedArea(NaN), null);
+  assert.equal(tabulatedArea(Infinity), null);
+});
+
+test('mixed-cable deductions still apply to the interpolated area', () => {
+  const big = cable({size: '4/0', sizeKcmil: 211.6, odIn: 1.5});
+  const rows = [{cable: big, qty: 1}, {cable: cable(), qty: 10}];
+  close(fill(rows, {widthIn: 11.9375}).allowed, 13.927083333333334 - 1.2 * 1.5);
+  close(fill(rows, {widthIn: 11.9375, trayType: 'solid'}).allowed, 10.9375 - 1.5);
 });
 
 test('4/0 AWG and larger multiconductor cables use the sum of diameters', () => {

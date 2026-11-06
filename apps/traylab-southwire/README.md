@@ -35,8 +35,12 @@ spare reserve:
 
 - **NEC 2023 392.22 fill** from catalog outside diameters: multiconductor area
   tables or sum of diameters (392.22(A)), single conductors (392.22(B)) and
-  cables above 2,000 V (392.22(C)). Non-tabulated widths use the next smaller
-  table row. Where NEC gives no combined rule (single and multiconductor
+  cables above 2,000 V (392.22(C)). Published table values are used exactly at
+  tabulated widths. Intermediate clear widths use linear engineering
+  interpolation between the adjacent table rows, with that basis identified
+  in the sizing check and printed report. Widths below 2 in have no table
+  result; widths above 36 in remain capped at the 36 in row (no extrapolation).
+  Where NEC gives no combined rule (single and multiconductor
   cables together, cables above and below 2,000 V together, single conductors
   in a solid-bottom tray) the result says so and the physical layout governs.
 - **Physical fit** of the modeled layout: layer items side by side from the
@@ -45,6 +49,40 @@ spare reserve:
   within the usable depth.
 
 D is the outside diameter of one cable. A trefoil is 2D wide and 1.866D high.
+
+### Intermediate compartment widths
+
+NEC Tables 392.22(A) and 392.22(B)(1) publish discrete widths. They do not
+expressly instruct the user to interpolate. TrayLab treats an intermediate
+clear width as an engineering calculation between adjacent table values,
+rather than reporting the next smaller row as the compartment's capacity.
+This preserves all published values and still subtracts the physical divider
+thickness. It does not round a compartment up to a nominal tray width.
+
+For example, a 24 in ladder tray with a 0.125 in divider centered at 12 in
+has 11.9375 in clear compartments. For multiconductor cables smaller than
+4/0 AWG, interpolation of Table 392.22(A), Column 1, between 9 in (10.5 in²)
+and 12 in (14 in²) gives:
+
+`10.5 + (11.9375 - 9) / (12 - 9) × (14 - 10.5) = 13.927083 in²`.
+
+In this interval the result is also `clear width × 7/6`. The
+[Eaton Cable Tray Manual](https://www.eaton.com/content/dam/eaton/products/support-systems/cable-management/ct-manual.pdf),
+MAN-23 and MAN-44, explains the area/width relationship and the inverse
+method `required width = cable area × 6/7` for this cable class. Its manual
+is based on NEC 2014; the table values were cross-checked against the
+[NFPA 2023-cycle CMP-8 record](https://docinfofiles.nfpa.org/files/AboutTheCodes/70/70_A2022_NEC_P08_FD_PIResponses.pdf),
+Table 392.22(A). The interpolation is TrayLab's engineering treatment, not
+an additional NEC provision. The same bounded interpolation is used for
+the other area columns, retaining their published rounding and mixed-size
+deductions. Diameter/single-layer rules are unchanged.
+
+The reported 21-cable example (stocks 480590 × 11, 480616 × 1, 480608 × 4,
+480657 × 2, 480624 × 3; ODs 0.688, 0.815, 0.783, 1.304, 0.982 in) uses
+11.480298 in²: 82.0% in an undivided 12 in ladder tray and 82.4% in the
+11.9375 in clear compartment, with zero spare reserve. The old next-smaller
+row policy returned 109.3% for that compartment. Both physical fit and the
+area check must pass; solid-bottom trays use their smaller area column.
 
 ## Catalog
 
