@@ -25,7 +25,7 @@ const pdfOf = c => c.pdfUrl || c.sourceUrl;
 
 const STORE = 'traylab-tray-v2';
 let catalog = [], meta = {}, tray, selectedComp, selectedCable = null, evaluation, toastTimer, smallHandler = null, lastAdded = '';
-let filter = {q: '', category: '', voltage: '', conductors: '', page: 0};
+let filter = {q: '', spec: '', category: '', voltage: '', conductors: '', page: 0};
 
 function toast(text) { const t = $('#toast'); t.textContent = text; t.classList.add('visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('visible'), 3500); }
 function save() { try { localStorage.setItem(STORE, JSON.stringify(tray)); } catch { /* storage is a convenience only */ } }
@@ -199,11 +199,19 @@ function bindTrayDrag() {
 function catalogContent() {
   const voltages = [...new Set(catalog.map(c => c.voltage))].sort((a, b) => a - b);
   const counts = [...new Set(catalog.map(c => c.conductors))].sort((a, b) => a - b);
-  return `<div class="catalog-layout"><div class="catalog-main"><div class="catalog-tools"><div class="search-box">${icon('search')}<input type="search" data-filter="q" value="${esc(filter.q)}" placeholder="Search stock, SPEC, AWG/kcmil, insulation…" aria-label="Search catalog"></div></div><div class="filters"><select data-filter="category" aria-label="Application">${opt('', 'All applications', filter.category)}${Object.entries(labels).map(([k, v]) => opt(k, v, filter.category)).join('')}</select><select data-filter="voltage" aria-label="Voltage rating">${opt('', 'All voltages', filter.voltage)}${voltages.map(v => opt(v, voltageText(v), filter.voltage)).join('')}</select><select data-filter="conductors" aria-label="Conductor count">${opt('', 'All conductor counts', filter.conductors)}${counts.map(v => opt(v, v + (v === 1 ? ' conductor' : ' conductors'), filter.conductors)).join('')}</select></div><div data-catalog-results></div></div><aside class="catalog-detail" data-catalog-detail></aside></div>`;
+  return `<div class="catalog-layout"><div class="catalog-main"><div class="catalog-tools"><div class="search-box">${icon('search')}<input type="search" data-filter="q" value="${esc(filter.q)}" placeholder="Search stock, SPEC, AWG/kcmil, insulation…" aria-label="Search catalog"></div></div><div class="filters">${specSelect()}<select data-filter="category" aria-label="Application">${opt('', 'All applications', filter.category)}${Object.entries(labels).map(([k, v]) => opt(k, v, filter.category)).join('')}</select><select data-filter="voltage" aria-label="Voltage rating">${opt('', 'All voltages', filter.voltage)}${voltages.map(v => opt(v, voltageText(v), filter.voltage)).join('')}</select><select data-filter="conductors" aria-label="Conductor count">${opt('', 'All conductor counts', filter.conductors)}${counts.map(v => opt(v, v + (v === 1 ? ' conductor' : ' conductors'), filter.conductors)).join('')}</select></div><div data-catalog-results></div></div><aside class="catalog-detail" data-catalog-detail></aside></div>`;
+}
+// SPEC families present in the catalog; families loaded in full (all sizes) come first.
+function specSelect() {
+  const full = new Set(meta.appFilter?.fullSpecs || []), titles = new Map();
+  for (const c of catalog) if (!titles.has(c.spec)) titles.set(c.spec, c.title);
+  const specs = [...titles.keys()].sort((a, b) => (full.has(b) - full.has(a)) || a.localeCompare(b, 'en', {numeric: true}));
+  const label = s => `SPEC ${s} · ${titles.get(s).split('.')[0]}${full.has(s) ? ' (all sizes)' : ''}`;
+  return `<select class="spec-filter" data-filter="spec" aria-label="Southwire SPEC family">${opt('', 'All SPEC families', filter.spec)}${specs.map(s => opt(s, label(s), filter.spec)).join('')}</select>`;
 }
 function filteredCatalog() {
   const q = filter.q.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  return catalog.filter(c => (!filter.category || c.category === filter.category) && (!filter.voltage || c.voltage === +filter.voltage) && (!filter.conductors || c.conductors === +filter.conductors)
+  return catalog.filter(c => (!filter.spec || c.spec === filter.spec) && (!filter.category || c.category === filter.category) && (!filter.voltage || c.voltage === +filter.voltage) && (!filter.conductors || c.conductors === +filter.conductors)
     && q.every(t => `${c.stock} ${c.spec} ${cableSize(c)} ${c.title} ${c.insulation} ${c.conductors}C ${labels[c.category]}`.toLowerCase().includes(t)));
 }
 function updateCatalog(root) {
@@ -236,7 +244,7 @@ function addCable(root) {
 function openCatalog() {
   const d = $('#catalogDialog');
   lastAdded = '';
-  d.innerHTML = `<div class="dialog-header"><div><h2>Add cables</h2><p>Southwire catalog · ${integer(catalog.length)} copper items · multiconductor up to 2/0 AWG</p></div>${btn('close-catalog', icon('close'), 'quiet icon-btn', 'aria-label="Close catalog"')}</div>${catalogContent()}`;
+  d.innerHTML = `<div class="dialog-header"><div><h2>Add cables</h2><p>Southwire catalog · ${integer(catalog.length)} copper items · multiconductor up to 2/0 AWG; ${(meta.appFilter?.fullSpecs || []).map(s => 'SPEC ' + s).join(', ')} in all sizes</p></div>${btn('close-catalog', icon('close'), 'quiet icon-btn', 'aria-label="Close catalog"')}</div>${catalogContent()}`;
   updateCatalog(d); renderCatalogDetail(d); d.showModal(); $('[data-filter="q"]', d).focus();
 }
 
@@ -320,7 +328,7 @@ document.addEventListener('submit', e => {
 
 async function start() {
   try {
-    [catalog, meta] = await Promise.all(['catalog.json', 'catalog-metadata.json'].map(async path => { const r = await fetch(path); if (!r.ok) throw new Error('Unable to load ' + path); return r.json(); }));
+    [catalog, meta] = await Promise.all(['catalog.json', 'catalog-metadata.json'].map(async path => { const r = await fetch(path, {cache: 'no-cache'}); if (!r.ok) throw new Error('Unable to load ' + path); return r.json(); }));
     try { const raw = localStorage.getItem(STORE); if (raw) tray = validateTray(JSON.parse(raw)); } catch { tray = null; }
     tray ||= blankTray(uid);
     selectedComp = tray.compartments[0].id;

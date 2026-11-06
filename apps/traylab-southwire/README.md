@@ -7,7 +7,8 @@ installation-condition input. U.S. units throughout (inches, AWG/kcmil, lb/ft).
 
 ## Workflow
 
-1. **Add cable** opens the Southwire catalog. Click a row, set the quantity of
+1. **Add cable** opens the Southwire catalog. Filter by SPEC family,
+   application, voltage or conductor count, click a row, set the quantity of
    physical cables and the compartment, then **Add to tray**. The window stays
    open so several cable types can be added. Clicking a cable size opens its
    Southwire PDF data sheet.
@@ -49,7 +50,12 @@ D is the outside diameter of one cable. A trefoil is 2D wide and 1.866D high.
 
 `catalog.json` is a dated Southwire CableTech snapshot filtered to copper and
 tinned-copper conductors, multiconductor cables up to and including 2/0 AWG
-and single conductors in all sizes (1,469 of 2,195 imported records).
+and single conductors in all sizes. SPEC 45252 (3/C XHHW-2 TC-ER, 600/1000 V)
+is loaded in full, 8 AWG to 750 kcmil (24 items), from its current data sheet
+(revision 1.000.012,
+[PDF](https://cabletechsupport.southwire.com/en/cablespec/download_spec/?spec=45252&country=US)).
+1,484 items in all. In the **Add cable** window the SPEC selector picks one
+family; families loaded in full are listed first.
 `catalog-metadata.json` records the source, families and the filter.
 Dimensions are nominal.
 

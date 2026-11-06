@@ -12,9 +12,9 @@
   "scope": "Specification families enumerated on the US Power & Control, Medium Voltage and industrial metal-clad section indexes, plus the official VFD search. Rows without an identifiable conductor count, diameter, size or voltage are excluded. Not a guarantee of every current Southwire product worldwide.",
   "discoveredSpecs": 171,
   "importedSpecs": 167,
-  "totalRecords": 1469,
+  "totalRecords": 1484,
   "categories": {
-    "power": 429,
+    "power": 444,
     "control": 489,
     "vfd": 87,
     "mv": 464
@@ -358,9 +358,13 @@
       "title": "CU 600/1000V XLPE Insulation PVC Jacket XHHW-2. CT Rated - Sunlight Resistant - For Direct Burial - Silicone Free",
       "category": "power",
       "url": "https://cabletechsupport.southwire.com/en/tile/1/spec/45252/?country=US",
-      "records": 9,
+      "records": 24,
       "voltage": 1000,
-      "trayRated": true
+      "trayRated": true,
+      "fullSpec": true,
+      "pdfUrl": "https://cabletechsupport.southwire.com/en/cablespec/download_spec/?spec=45252&country=US",
+      "revision": "1.000.012",
+      "retrievedAt": "2026-11-06"
     },
     {
       "spec": "45253",
@@ -1670,6 +1674,9 @@
   "appFilter": {
     "appliedAt": "2026-11-05",
     "sourceRecords": 2195,
-    "rule": "Copper and tinned-copper conductors only. Multiconductor cables up to and including 2/0 AWG; single-conductor cables in all sizes."
+    "rule": "Copper and tinned-copper conductors only. Multiconductor cables up to and including 2/0 AWG; single-conductor cables in all sizes. Exception: SPEC 45252 is loaded in full (all sizes, 8 AWG to 750 kcmil) from its current data sheet.",
+    "fullSpecs": [
+      "45252"
+    ]
   }
 }

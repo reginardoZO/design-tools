@@ -5,6 +5,7 @@ import {blankTray, compartmentsOf, validateTray, resizeTray, evaluateTray, sugge
 import {formatNumber, dimension, conductorSize, cableSize} from '../apps/traylab-southwire/format.js';
 
 const catalog = JSON.parse(readFileSync(new URL('../apps/traylab-southwire/catalog.json', import.meta.url)));
+const meta = JSON.parse(readFileSync(new URL('../apps/traylab-southwire/catalog-metadata.json', import.meta.url)));
 let n = 0;
 const id = () => 'id' + (n++);
 const multi8 = catalog.find(c => c.spec === '45252' && c.size === '8' && c.conductors === 3);
@@ -12,13 +13,24 @@ const single500 = catalog.find(c => c.spec === '45003' && c.size === '500');
 const tray = (o = {}) => ({...blankTray(id), ...o});
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 
-test('catalog holds copper only, with multiconductor cables up to 2/0 AWG', () => {
+test('catalog holds copper only, with multiconductor cables up to 2/0 AWG except full SPEC families', () => {
+  const full = new Set(meta.appFilter.fullSpecs);
   assert.ok(catalog.length > 1000);
   assert.ok(catalog.every(c => /copper/i.test(c.material) && !/alum/i.test(c.material)));
-  assert.ok(catalog.filter(c => c.conductors > 1).every(c => c.sizeKcmil <= 133.1 + 1e-6));
+  assert.ok(catalog.filter(c => c.conductors > 1 && !full.has(c.spec)).every(c => c.sizeKcmil <= 133.1 + 1e-6));
   assert.ok(catalog.some(c => c.conductors === 1 && c.sizeKcmil >= 1000));
   assert.ok(catalog.every(c => c.odIn > 0 && c.conductors > 0 && c.pdfUrl.startsWith('https://cabletechsupport.southwire.com/')));
   assert.ok(multi8 && single500);
+});
+
+test('SPEC 45252 is loaded in full from its data sheet (8 AWG to 750 kcmil)', () => {
+  const rows = catalog.filter(c => c.spec === '45252');
+  assert.equal(rows.length, 24);
+  assert.equal(meta.specs.find(s => s.spec === '45252').records, 24);
+  assert.ok(rows.every(c => c.conductors === 3 && c.voltage === 1000 && c.trayRated && c.odIn > 0 && /^1 x /.test(c.ground)));
+  const big = rows.find(c => c.stock === '589359');
+  assert.equal(big.size, '750'); assert.equal(big.odIn, 2.694); assert.equal(big.weightLbKft, 8919);
+  assert.equal(new Set(rows.map(c => c.id)).size, 24);
 });
 
 test('dividers reduce clear width and resizing keeps proportions', () => {
