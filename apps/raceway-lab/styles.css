@@ -17,6 +17,11 @@ body{padding:28px;max-width:1700px;margin:auto}h1{font-size:36px!important}h2{fo
 .mcc-load-current strong{font:600 14px var(--data)}
 .mcc-load-current span{font-size:12px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
 .mcc-empty{margin:0;padding:20px;border:1px dashed var(--steel);border-radius:6px;font-size:14px;color:var(--muted)}
+.vd-results{margin-top:22px}
+.vd-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:12px;break-inside:avoid}
+.vd-metrics>div{padding:14px;border:1px solid var(--steel);border-radius:6px;background:var(--field);min-width:0}
+.vd-metrics span,.vd-metrics b{display:block;font-size:12px}
+.vd-metrics strong{display:block;font:600 24px var(--data);margin:8px 0}
 @media(max-width:1200px){.workspace{grid-template-columns:180px minmax(340px,1fr)}#summary{grid-column:2;position:static;display:grid;grid-template-columns:1fr 1fr;gap:12px}.mini{margin:0}}
 @media(max-width:760px){body{padding:15px}.workspace{display:flex;flex-direction:column;gap:15px}nav{position:static;display:grid;grid-template-columns:1fr 1fr;width:100%;gap:5px}nav button{padding:9px}.navnote{display:none}#editor,#summary{width:100%;min-height:0}#editor{padding:18px}#summary{display:block}.mini{margin-top:12px}.fields{grid-template-columns:1fr}.toolbar{margin-top:10px}.wide{grid-column:auto}}
 @media print{body{padding:0;max-width:none;background:white;color:black;font-family:Arial,sans-serif;font-size:10pt}.eh-header,footer,.workspace,#notice{display:none!important}#printout{display:block}#printout h1{font-size:23pt!important}#printout h2{font-size:16pt;margin-top:24px}#printout h3{font-size:13pt}#printout table{font-size:9pt}#printout .equation{font-size:9pt}#printout .issues li{break-inside:avoid}thead{display:table-header-group}tr{break-inside:avoid}h2,h3{break-after:avoid}a{color:inherit}#printout .ref{font-size:8pt}#printout table.print-frame{width:100%;margin:0;font-size:10pt;border:0}#printout table.print-frame>*>tr>td{padding:0 16mm;border:0}#printout table.print-frame>tbody>tr{break-inside:auto}.print-space{height:16mm}#printout .input-record td:first-child{width:60%}#printout .input-record tbody th{background:var(--accent-wash);font-weight:700}@page{size:A4;margin:0}}

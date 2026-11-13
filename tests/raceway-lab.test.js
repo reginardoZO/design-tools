@@ -4,6 +4,7 @@ import {readFileSync,existsSync} from 'node:fs';
 import {calculate,defaults,newProject,changeLoadType,LOAD_TYPES,correction,adjustment,fill,grounding,demand,area,cableBend,familyRatings,familyEntries,motorTableFLC,label} from '../apps/raceway-lab/engine.js';
 import {MV_1C,MV_3C,CONDUIT_BEND,SIZES} from '../apps/raceway-lab/data.js';
 import {loadProject} from '../apps/raceway-lab/project.js';
+import {impedanceKey,voltageDropDefaults} from '../apps/raceway-lab/voltage-drop.js';
 const cat=JSON.parse(readFileSync(new URL('../apps/raceway-lab/catalog.json',import.meta.url)));
 const run=changes=>calculate({...defaults(),...changes},cat);
 const has=(r,c)=>r.issues.some(x=>x.code===c);
@@ -263,7 +264,7 @@ test('load type changes and project v5 round trips clear incompatible values',()
   const changed=changeLoadType({...newProject(),ocpd:500,motorTrip:110,driveInput:100,loadValue:20,efficiency:95,continuousRatedAssembly:true},loadType);
   assert.equal(changed.loadType,loadType);assert.ok(Number.isNaN(changed.ocpd));assert.ok(Number.isNaN(changed.motorTrip));assert.ok(Number.isNaN(changed.loadValue));assert.equal(changed.continuousRatedAssembly,false);
   const restored=loadProject(JSON.parse(JSON.stringify(changed)));
-  assert.equal(restored.version,6);assert.equal(restored.loadType,loadType);assert.ok(Number.isNaN(restored.efficiency));
+  assert.equal(restored.version,7);assert.equal(restored.loadType,loadType);assert.ok(Number.isNaN(restored.efficiency));
  }
  assert.equal(loadProject(JSON.parse(JSON.stringify({...defaults(),loadType:'vfd-input'}))).loadType,'lv-vfd');
 });
@@ -272,4 +273,65 @@ test('hub registration, static build and local assets resolve',()=>{
  const read=x=>readFileSync(new URL('../'+x,import.meta.url),'utf8');assert.equal(read('index.html').match(/href="apps\/raceway-lab\/index.html"/g)?.length,1);assert.match(read('scripts/build.mjs'),/'raceway-lab'/);
  const page=new URL('../apps/raceway-lab/index.html',import.meta.url);
  for(const [,href] of read('apps/raceway-lab/index.html').matchAll(/(?:src|href)="([^"]+)"/g))assert.ok(existsSync(new URL(href,page)),href);
+});
+
+const vdProject=()=>({...newProject(),continuous:100,noncontinuous:0,ocpd:150,
+ selection:'manual',size:'1/0',conduitType:'PVC40',vdEnabled:true,
+ vdMethod:'reference',vdLength:400,vdPowerFactor:0.85});
+test('optional voltage drop uses operating current, one-way length and shared reference impedance',()=>{
+ const p=vdProject(),r=calculate(p,cat),v=r.voltageDrop;
+ const expected=Math.sqrt(3)*100*(.12*.85+.044*Math.sqrt(1-.85**2))*.4;
+ assert.equal(v.valid,true);near(v.drop,expected);near(v.percent,expected/480*100);
+ near(v.receivingVoltage,480-expected);assert.equal(v.current,100);assert.equal(r.load.required,125);
+ near(calculate({...p,vdLength:121.92,vdLengthUnit:'m'},cat).voltageDrop.drop,expected);
+ near(calculate({...p,phases:1,voltage:240},cat).voltageDrop.drop,expected*2/Math.sqrt(3));
+ near(calculate({...p,sets:2},cat).voltageDrop.drop,expected/2);
+ near(calculate({...p,vdCurrentBasis:'manual',vdCurrent:50},cat).voltageDrop.drop,expected/2);
+ const failed=calculate({...p,vdLimit:1},cat);
+ assert.equal(failed.voltageDrop.pass,false);assert.equal(failed.status,'Review required');assert.ok(has(failed,'voltage-drop-limit'));
+ const disabled=calculate({...p,vdEnabled:false,vdLength:NaN,vdPowerFactor:NaN},cat);
+ assert.equal(disabled.voltageDrop,null);assert.equal(disabled.status,'Calculated');
+ assert.equal(disabled.selected.size,r.selected.size);assert.equal(disabled.selected.conduit.trade,r.selected.conduit.trade);
+ assert.ok(!disabled.issues.some(x=>x.code.startsWith('voltage-drop')));
+});
+test('voltage drop rejects invalid inputs and inapplicable PVC reference instead of inventing an answer',()=>{
+ const p=vdProject();
+ for(const changes of [{vdLength:0},{vdLength:Infinity},{vdLengthUnit:'yd'},{vdPowerFactor:0},
+  {vdPowerFactor:1.1},{vdLimit:0},{vdLimit:100},{vdCurrentBasis:'manual',vdCurrent:NaN},
+  {vdCurrentBasis:'unknown'},{vdMethod:'unknown'},{conduitType:'RMC'},{construction:'multi',family:'4:5'},
+  {frequency:50},{frequency:NaN},{...mv},{neutral:'linear',neutralCurrent:50}]){
+  const r=calculate({...p,...changes},cat);
+  assert.equal(r.voltageDrop.valid,false,JSON.stringify(changes));
+  assert.ok(r.voltageDrop.errors.length);assert.equal(r.voltageDrop.drop,undefined);
+  assert.notEqual(r.status,'Calculated');
+ }
+});
+test('documented impedance supports the actual installation and becomes stale after a cable/raceway change',()=>{
+ let p={...vdProject(),conduitType:'RMC',vdMethod:'custom',vdResistance:.13,vdReactance:.05,
+  vdSource:'Example manufacturer AC data, 1/0 Cu in steel, 75 C, 60 Hz'};
+ p.vdImpedanceKey=impedanceKey(p,calculate({...p,vdEnabled:false},cat).selected);
+ const r=calculate(p,cat);
+ assert.equal(r.voltageDrop.valid,true);assert.equal(r.voltageDrop.r,.13);
+ near(r.voltageDrop.drop,Math.sqrt(3)*100*(.13*.85+.05*Math.sqrt(1-.85**2))*.4);
+ for(const changes of [{size:'2/0'},{conduitType:'EMT'},{frequency:50},{vdSource:''},
+  {vdResistance:0},{vdReactance:-1},{vdReactance:Infinity},{vdSource:123}]){
+  assert.equal(calculate({...p,...changes},cat).voltageDrop.valid,false,JSON.stringify(changes));
+ }
+ assert.equal(calculate({...p,vdReactance:0},cat).voltageDrop.valid,true);
+ const mvInput={...newProject(),...mv,vdEnabled:true,vdMethod:'custom',vdLength:400,
+  vdResistance:.1,vdReactance:.05,vdSource:'Example MV impedance, 60 Hz, 90 C, steel'};
+ mvInput.vdImpedanceKey=impedanceKey(mvInput,calculate({...mvInput,vdEnabled:false},cat).selected);
+ assert.equal(calculate(mvInput,cat).voltageDrop.valid,true);
+});
+test('project v7 preserves optional voltage drop; versions 2–6 keep it disabled',()=>{
+ const p={...vdProject(),vdCurrentBasis:'manual',vdCurrent:80};
+ const restored=loadProject(JSON.parse(JSON.stringify(p)));
+ assert.equal(restored.vdEnabled,true);assert.equal(restored.vdCurrent,80);
+ near(calculate(restored,cat).voltageDrop.drop,calculate(p,cat).voltageDrop.drop);
+ const old={...p,version:6};
+ for(const key of Object.keys(voltageDropDefaults()))delete old[key];
+ const migrated=loadProject(JSON.parse(JSON.stringify(old)));
+ assert.equal(migrated.version,7);assert.equal(migrated.vdEnabled,false);assert.ok(Number.isNaN(migrated.vdLength));
+ for(const invalid of [{vdEnabled:'yes'},{vdMethod:'invalid'},{vdLengthUnit:'yd'}])
+  assert.throws(()=>loadProject({...p,...invalid}));
 });

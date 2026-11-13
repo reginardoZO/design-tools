@@ -31,6 +31,18 @@ test('both app sizing engines receive the 276.25 A MCC feeder requirement',()=>{
  assert.ok(raceway.issues.some(issue=>issue.code==='mcc-protection-unverified'));
 });
 
+test('optional Raceway voltage drop uses MCC operating current and rejects mixed-phase approximation',()=>{
+ const p={...newProject(),loadType:'mcc-feeder',mccLoads:[motor('M-1','50',4)],ocpd:400,
+  conduitType:'PVC40',vdEnabled:true,vdMethod:'reference',vdLength:400};
+ const r=calculate(p,catalog);
+ near(r.load.required,276.25);near(r.voltageDrop.current,260);
+ assert.equal(r.voltageDrop.valid,true);
+ const single={...amps('AB','general',20),phases:1,phasePair:'AB'};
+ const mixed=calculate({...p,mccLoads:[...p.mccLoads,single]},catalog);
+ assert.equal(mixed.voltageDrop.valid,false);
+ assert.ok(mixed.voltageDrop.errors.some(e=>e.includes('phase-by-phase')));
+});
+
 test('motors, continuous load, and noncontinuous load use the 430.24 feeder formula',()=>{
  const loads=[motor('M1','50'),motor('M2','50'),amps('H1','general',30,'continuous'),amps('L1','general',20,'noncontinuous')];
  const {mcc}=computeLoad({type:'mcc',voltage:'480',phases:3,frequency:60,mccLoads:loads});
@@ -84,9 +96,9 @@ test('unsupported bypass and noncontinuous motor duty block conductor recommenda
  assert.equal(calculateMccFeeder({voltage:480,phases:3,loads:[duty]}).valid,false);
 });
 
-test('raceway project v5 migration remains backward compatible and v6 preserves MCC loads',()=>{
+test('raceway project v5 migration remains backward compatible and v7 preserves MCC loads',()=>{
  const old={...newProject(),version:5};for(const key of ['mccId','mccDescription','frequency','mccLoads'])delete old[key];
- const migrated=loadProject(JSON.parse(JSON.stringify(old)));assert.equal(migrated.version,6);assert.deepEqual(migrated.mccLoads,[]);
+ const migrated=loadProject(JSON.parse(JSON.stringify(old)));assert.equal(migrated.version,7);assert.deepEqual(migrated.mccLoads,[]);
  const current={...newProject(),loadType:'mcc-feeder',mccId:'MCC-1',frequency:60,mccLoads:[motor('M-1','50')]};
  const restored=loadProject(JSON.parse(JSON.stringify(current)));
  assert.equal(restored.mccId,'MCC-1');assert.equal(restored.mccLoads[0].tag,'M-1');

@@ -3,6 +3,7 @@ import {SIZES, CONDUITS, MOTOR_FLC, MOTOR_FLC_1PH} from './data.js';
 import {newMccLoad} from '../../shared/mcc-feeder.js';
 import {GUIDE,SOURCES} from './guide.js';
 import {loadProject} from './project.js';
+import {impedanceKey} from './voltage-drop.js';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(v,n=1)=>Number.isFinite(v)?(Math.round((v+Number.EPSILON*Math.abs(v))*10**n)/10**n).toFixed(n):'—';
@@ -98,11 +99,38 @@ function arithmetic(){const s=result.selected;if(!s)return loadTrace();return `$
  <div class="equation">EGC protective-device basis = ${fmt(p.ocpd,2)} A (entered independently from motor FLC / overload trip)<br>EGC base = ${s.g?label(s.g.base):'—'} · phase area increase ratio = ${fmt(s.g?.ratio,3)}<br>Required copper EGC in each raceway = ${s.g?`${label(s.g.size)} (${fmt(s.g.required,2)} kcmil)`:'—'}${p.groundMode==='integral'?`<br>Integral grounds = ${s.cable?.ground?`${s.cable.ground.count} × ${label(s.cable.ground.size)} = ${fmt(s.groundKcmil,2)} kcmil`:'none'}`:''}<br>Cable ${esc(s.cable?.catalogNumber??'—')} · OD = ${fmt(s.cable?.odIn,3)} in · rated ${s.cable?.voltage??'—'} V<br>Fill items = ${s.conduit?.count??'—'} · occupied area = ${fmt(s.conduit?.used,4)} in²<br>Raceway internal area = ${fmt(s.conduit?.area,4)} in²<br>Fill = ${fmt(s.conduit?.percent,2)}% · NEC limit = ${s.conduit?.nec??'—'}%</div>
  <div class="equation">Bend total = ${p.bends}° / 360°<br>Cable minimum bending radius = ${esc(s.bend?.rule??'—')} = ${fmt(s.bend?.radius,2)} in (${esc(s.bend?.ref??'')})<br>Conduit ${esc(s.conduit?.trade??'—')} in bend radius (Chapter 9 Table 2, other bends) = ${s.conduit?.bendRadius??'—'} in<br>Phase-cable jam screening: D/d = ${fmt(s.conduit?.jamRatio,3)} · 1.05D/d = ${fmt(s.conduit?.jamCorrected,3)}${p.construction==='multi'?' (not applicable to one 3/C cable)':''}<br>Geometry screening is not a pulling-tension or sidewall-pressure calculation.</div>`;}
 function verdict(x){return x.pass?'Pass':!x.ampPass?'Ampacity / protection':!x.cable?'Not in family':!x.cablePass||!x.voltageBandPass||!x.levelPass||!x.tempPass?'Cable rating':!Number.isFinite(p.ocpd)?'EGC / fill pending':!x.integralPass?'Integral EGC':!x.conduit?'Fill / bend radius':!x.conduit.fillPass?'Conduit fill':!x.conduit.bendPass?'Bend radius':'Review'}
+function voltageDropInputs(){
+ return note(`Selected circuit: <b>${cableComposition(result.selected)}</b><br>${p.sets} equal parallel set${p.sets>1?'s':''} · ${circuitVoltage(p)} V · ${p.phases===1?'single-phase two-wire':'three-phase'}. This check does not change the selected cable.`)+fields(
+  field('vdLength','One-way route length','Source to load; do not double the distance.')+
+  select('vdLengthUnit','Length unit',[['ft','Feet'],['m','Metres']])+
+  field('vdPowerFactor','Operating power factor','Lagging PF, above 0 and at most 1; independent from conductor-sizing load factors.')+
+  field('vdLimit','Maximum voltage drop · %','User-defined design limit; includes only this circuit segment.')+
+  select('vdCurrentBasis','Operating current basis',[['load','Use circuit operating / reference current'],['manual','Enter operating current']])+
+  (p.vdCurrentBasis==='manual'?field('vdCurrent','Operating line current · A','Total for one circuit, before sharing across parallel sets.'):note(`Circuit operating / reference current: <b>${fmt(result.load?.mcc?.operatingCurrent??result.load?.actual,2)} A</b>. No 125% conductor-sizing multiplier is applied.`))+
+  select('vdMethod','Impedance basis',[['custom','Documented cable / installation R and X'],['reference','Reference · copper in PVC, 75°C, 60 Hz']])+
+  field('frequency','System frequency · Hz','Reference data require 60 Hz; documented impedance must match this frequency.')+
+  (p.vdMethod==='custom'?field('vdResistance','AC resistance R · ohms/1000 ft','Per phase conductor, not divided by parallel sets. At the documented operating temperature.')+
+   field('vdReactance','Reactance X · ohms/1000 ft','Per phase conductor for the selected cable and raceway. Zero is permitted.')+
+   field('vdSource','R/X source and conditions','Document conductor size, temperature, frequency and installation arrangement. Changing the cable or raceway requires new R/X entries.','text')
+   :note('Reference data are shared with the Voltage Drop app. Valid only for LV single conductors in PVC at 75°C and 60 Hz. Metallic raceways, multicore and MV cables require documented R/X.',true))
+ );
+}
+function voltageDropStep(){
+ return `<h2>Voltage drop</h2><p class="lead">Optional steady-state check for the selected cable and parallel sets.</p>${check('vdEnabled','Calculate voltage drop and include it in the final report')}${p.vdEnabled?voltageDropInputs()+voltageDropResults():note('Not enabled. Voltage-drop inputs and results will be omitted from Results and Print calculation.')}`;
+}
+function voltageDropResults(){
+ if(!p.vdEnabled)return '';
+ const v=result.voltageDrop;
+ if(!v?.valid)return `<section class="vd-results"><h3>Voltage drop · pending</h3>${note((v?.errors||['Complete the voltage-drop inputs.']).map(esc).join('<br>'),true)}</section>`;
+ return `<section class="vd-results"><h3>Voltage drop</h3><div class="vd-metrics"><div><span>Voltage drop</span><strong>${fmt(v.drop,2)} V</strong></div><div><span>Drop / ${fmt(p.vdLimit,2)}% limit</span><strong>${fmt(v.percent,2)}%</strong><b>${v.pass?'Within limit':'Above limit'}</b></div><div><span>Estimated load voltage</span><strong>${fmt(v.receivingVoltage,2)} V</strong></div></div>
+ <div class="equation">Selected phase conductor = ${label(result.selected.size)} Cu · ${p.sets} equal parallel set${p.sets>1?'s':''}<br>Operating current = ${fmt(v.current,2)} A (${p.vdCurrentBasis==='load'?'circuit operating / reference current':'entered operating current'})<br>One-way length = ${fmt(p.vdLength,2)} ${esc(p.vdLengthUnit)} = ${fmt(v.lengthFt,2)} ft<br>R = ${fmt(v.r,4)}; X = ${fmt(v.x,4)} ohms/1000 ft per conductor<br>PF = ${fmt(p.vdPowerFactor,3)} lagging<br>Z effective = R × PF + X × √(1 − PF²) = ${fmt(v.effectiveImpedance,5)} ohms/1000 ft<br>ΔV = ${p.phases===3?'√3':'2'} × ${fmt(v.current,2)} × ${fmt(v.effectiveImpedance,5)} × ${fmt(v.lengthFt,2)} / (1000 × ${p.sets}) = ${fmt(v.drop,2)} V<br>ΔV% = 100 × ΔV / ${circuitVoltage(p)} = ${fmt(v.percent,2)}%<br>Estimated load voltage = ${circuitVoltage(p)} − ${fmt(v.drop,2)} = ${fmt(v.receivingVoltage,2)} V</div>
+ <p class="ref">Impedance basis: ${esc(v.basis)}</p>${v.warnings.map(w=>ref(esc(w))).join('')}</section>`;
+}
 function candidateTable(){return `<div class="tablewrap"><table><thead><tr><th>Size</th><th>Catalog no.</th><th>Allowed A</th><th>Conduit</th><th>Fill</th><th>Cable / conduit bend R</th><th>Numerical checks</th></tr></thead><tbody>${result.candidates.filter(x=>x.cable||p.selection==='manual').map(x=>`<tr class="${x.size===result.selected?.size?'selected':''}"><td>${label(x.size)}</td><td>${esc(x.cable?.catalogNumber??'—')}</td><td class="numeric">${fmt(x.allowed)}</td><td>${esc(x.conduit?.trade??'—')}</td><td class="numeric">${fmt(x.conduit?.percent)}%</td><td class="numeric">${fmt(x.bend?.radius)} / ${x.conduit?.bendRadius??'—'} in</td><td>${verdict(x)}</td></tr>`).join('')}</tbody></table></div>`;}
-function results(){return `<h2>Results</h2><p class="lead">${esc(result.status)}. Numerical results cover the stated model.</p>${result.selected&&p.selection==='auto'?`<button id="use-size" class="primary">Use ${label(result.selected.size)} for detailed verification</button>`:''}${issueList()}${arithmetic()}<h3>Candidate comparison</h3>${candidateTable()}`;}
+function results(){return `<h2>Results</h2><p class="lead">${esc(result.status)}. Numerical results cover the stated model.</p>${result.selected&&p.selection==='auto'?`<button id="use-size" class="primary">Use ${label(result.selected.size)} for detailed verification</button>`:''}${issueList()}${voltageDropResults()}${arithmetic()}<h3>Candidate comparison</h3>${candidateTable()}`;}
 function guide(){return `<h2>How aboveground raceway sizing works</h2><p class="lead">Read the method in order, or search for a topic or NEC section. Code requirements, design choices and manufacturer checks are identified separately.</p><input class="guide-search" id="guide-search" aria-label="Search learning guide" placeholder="Search: ampacity, 315.60, grounding, bending…"><div id="guide-items">${GUIDE.map(([title,text,basis])=>`<details><summary>${title}</summary><p>${text}</p>${ref(basis)}</details>`).join('')}</div><h3>Reference sources</h3>${SOURCES.map(([name,url,desc])=>`<p><a href="${url}" target="_blank" rel="noopener">${name}</a><br><small>${desc}</small></p>`).join('')}<p class="ref">See <a href="SOURCES.md">data provenance and implementation notes</a>. Consult the adopted NEC text for the full conditions and exceptions.</p>`;}
 function summary(){const s=result.selected;const klass=result.status==='Blocked'?'blocked':result.status==='Calculated'?'calculated':'review';return `<div class="plate"><span class="status ${klass}">${result.status}</span><p class="ref">${p.selection==='auto'?'SIZING PROPOSAL':'SELECTED CIRCUIT'} · ${mv()?'MV':'LV'}</p><div class="metric">${s?label(s.size):'—'}</div><div>${p.sets} set${p.sets>1?'s':''} · ${cableComposition(s)}</div><div class="ref">${esc(s?.cable?`Okonite ${s.cable.catalogNumber}`:'')}</div><hr><p class="ref">PER RACEWAY</p><div class="metric small">${s?.conduit?esc(s.conduit.trade)+' in':'—'} ${p.conduitType}</div><div>${p.circuits} circuit${p.circuits>1?'s':''} · EGC ${p.groundMode==='integral'?`${catalogGround(s?.cable)} integral`:s?.g?`${label(s.g.size)} Cu separate`:'pending (separate)'}</div></div><div class="mini"><dl><dt>Operating / required current</dt><dd>${fmt(result.load?.actual)} / ${fmt(result.load?.required)} A</dd><dt>Final allowable ampacity · all sets</dt><dd>${fmt(s?.allowed)} A</dd><dt>Conduit fill</dt><dd>${fmt(s?.conduit?.percent)}% / ${s?.conduit?.nec??'—'}%</dd><dt>Bend radius · cable / conduit</dt><dd>${fmt(s?.bend?.radius)} / ${s?.conduit?.bendRadius??'—'} in</dd></dl><div class="bar"><span style="width:${Math.min(100,s?.conduit?.percent||0)}%"></span></div><p class="ref">${result.issues.filter(x=>x.level==='block').length} blocking · ${result.issues.filter(x=>x.level==='review').length} review items</p></div><div class="mini"><b>Two independent checks</b><p class="ref">Ampacity controls conductor heat.<br>Fill and bend radius control the raceway.<br>Passing one does not establish the other.</p></div>`;}
-function render(){result=calculate(p,catalog);$('#editor').innerHTML=[circuit,cable,raceway,results,guide][step]()+ (step<4?`<div class="next"><button id="previous" ${step===0?'disabled':''}>← Previous</button><button id="next" class="primary">${step===3?'Open learning guide':'Continue →'}</button></div>`:'');$('#summary').innerHTML=summary().replace('3 × 1/C',p.phases===1?'2 x 1/C':'3 × 1/C');$('.navnote').innerHTML=`${p.phases===1?'SINGLE-PHASE':'THREE-PHASE'} · ${p.frequency} Hz<br>Cu conductors<br>LV ≤1 kV · MV >1–15 kV`;document.querySelectorAll('[data-step]').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===step));}
+function render(){result=calculate(p,catalog);$('#editor').innerHTML=[circuit,cable,raceway,voltageDropStep,results,guide][step]()+ (step<5?`<div class="next"><button id="previous" ${step===0?'disabled':''}>← Previous</button><button id="next" class="primary">${step===4?'Open learning guide':'Continue →'}</button></div>`:'');$('#summary').innerHTML=summary();$('.navnote').innerHTML=`${p.phases===1?'SINGLE-PHASE':'THREE-PHASE'} · ${p.frequency} Hz<br>Cu conductors<br>LV ≤1 kV · MV >1–15 kV`;document.querySelectorAll('[data-step]').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===step));}
 function syncFamily(){
  const family=familyOptions();if(!family.some(([id])=>id===p.family))p.family=family[0]?.[0]||'';
  const entries=familyEntries(catalog,p);const c=entries[0];if(!c)return;
@@ -116,7 +144,7 @@ function go(n){step=n;render();window.scrollTo({top:0,behavior:'smooth'});}
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.step!==undefined)go(Number(b.dataset.step));
- if(b.id==='next')go(Math.min(4,step+1)); if(b.id==='previous')go(Math.max(0,step-1));
+ if(b.id==='next')go(Math.min(5,step+1)); if(b.id==='previous')go(Math.max(0,step-1));
  if(b.id==='add-mcc-load'){const item=newMccLoad('motor',`load-${Date.now()}-${Math.random().toString(36).slice(2,7)}`);item.voltage=p.voltage;item.horsepower=NaN;p.mccLoads=[...(p.mccLoads||[]),item];render();}
  if(b.dataset.mccAction){const index=Number(b.dataset.mccIndex);if(b.dataset.mccAction==='remove')p.mccLoads=p.mccLoads.filter((_,i)=>i!==index);if(b.dataset.mccAction==='duplicate'){const copy={...p.mccLoads[index],id:`load-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,tag:`${p.mccLoads[index].tag||'Load'} copy`};p.mccLoads=[...p.mccLoads.slice(0,index+1),copy,...p.mccLoads.slice(index+1)];}render();}
  if(b.id==='use-size'&&result.selected){p.size=result.selected.size;p.selection='manual';if(result.selected.conduit)p.conduitSize=result.selected.conduit.trade;render();showNotice('Selected size and conduit retained for detailed verification.');}
@@ -129,6 +157,11 @@ $('#editor').addEventListener('change',e=>{
   render();return;
  }
  const key=t.dataset.key;if(!key)return;
+ if(['vdResistance','vdReactance','vdSource'].includes(key)){
+  const nextKey=impedanceKey(p,result.selected);
+  if(p.vdImpedanceKey!==nextKey){p.vdResistance=NaN;p.vdReactance=NaN;p.vdSource='';}
+  p.vdImpedanceKey=nextKey;
+ }
  const oldMV=mv(),oldLoadType=p.loadType; p[key]=t.type==='checkbox'?t.checked:t.type==='number'?(t.value.trim()===''?NaN:Number(t.value)):t.value;
  if(['motorHp','motorVoltage'].includes(key))p[key]=t.value.trim()===''?NaN:Number(t.value);
  if(['insulation','insulationLevel','cableVoltage','phases'].includes(key))p[key]=Number(t.value);
@@ -149,11 +182,11 @@ $('#editor').addEventListener('input',e=>{if(e.target.id==='guide-search'){const
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
 $('#save').onclick=()=>{try{localStorage.setItem(KEY,JSON.stringify(p));showNotice('Saved on this browser. Export JSON to keep a transferable backup.');}catch{showNotice('Browser storage is unavailable. Use Export JSON instead.');}};
 $('#export').onclick=()=>download('conduit-way-lab-project.json',JSON.stringify(p,null,2),'application/json');
-$('#import').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;const next=loadProject(JSON.parse(await file.text()));p=next;syncFamily();step=0;render();showNotice('Project imported. Recalculate and review the sizing basis before issue.');}catch{showNotice('Import failed: select a valid Conduit Way Lab version 2–6 JSON file. Current design retained.');}e.target.value='';};
+$('#import').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;const next=loadProject(JSON.parse(await file.text()));p=next;syncFamily();step=0;render();showNotice('Project imported. Recalculate and review the sizing basis before issue.');}catch{showNotice('Import failed: select a valid Conduit Way Lab version 2–7 JSON file. Current design retained.');}e.target.value='';};
 // Reuse the editor step markup so the record shows the same labels, units and choices the engineer saw.
 function inputRecord(){
  const t=document.createElement('template');
- return [['Circuit & load',circuit],['Cable & ampacity',cable],['Raceway & installation',raceway]].map(([section,view])=>{
+ return [['Circuit & load',circuit],['Cable & ampacity',cable],['Raceway & installation',raceway],...(p.vdEnabled?[['Voltage drop',voltageDropInputs]]:[])].map(([section,view])=>{
   t.innerHTML=view();
   const rows=[...t.content.querySelectorAll('.field, label.check')].map(el=>{
    if(el.querySelector('[data-mcc-field]'))return null;
@@ -214,6 +247,7 @@ function criteriaList(){
   ['Bending radius','Conduit bend radius (Chapter 9 Table 2) must be at least the cable minimum bending radius; total bends ≤ 360°. Pulling tension and sidewall pressure are not calculated.'],
   ['Selection rule',p.selection==='auto'?'Smallest catalog size passing all numerical checks; smallest passing trade size unless a size was specified.':'User-selected conductor size verified against all numerical checks.']
  ];
+ if(p.vdEnabled)items.push(['Voltage drop','Steady-state lagging-PF approximation: ΔV = k × I × (R × PF + X × √(1 − PF²)) × L / (1000 × parallel sets), k = √3 (balanced three-phase) or 2 (single-phase two-wire). L is the one-way distance in ft; R and X are ohms/1000 ft per conductor. The entered percentage is a design limit, not a universal NEC compliance test.']);
  return `<table class="print-kv"><tbody>${items.map(([k,v])=>`<tr><th scope="row">${k}</th><td>${v}</td></tr>`).join('')}</tbody></table>`;
 }
 function resultChecks(){
@@ -228,6 +262,7 @@ function resultChecks(){
   ['Conduit bend radius',s.bend?`≥ ${fmt(s.bend.radius,2)} in`:'—',cd?`${cd.bendRadius} in`:'—',cd?cd.bendPass:null]
  ];
  if(p.neutral!=='none')rows.splice(3,0,['Full-size neutral',`≥ ${fmt(s.neutralRequired,2)} A`,`${fmt(s.allowed,2)} A`,s.neutralPass]);
+ if(p.vdEnabled)rows.push(['Voltage drop',`≤ ${fmt(p.vdLimit,2)}%`,result.voltageDrop?.valid?`${fmt(result.voltageDrop.percent,2)}%`:'—',result.voltageDrop?.valid?result.voltageDrop.pass:null]);
  return `<table class="print-checks"><thead><tr><th>Check</th><th>Required</th><th>Provided</th><th>Result</th></tr></thead><tbody>${rows.map(([a,b,c,d])=>`<tr><td>${a}</td><td class="numeric">${b}</td><td class="numeric">${c}</td><td>${passText(d)}</td></tr>`).join('')}</tbody></table>`;
 }
 function printCalculation(){
@@ -241,7 +276,7 @@ function printCalculation(){
  ${blocks||reviews?`<p class="print-flag">${[blocks?`${blocks} blocking item${blocks>1?'s':''}`:'',reviews?`${reviews} review item${reviews>1?'s':''}`:''].filter(Boolean).join(' and ')} open. See section 5 before issue.</p>`:''}
  <h2>2. Input data</h2><table class="input-record"><thead><tr><th>Input</th><th>Value</th></tr></thead><tbody>${inputRows}</tbody></table>${mccInputTable()}
  <h2>3. Calculation criteria</h2>${criteriaList()}
- <h2>4. Results</h2><h3>Summary of checks</h3>${resultChecks()}${arithmetic()}<h3>Candidate comparison</h3>${candidateTable()}
+ <h2>4. Results</h2><h3>Summary of checks</h3>${resultChecks()}${voltageDropResults()}${arithmetic()}<h3>Candidate comparison</h3>${candidateTable()}
  <h2>5. Outstanding items</h2>${result.issues.length?issueList():'<p>None recorded.</p>'}
  <h2>6. References</h2>${SOURCES.map(([n,u,d])=>`<p class="ref"><b>${n}</b> · ${u}<br>${d}</p>`).join('')}<p class="ref">This calculation is limited to the implemented scope and does not certify the installation. See the app learning guide and SOURCES.md for all scope restrictions.</p>
  </td></tr></tbody></table>`;
@@ -249,5 +284,5 @@ function printCalculation(){
 }
 $('#print').onclick=printCalculation;
 $('#example-lv').onclick=()=>{p={...newProject(),continuous:100,noncontinuous:0,ocpd:150};syncFamily();step=0;render();showNotice('LV example: 100 A continuous feeder, 480 V, 40°C, 150 A OCPD, Okonite RHH/RHW-2.');};
-$('#example-mv').onclick=()=>{p={...newProject(),name:'Example · 4.16 kV motor circuit',voltage:4160,loadType:'mv-motor',motorFLC:250,motorTrip:280,family:'2:4',cableVoltage:5000,insulationLevel:100,selection:'auto',terminal:'90',ambient:40,ocpd:400};syncFamily();step=3;render();showNotice('MV motor example: 250 A rated current, 280 A overload trip, independent 400 A EGC device basis.');};
+$('#example-mv').onclick=()=>{p={...newProject(),name:'Example · 4.16 kV motor circuit',voltage:4160,loadType:'mv-motor',motorFLC:250,motorTrip:280,family:'2:4',cableVoltage:5000,insulationLevel:100,selection:'auto',terminal:'90',ambient:40,ocpd:400};syncFamily();step=4;render();showNotice('MV motor example: 250 A rated current, 280 A overload trip, independent 400 A EGC device basis.');};
 try{const response=await fetch('./catalog.json');if(!response.ok)throw Error('catalog');catalog=await response.json();try{const raw=localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY);if(raw){p=loadProject(JSON.parse(raw));showNotice('Saved project restored. Check the required ampacity and recalculate before use.');}}catch{showNotice('Starting a new project; saved browser data could not be read.');}syncFamily();render();}catch{showNotice('Cable catalog could not be loaded. Serve the application over HTTP and reload; calculations are unavailable.');}

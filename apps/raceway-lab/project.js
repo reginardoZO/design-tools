@@ -1,5 +1,6 @@
 import {defaults, newProject, loadDefaults, LOAD_TYPES} from './engine.js';
 import {CONDUITS, SIZES, MOTOR_FLC} from './data.js';
+import {voltageDropDefaults} from './voltage-drop.js';
 
 function migrateV2(raw) {
   const clean = defaults();
@@ -50,7 +51,8 @@ export function loadProject(raw) {
     if (raw.neutral !== 'none') raw.neutralCurrent = null;
   }
   if (raw.version === 5) raw = migrateV5(raw);
-  if (raw.version !== 6) throw Error('Unsupported project version');
+  if (raw.version === 6) raw = {...raw,...voltageDropDefaults(),version:7};
+  if (raw.version !== 7) throw Error('Unsupported project version');
   if (raw.loadType === 'vfd-input') raw = {...raw, loadType: raw.voltage > 1000 ? 'mv-vfd' : 'lv-vfd'};
   const clean = newProject();
   for (const key of Object.keys(clean)) {
@@ -65,6 +67,7 @@ export function loadProject(raw) {
     selection: ['auto', 'manual'], neutral: ['none', 'linear', 'nonlinear'],
     groundMode: ['separate', 'integral'], terminal: ['auto', '60', '75', '90', '105'],
     size: SIZES,
+    vdLengthUnit:['ft','m'],vdCurrentBasis:['load','manual'],vdMethod:['reference','custom'],
   };
   for (const [key, values] of Object.entries(choices))
     if (!values.includes(clean[key])) throw Error(`Unsupported choice: ${key}`);

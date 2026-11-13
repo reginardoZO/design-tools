@@ -5,7 +5,7 @@ circuits in aboveground RMC, IMC, EMT and PVC 40/80. Open through the hub card.
 No runtime backend, dependencies, or database is added; the existing SQLite
 engineering database and TrayLab catalog remain unchanged.
 
-The four-step interface sizes/validates cables, EGC and conduit, with an English
+The five-step interface sizes/validates cables, EGC and conduit, with an English
 learning guide, traceable calculations, candidate comparison, JSON import/export,
 local browser save and printable draft/final-status calculation records.
 
@@ -21,6 +21,30 @@ catalog row. These grounds are inside the cable and may be smaller than the phas
 Their catalog size is distinct from the NEC minimum EGC requirement; a selected
 separate EGC is identified separately. Catalog ground data remains visible even
 when the protective-device basis is missing and EGC verification is pending.
+
+The optional **Voltage drop** step sits between Raceway & installation and Results.
+Its checkbox is off by default. When off, voltage-drop inputs, criteria and results
+are omitted from Results and the printed report; saved inputs are retained.
+When on, enter the one-way route length (ft or m), lagging PF, design limit and
+operating current (from the circuit or entered manually). The calculation uses
+the selected phase conductor and equal parallel sets without automatically
+changing the cable size.
+
+The shared [voltage-drop calculator](../../shared/voltage-drop.js) supplies the same
+formula and reference table as the sibling Voltage Drop app. The reference option
+is restricted to LV single conductors in PVC at 75°C and 60 Hz. Metallic raceways,
+multicore and MV cables require documented AC R/X in ohms/1000 ft **per conductor**,
+including the source, temperature, frequency and installation arrangement.
+Changing the catalog cable, raceway type or frequency invalidates custom impedance;
+editing an R/X field starts a fresh set of entries for the new selection.
+The screen/report show volts, percent, estimated receiving voltage, the entered
+limit, impedance basis and calculation. Missing inputs or an exceeded limit put
+the result in Review required. This is a steady-state segment check, not motor
+starting, harmonic analysis or a universal NEC compliance test. Three-phase
+neutral-loaded or mixed-phase circuits require a separate phase-by-phase study.
+MCCs use operating current, not the 125% conductor-sizing current.
+Project JSON version 7 preserves these settings; versions 2–6 migrate with
+voltage drop disabled.
 
 The first panel offers the existing load types plus **MCC / Mixed Load Feeder
 (NEC 430.24)**. The MCC mode manages a connected-load list (DOL motors, VFD
@@ -54,7 +78,7 @@ unadjusted insulation/termination capacity covers 125% continuous plus 100%
 noncontinuous current; corrected/adjusted capacity covers actual load current.
 Conductor protection is checked separately, conservatively without next-size-up.
 
-Projects use JSON version 6; versions 2-5 are migrated. Blank numbers remain
+Projects use JSON version 7; versions 2-6 are migrated. Blank numbers remain
 blank. Legacy MV motors without an overload setting remain incomplete; old
 neutral designs require the newly collected unbalanced-current input.
 
@@ -94,10 +118,9 @@ neutral designs require the newly collected unbalanced-current input.
 - **Parallel:** equal sets, one set per conduit; full-circuit EGC in each.
 - **LV sharing:** multiple identical circuits; unlike loads are outside scope.
 
-Voltage drop, short-circuit withstand and the installation review checklist are
-not part of this tool. Existing sibling cable-tray, underground and voltage-drop
-applications are unchanged; these calculations were not integrated into Raceway
-Lab and are not replaced by this update.
+Short-circuit withstand and the installation review checklist are not part of
+this tool. The sibling Voltage Drop app retains its existing behavior and now
+shares its impedance reference data and voltage-drop formula with Raceway Lab.
 
 Regression examples include all requested load cases and rejection of a
 conventional 250 A device for 202.58 A continuous load. Calculations retain full

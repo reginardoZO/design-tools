@@ -1,14 +1,15 @@
 import {LV, MV_1C, MV_3C, KCMIL, SIZES, EGC, GROUND_AREA, LV_CORRECTION, MV_CORRECTION, CONDUITS, CONDUIT_BEND, GROUND_KCMIL, MOTOR_FLC, MOTOR_VOLTAGES, MOTOR_FLC_1PH, MOTOR_VOLTAGES_1PH} from './data.js';
 import {calculateMccFeeder} from '../../shared/mcc-feeder.js';
+import {voltageDropDefaults,calculateVoltageDrop} from './voltage-drop.js';
 export const label = s => `${s} ${Number(s)>=250?'kcmil':'AWG'}`;
 export const area = d => Math.PI*d*d/4;
 export const cableRatings = c => c?.ratings||null;
 export const defaults = () => ({version:4, name:'PlantSERV · Power circuit', voltage:480, loadType:'feeder', continuous:100, noncontinuous:0, continuousRatedAssembly:false, motorFLC:NaN, motorHp:1, motorVoltage:460, motorTrip:NaN, breakerRating:NaN, motorDuty:'continuous', driveInput:NaN, sets:1, circuits:1, neutral:'none', construction:'single', family:'3:1', selection:'auto', size:'1/0', insulation:90, terminal:'75', ambient:40, rooftop:false, roofHeight:1, wet:true, wetRated:true, cableVoltage:1000, conduitType:'RMC', conduitSize:'auto', isolated:true, allPhases:true, hazardous:false, damage:false, bends:180, ocpd:150, groundMode:'separate', insulationLevel:133, clearingMinutes:1});
 export const loadDefaults = () => ({phases:3, motorKind:'standard', motorPowerUnit:'hp', motorPower:NaN, inputMode:'A', loadValue:NaN, powerBasis:'electrical', efficiency:NaN, powerFactor:1, operation:'', heaterCategory:'other', circuitKind:'feeder', feederUnit:'A', transformerKva:NaN, primaryVoltage:NaN, secondaryVoltage:NaN, transformerSide:'primary', transformerBasis:'full', continuousPercent:NaN, neutralCurrent:NaN, verifyProtection:true, verifyTransformerProtection:false, primaryOcpd:NaN, secondaryOcpd:NaN, mccId:'', mccDescription:'', frequency:60, mccLoads:[]});
-export const newProject = () => ({...defaults(), ...loadDefaults(), version:6, terminal:'auto', ocpd:NaN, continuous:NaN, noncontinuous:NaN});
+export const newProject = () => ({...defaults(), ...loadDefaults(), ...voltageDropDefaults(), version:7, terminal:'auto', ocpd:NaN, continuous:NaN, noncontinuous:NaN});
 export const LOAD_TYPES = [['lv-motor','LV Motor - Direct Online'],['mv-motor','MV Motor - Direct Online'],['lv-vfd','LV Motor - VFD'],['mv-vfd','MV Motor - VFD'],['heater','Heater'],['transformer','Transformer'],['feeder','Feeder - Distribution Panel'],['general','General Load'],['mcc-feeder','MCC / Mixed Load Feeder - NEC 430.24']];
 export function changeLoadType(p,loadType){
- return {...p,...loadDefaults(),mccId:p.mccId||'',mccDescription:p.mccDescription||'',frequency:p.frequency||60,mccLoads:p.mccLoads||[],phases:p.phases??3,loadType,version:6,continuous:NaN,noncontinuous:NaN,continuousRatedAssembly:false,motorHp:NaN,motorFLC:NaN,motorTrip:NaN,breakerRating:NaN,driveInput:NaN,motorDuty:'continuous',neutral:'none',ocpd:NaN};
+ return {...p,...loadDefaults(),mccId:p.mccId||'',mccDescription:p.mccDescription||'',frequency:p.frequency||60,mccLoads:p.mccLoads||[],phases:p.phases??3,loadType,version:7,continuous:NaN,noncontinuous:NaN,continuousRatedAssembly:false,motorHp:NaN,motorFLC:NaN,motorTrip:NaN,breakerRating:NaN,driveInput:NaN,motorDuty:'continuous',neutral:'none',ocpd:NaN};
 }
 export function motorTableFLC(horsepower, voltage, phases=3){
  const rated=({120:115,240:230,480:460,600:575})[voltage]||Number(voltage);
@@ -212,6 +213,15 @@ function activeInputs(p){
  return {...state,voltage:circuitVoltage(state)};
 }
 export function calculate(p,catalog=[]){
+ const sizing=calculateSizing(p,catalog);
+ const voltageDrop=calculateVoltageDrop(activeInputs(p),sizing);
+ if(!voltageDrop)return {...sizing,voltageDrop:null};
+ const issues=[...sizing.issues];
+ if(!voltageDrop.valid)issues.push(issue('voltage-drop-input',voltageDrop.errors.join(' '),'Voltage-drop inputs / impedance basis','review'));
+ else if(!voltageDrop.pass)issues.push(issue('voltage-drop-limit','Voltage drop exceeds the entered design limit. Review conductor size, parallel sets or route length.','Voltage-drop design limit','review'));
+ return {...sizing,issues,voltageDrop,status:sizing.status==='Blocked'?'Blocked':issues.some(i=>i.level==='review')?'Review required':sizing.status};
+}
+function calculateSizing(p,catalog=[]){
  p=activeInputs(p);
  const load=demand(p);const issues=validate(p); if(issues.some(i=>i.level==='block'))return {status:'Blocked',issues,candidates:[],load};
  const mv=p.voltage>1000;

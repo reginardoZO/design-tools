@@ -3,6 +3,9 @@
 Web app to compute low-voltage cable voltage drop using Southwire / NEC Chapter 9
 Table 9 parameters (R, X at 75°C in PVC conduit). It suggests the next valid cable
 to keep the drop under 5% and checks 75°C ampacity (NEC 310.16).
+The table and voltage-drop formula live in
+[`shared/voltage-drop.js`](../../shared/voltage-drop.js), also used by the optional
+Raceway Lab voltage-drop check. This app's inputs, suggestions and behavior are unchanged.
 
 ## Publish to GitHub Pages (automatic, recommended)
 

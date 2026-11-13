@@ -10,7 +10,7 @@ Single-phase support is LV two-wire with single conductors only; MV table
 arrangements and the catalog 3/C construction remain three-phase.
 The model does not mix different loads/cable families in a raceway. Ordinary
 locations only. Aluminum, VFD output, unverified MV general-feeder sizing, DC,
-engineered grouped MV raceways, underground/direct-buried segments, voltage drop
+engineered grouped MV raceways, underground/direct-buried segments
 and short-circuit withstand are outside this implementation. These are scope boundaries, not claims
 that the NEC prohibits those arrangements.
 
@@ -25,6 +25,7 @@ setting remain separate from the MV motor overload trip setting.
 
 | Data / rule | Source and treatment |
 |---|---|
+| Optional voltage drop | Shared `../../shared/voltage-drop.js`, extracted without changing the existing sibling Voltage Drop table/formula: Southwire / NEC Chapter 9 Table 9 reference, copper R/X at 75°C in PVC, ohms/1000 ft, 60 Hz. Restricted to LV single conductors in PVC. For steel raceway, multicore or MV cable, the user must supply documented AC R/X for the actual cable/installation, temperature and frequency. No impedance is inferred from ampacity or catalog diameter. |
 | Cable geometry | `catalog.json`, 215 copper rows transcribed from **Okonite Product Catalog OSC 2024** (`C:\Temp\Okinite\OSC_2024.pdf`) and visually checked against the rendered sheets. Each row keeps spec, sheet, PDF page, catalog number, OD, core OD (3/C MV), integral grounds, voltage/insulation-level ratings and maximum temperature. Only geometry/construction fields are used; no catalog ampacity is used. |
 | Okonite families | LV: 3:1 Okoguard-Okolon TS-CPE RHH/RHW-2/USE-2 1/C (p.56); 4:1 C-L-X MC-HL XHHW-2 3/C with grounds (p.60); 4:2 C-L-X MC XHHW-2 composite 3/C power + control, split into 4:2/3x14, 4:2/4x14, 4:2/3x12 and 4:2/4x12 by control set (#12–#2 power; bare #10/#8 ground only where published, 4×12 rows; control conductors not counted as CCC, consistent with Okonite's unchanged 3/C power ampacity) (p.64); 4:5 Okonite-FMR Okoseal TC/TC-ER XHHW-2 3/C, with and without ground (p.67). MV Okoguard: 2:3 / 2:4 (5/8 kV 1/C, pp.10–12); 2:8 Okoseal and 2:11 Okolon TS-CPE (15 kV 1/C, split into 100% and 133% rows, pp.14, 18); 2:19, 2:20 (3/C shielded with ground, 2:20 split 100/133%, pp.26–28); 2:21 C-L-X 2.4 kV nonshielded MV-90 (p.30); 2:22 C-L-X 5/8 kV (#8 row 5 kV 133% only, p.32); 2:24 C-L-X 15 kV 133% (p.34). 4/C power rows (4:1, 4:2 and TC with neutral) and 2:11 1250/1500 kcmil are not imported. |
 | LV copper ampacity | NEC 2023 Table 310.16, isolated copy of the hub's copper table. |
