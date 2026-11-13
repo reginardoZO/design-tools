@@ -54,6 +54,12 @@ function stepInputs(i, inp, load) {
     { motor: "Motor", generator: "Generator", transformer: "Transformer feeder", heater: "Fixed electric heater", feeder: "Feeder", custom: "Other / direct current input" }[inp.loadType] || inp.loadType
   )]);
   rows.push(["System", `${inp.phases === 3 ? "Three-phase" : "Single-phase"}`]);
+  if (inp.loadType === "mcc") {
+    rows.push(["Feeder / MCC identification", esc(inp.mccId || "Not entered")]);
+    rows.push(["System voltage / frequency", `${esc(inp.voltage)} V · ${esc(inp.frequency)} Hz`]);
+    rows.push(["Engineering description", esc(inp.mccDescription || "Not entered")]);
+    rows.push(["Connected loads", `${inp.mccLoads?.length || 0}`]);
+  }
   if (inp.loadType === "motor")
     rows.push(inp.motorMode === "table"
       ? ["Motor rating", `${esc(inp.hp)} HP at ${esc(inp.motorV)} V (NEC FLC table)`]
@@ -94,6 +100,27 @@ function stepLoad(i, inp, load) {
   const ref = load.basis.match(/\[(.*)\]/)?.[1] || "";
   const mult = load.fla > 0 ? load.design / load.fla : 0;
   const bits = [];
+
+  if (inp.loadType === "mcc") {
+    const mcc = load.mcc;
+    const loadRows = (mcc?.loads || []).map((item) => [
+      esc(item.tag), esc(item.type), item.quantity, `${f(item.current, 2)} A`,
+      `${f(item.totalCurrent, 2)} A`, esc(item.basis),
+    ]);
+    const table = `<table class="scan"><thead><tr>${["Tag", "Type", "Qty", "Current / unit", "Connected current", "NEC basis"].map(x => `<th>${x}</th>`).join("")}</tr></thead><tbody>${loadRows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    const phaseRows = Object.entries(mcc?.currentsByPhase || {}).map(([phase, amps]) => `${phase} ${f(amps, 2)} A`).join(" · ");
+    const calculation = mcc?.valid
+      ? `I<sub>required</sub> = 1.25 × ${f(mcc.largestMotorCurrent, 2)} A + ${f(mcc.remainingMotorCurrent, 2)} A + 1.25 × ${f(mcc.continuousNonmotorCurrent, 2)} A + ${f(mcc.noncontinuousNonmotorCurrent, 2)} A = <b>${f(mcc.required, 2)} A</b>`
+      : `No feeder ampacity is issued because the connected-load list is incomplete or contains unsupported data.`;
+    return step(i, "MCC / mixed-load feeder current", "430.24", `
+      ${rule("For standard motor feeders, add 125% of one largest applicable motor current, 100% of all remaining motor currents, 125% of continuous nonmotor loads and 100% of noncontinuous nonmotor loads [430.24]. VFD rated input current is used as the motor contribution under 430.122(D).")}
+      ${applied(`${eqn(`Connected equipment current = ${f(load.fla, 2)} A<br>${calculation}<br>Required conductor ampacity by conductor: ${phaseRows || "—"}`)}${table}`)}
+      ${considerations([
+        esc(mcc?.protectionStatus || "Feeder protection has not been verified."),
+        "The upstream protective-device rating does not set the calculated conductor ampacity. Verify motor branch and feeder short-circuit/ground-fault protection separately under 430.52 and 430.62; use the actual applicable device for EGC sizing under 250.122.",
+        ...(mcc?.warnings || []).map(esc),
+      ])}`);
+  }
 
   if (inp.loadType === "motor" && inp.motorMode === "table") {
     bits.push(rule(`Conductors supplying a single motor must have an ampacity of at least <b>125 % of the motor full-load current</b> [430.22(A)]. The full-load current used for conductor sizing is the value from <b>Table 430.250</b> (three-phase) or <b>Table 430.248</b> (single-phase) — <b>not</b> the motor nameplate current [430.6(A)(1)].`));

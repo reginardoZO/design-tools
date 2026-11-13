@@ -35,6 +35,10 @@ function migrateV3(raw) {
   return {...raw, version: 4, motorHp: raw.loadType === 'lv-motor' ? NaN : 1, motorVoltage: 460};
 }
 
+function migrateV5(raw) {
+  return {...loadDefaults(), ...raw, version: 6, frequency: 60, mccId: '', mccDescription: '', mccLoads: []};
+}
+
 // JSON encodes blank numeric inputs as null; restore them as NaN, never as defaults.
 export function loadProject(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
@@ -45,7 +49,8 @@ export function loadProject(raw) {
     raw = {...loadDefaults(), ...raw, version: 5};
     if (raw.neutral !== 'none') raw.neutralCurrent = null;
   }
-  if (raw.version !== 5) throw Error('Unsupported project version');
+  if (raw.version === 5) raw = migrateV5(raw);
+  if (raw.version !== 6) throw Error('Unsupported project version');
   if (raw.loadType === 'vfd-input') raw = {...raw, loadType: raw.voltage > 1000 ? 'mv-vfd' : 'lv-vfd'};
   const clean = newProject();
   for (const key of Object.keys(clean)) {
@@ -63,6 +68,10 @@ export function loadProject(raw) {
   };
   for (const [key, values] of Object.entries(choices))
     if (!values.includes(clean[key])) throw Error(`Unsupported choice: ${key}`);
+  if (!Array.isArray(clean.mccLoads)
+    || !clean.mccLoads.every(load => load && typeof load === 'object' && !Array.isArray(load)
+      && typeof load.id === 'string' && ['motor', 'vfd', 'heater', 'transformer', 'general'].includes(load.type)))
+    throw Error('Invalid connected load list');
   if (clean.conduitSize !== 'auto' && !CONDUITS[clean.conduitType].some(c => c.trade === clean.conduitSize))
     throw Error('Unsupported conduit size');
   if (!['feeder', 'heater', 'transformer', 'general'].includes(clean.loadType)) clean.neutral = 'none';

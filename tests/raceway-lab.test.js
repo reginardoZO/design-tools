@@ -249,7 +249,7 @@ test('load type changes and project v5 round trips clear incompatible values',()
   const changed=changeLoadType({...newProject(),ocpd:500,motorTrip:110,driveInput:100,loadValue:20,efficiency:95,continuousRatedAssembly:true},loadType);
   assert.equal(changed.loadType,loadType);assert.ok(Number.isNaN(changed.ocpd));assert.ok(Number.isNaN(changed.motorTrip));assert.ok(Number.isNaN(changed.loadValue));assert.equal(changed.continuousRatedAssembly,false);
   const restored=loadProject(JSON.parse(JSON.stringify(changed)));
-  assert.equal(restored.version,5);assert.equal(restored.loadType,loadType);assert.ok(Number.isNaN(restored.efficiency));
+  assert.equal(restored.version,6);assert.equal(restored.loadType,loadType);assert.ok(Number.isNaN(restored.efficiency));
  }
  assert.equal(loadProject(JSON.parse(JSON.stringify({...defaults(),loadType:'vfd-input'}))).loadType,'lv-vfd');
 });

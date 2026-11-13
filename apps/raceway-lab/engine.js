@@ -1,13 +1,14 @@
 import {LV, MV_1C, MV_3C, KCMIL, SIZES, EGC, GROUND_AREA, LV_CORRECTION, MV_CORRECTION, CONDUITS, CONDUIT_BEND, GROUND_KCMIL, MOTOR_FLC, MOTOR_VOLTAGES, MOTOR_FLC_1PH, MOTOR_VOLTAGES_1PH} from './data.js';
+import {calculateMccFeeder} from '../../shared/mcc-feeder.js';
 export const label = s => `${s} ${Number(s)>=250?'kcmil':'AWG'}`;
 export const area = d => Math.PI*d*d/4;
 export const cableRatings = c => c?.ratings||null;
 export const defaults = () => ({version:4, name:'PlantSERV · Power circuit', voltage:480, loadType:'feeder', continuous:100, noncontinuous:0, continuousRatedAssembly:false, motorFLC:NaN, motorHp:1, motorVoltage:460, motorTrip:NaN, breakerRating:NaN, motorDuty:'continuous', driveInput:NaN, sets:1, circuits:1, neutral:'none', construction:'single', family:'3:1', selection:'auto', size:'1/0', insulation:90, terminal:'75', ambient:40, rooftop:false, roofHeight:1, wet:true, wetRated:true, cableVoltage:1000, conduitType:'RMC', conduitSize:'auto', isolated:true, allPhases:true, hazardous:false, damage:false, bends:180, ocpd:150, groundMode:'separate', insulationLevel:133, clearingMinutes:1});
-export const loadDefaults = () => ({phases:3, motorKind:'standard', motorPowerUnit:'hp', motorPower:NaN, inputMode:'A', loadValue:NaN, powerBasis:'electrical', efficiency:NaN, powerFactor:1, operation:'', heaterCategory:'other', circuitKind:'feeder', feederUnit:'A', transformerKva:NaN, primaryVoltage:NaN, secondaryVoltage:NaN, transformerSide:'primary', transformerBasis:'full', continuousPercent:NaN, neutralCurrent:NaN, verifyProtection:true, verifyTransformerProtection:false, primaryOcpd:NaN, secondaryOcpd:NaN});
-export const newProject = () => ({...defaults(), ...loadDefaults(), version:5, terminal:'auto', ocpd:NaN, continuous:NaN, noncontinuous:NaN});
-export const LOAD_TYPES = [['lv-motor','LV Motor - Direct Online'],['mv-motor','MV Motor - Direct Online'],['lv-vfd','LV Motor - VFD'],['mv-vfd','MV Motor - VFD'],['heater','Heater'],['transformer','Transformer'],['feeder','Feeder - Distribution Panel'],['general','General Load']];
+export const loadDefaults = () => ({phases:3, motorKind:'standard', motorPowerUnit:'hp', motorPower:NaN, inputMode:'A', loadValue:NaN, powerBasis:'electrical', efficiency:NaN, powerFactor:1, operation:'', heaterCategory:'other', circuitKind:'feeder', feederUnit:'A', transformerKva:NaN, primaryVoltage:NaN, secondaryVoltage:NaN, transformerSide:'primary', transformerBasis:'full', continuousPercent:NaN, neutralCurrent:NaN, verifyProtection:true, verifyTransformerProtection:false, primaryOcpd:NaN, secondaryOcpd:NaN, mccId:'', mccDescription:'', frequency:60, mccLoads:[]});
+export const newProject = () => ({...defaults(), ...loadDefaults(), version:6, terminal:'auto', ocpd:NaN, continuous:NaN, noncontinuous:NaN});
+export const LOAD_TYPES = [['lv-motor','LV Motor - Direct Online'],['mv-motor','MV Motor - Direct Online'],['lv-vfd','LV Motor - VFD'],['mv-vfd','MV Motor - VFD'],['heater','Heater'],['transformer','Transformer'],['feeder','Feeder - Distribution Panel'],['general','General Load'],['mcc-feeder','MCC / Mixed Load Feeder - NEC 430.24']];
 export function changeLoadType(p,loadType){
- return {...p,...loadDefaults(),phases:p.phases??3,loadType,version:5,continuous:NaN,noncontinuous:NaN,continuousRatedAssembly:false,motorHp:NaN,motorFLC:NaN,motorTrip:NaN,breakerRating:NaN,driveInput:NaN,motorDuty:'continuous',neutral:'none',ocpd:NaN};
+ return {...p,...loadDefaults(),mccId:p.mccId||'',mccDescription:p.mccDescription||'',frequency:p.frequency||60,mccLoads:p.mccLoads||[],phases:p.phases??3,loadType,version:6,continuous:NaN,noncontinuous:NaN,continuousRatedAssembly:false,motorHp:NaN,motorFLC:NaN,motorTrip:NaN,breakerRating:NaN,driveInput:NaN,motorDuty:'continuous',neutral:'none',ocpd:NaN};
 }
 export function motorTableFLC(horsepower, voltage, phases=3){
  const rated=({120:115,240:230,480:460,600:575})[voltage]||Number(voltage);
@@ -35,6 +36,13 @@ export function demand(p){
  const result=(actual,required,thermal,reference,basis,extra={})=>({actual,design:required,required,thermal,reference,basis,multiplier:actual>0?`${(required/actual).toFixed(3)} load-based ratio`:'Not applicable',...extra});
  const general=(actual,continuous,reference,basis,extra={})=>result(actual,actual+.25*continuous,actual,reference,basis,{ocpdRequired:actual+.25*continuous,...extra});
  const fromInput=(value,mode,voltage=p.voltage)=>mode==='A'?value:value*1000/((p.phases===3?Math.sqrt(3):1)*voltage*(mode==='kW'?p.powerFactor:1)*(mode==='kW'&&p.powerBasis==='thermal'?p.efficiency/100:1));
+ if(p.loadType==='mcc-feeder'){
+  const mcc=calculateMccFeeder({
+   loads:p.mccLoads,voltage:p.voltage,phases:p.phases,frequency:p.frequency,
+   lookupMotorFLC:(horsepower,voltage,phases)=>motorTableFLC(horsepower,voltage,phases),
+  });
+  return result(mcc.totalConnectedCurrent||0,mcc.valid?mcc.required:NaN,mcc.valid?mcc.required:NaN,mcc.reference||'430.24',mcc.basis||mcc.errors.join(' '),{mcc,protectionStatus:mcc.protectionStatus});
+ }
  if(p.loadType==='feeder'){
   if(mv)return result(p.continuous+p.noncontinuous,NaN,NaN,'Article 235','A verified medium-voltage general feeder sizing basis is not implemented; no conductor recommendation is issued.');
   const multiplier=p.continuousRatedAssembly?1:1.25;
@@ -106,9 +114,14 @@ export function validate(p){
  const choice=(key,values)=>{if(!values.includes(p[key]))add('input',`${key}: select an applicable choice.`,'Load inputs');};
  for(const k of numKeys)if(typeof p[k]!=='number'||!Number.isFinite(p[k]))add('input',`${k}: enter a finite number.`,'Input validation');
  if(out.length)return out;
- const enums={loadType:['feeder','lv-motor','mv-motor','vfd-input','lv-vfd','mv-vfd','heater','transformer','general'],neutral:['none','linear','nonlinear'],construction:['single','multi'],selection:['auto','manual'],terminal:['auto','60','75','90','105'],conduitType:Object.keys(CONDUITS),groundMode:['separate','integral'],phases:[1,3]};
+ const enums={loadType:['feeder','lv-motor','mv-motor','vfd-input','lv-vfd','mv-vfd','heater','transformer','general','mcc-feeder'],neutral:['none','linear','nonlinear'],construction:['single','multi'],selection:['auto','manual'],terminal:['auto','60','75','90','105'],conduitType:Object.keys(CONDUITS),groundMode:['separate','integral'],phases:[1,3]};
  for(const [k,values] of Object.entries(enums))if(!values.includes(p[k]))add('input',`${k}: unsupported choice.`,'Scope');
  if(p.loadType==='feeder'&&typeof p.continuousRatedAssembly!=='boolean')add('input','The 100%-continuous assembly confirmation must be true or false.','Input validation');
+ if(p.loadType==='mcc-feeder'){
+  if(typeof p.mccId!=='string'||typeof p.mccDescription!=='string')add('input','Enter valid feeder identification and engineering description text.','Feeder information');
+  if(![50,60].includes(p.frequency))add('input','System frequency must be 50 or 60 Hz.','Feeder information');
+  for(const message of demand(p).mcc.errors)add('mcc-load',message,'430.24 / connected load inputs');
+ }
  if(p.voltage<=0||p.voltage>15000)add('voltage','Use a system voltage above 0 V through 15 kV.','Articles 310 / 315');
  const mv=p.voltage>1000;
  if((['lv-motor','lv-vfd'].includes(p.loadType)&&mv)||(['mv-motor','mv-vfd'].includes(p.loadType)&&!mv))add('circuit-voltage','Choose the motor circuit type that matches the system voltage: LV is 1000 V or less; MV is greater than 1000 V.','430.22 / 430.205(A)/(B)');
@@ -204,6 +217,7 @@ export function calculate(p,catalog=[]){
  const mv=p.voltage>1000;
  const hasOcpd=Number.isFinite(p.ocpd)&&p.ocpd>0;
  const generalLoad=['feeder','heater','transformer','general'].includes(p.loadType);
+ if(p.loadType==='mcc-feeder')issues.push(issue('mcc-protection-unverified','Conductor ampacity is calculated independently of the entered upstream protective-device rating. Feeder short-circuit/ground-fault protection under 430.52 / 430.62 is not fully verified; the entered device is used only as the 250.122 EGC basis.','430.24 / 430.52 / 430.62 / 250.122','review'));
  if(generalLoad&&!p.verifyProtection)issues.push(issue('protection-unverified','Conductor overcurrent protection has not been verified. The entered device is used only as the wire-EGC sizing basis.','240.4 / 210.20 / 215.3','review'));
  if(!hasOcpd)issues.push(issue('egc-basis','Load-based ampacity can be calculated, but wire EGC and raceway fill remain pending until the actual protective-device rating/setting is entered.','250.122','review'));
  if(generalLoad&&hasOcpd&&p.verifyProtection&&p.ocpd<load.ocpdRequired-1e-9)issues.push(issue('ocpd-load','The conventional OCPD is below 125% of continuous load plus noncontinuous load. A conductor exception is not a breaker exception.','210.20 / 215.3 / 424.3(B) / 425.22'));

@@ -15,7 +15,8 @@ and short-circuit withstand are outside this implementation. These are scope bou
 that the NEC prohibits those arrangements.
 
 Inputs depend on circuit type: continuous/noncontinuous load, applicable LV motor
-FLC, MV motor overload trip setting, or VFD rated input current. The required
+FLC, MV motor overload trip setting, VFD rated input current, or a connected
+load schedule for an LV MCC/mixed feeder. The required
 conductor ampacity, the NEC fill limit, cable minimum bending radius and conduit
 bending radius are derived; the breaker rating and EGC sizing protective-device
 setting remain separate from the MV motor overload trip setting.
@@ -36,6 +37,7 @@ setting remain separate from the MV motor overload trip setting.
 | Wire EGC | Table 250.122 copper; 250.122(B) proportional upsizing using circular-mil area from the smallest size that passes ampacity **and exists in the selected family**; 250.190(C)(1) >=6 AWG for nonintegral MV EGC. Integral catalog grounds pass when their total area (all sectioned grounds) covers the required EGC. Separate insulated EGC uses Chapter 9 Table 5 THHN/THWN-2 area. |
 | Motor full-load current | NEC 2023 Tables 430.248 (single-phase) / 430.250 (three-phase). System 120/240/480/600 V maps to applicable 115/230/460/575 V columns. No interpolation between horsepower ratings; kW converts at 0.746 kW/hp. Explicit low-speed, high-torque and multispeed categories use nameplate current under 430.6(A)(1). |
 | Load | General LV feeder/branch: 210.19(A)(1) / 215.2(A)(1), 125% continuous + noncontinuous. The feeder 100%-continuous exception requires affirmation that the complete applicable assembly is listed for 100% operation. LV motor: 125% table FLC or applicable special-motor nameplate current. MV motor: 430.205(A), overload setting without 125% rated-current multiplier. VFD input: 430.122(A) / 430.205(B), 125% rated input. Fixed process heaters: 425.4(B), continuous; space heaters: 424.3(B), continuous. Other heaters/general loads follow entered classification. |
+| MCC / mixed feeder | Shared pure-JavaScript calculator in `shared/mcc-feeder.js`: DOL FLC from 430.6(A)(1), Tables 430.248/430.250; VFD input current under 430.122(D); 125% of one largest motor contribution, 100% remaining motor contributions, 125% continuous nonmotor loads and 100% noncontinuous nonmotor loads under 430.24 / 215.2. Phase-pair allocations are summed conservatively by conductor without vector cancellation. The existing upstream device is excluded from conductor ampacity and retained only as the EGC basis; 430.52 / 430.62 protection verification is not implemented. Demand, diversity and noncoincident reductions are not applied. |
 | Transformer | Rated current = kVA x 1000 / (phase factor x voltage), with phase factor 1 or sqrt(3). Only the continuous load portion receives 125%. Optional LV winding protection follows conservative 450.3(B) percentages: primary-only 125% at >=9 A, 167% at 2-<9 A, 300% below 2 A; primary/secondary protection 250% primary with 125% secondary at >=9 A or 167% below 9 A. No next-standard-rating exception. 240.4 / 240.21(C) conductor arrangements require independent review. |
 | Neutral | Full phase-size neutral retained; entered maximum calculated unbalanced current is conservatively checked at 125%, without 220.61 demand reductions. Nonlinear neutral counts as CCC; harmonic current must be established separately. |
 
@@ -85,6 +87,12 @@ Primary reference URLs:
    does not certify pulling tension or sidewall pressure.
 9. No shield or C-L-X sheath is credited as EGC. No listed metallic raceway is
    credited instead of a wire EGC. Both are deliberate conservative choices.
+10. The shared MCC method blocks medium-voltage feeders, VFD bypass, and motor
+   duties requiring 430.22(E) or a 430.24 exception. Transformer rated capacity
+   is not automatically classified continuous; calculated transformer load
+   requires an explicit continuous percentage. Feeder protection, transformer
+   winding protection and transformer secondary-conductor protection remain
+   separate engineering checks.
 
 ## Release status and evidence
 

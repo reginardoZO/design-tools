@@ -1,3 +1,5 @@
+import { calculateMccFeeder } from "../../../shared/mcc-feeder.js";
+
 /* ============================================================================
    NEC CABLE TRAY AMPACITY & CABLE SIZING TOOL — COPPER CONDUCTORS ONLY
    ----------------------------------------------------------------------------
@@ -553,6 +555,32 @@ export function computeLoad(load) {
 
   const threePhI = (kva, v) => (v > 0 ? (kva * 1000) / (Math.sqrt(3) * v) : 0);
   const onePhI = (kva, v) => (v > 0 ? (kva * 1000) / v : 0);
+
+  if (load.type === "mcc") {
+    const tableFLC = (horsepower, voltage, phases) => {
+      const voltages = phases === 3 ? V_COLS_3PH : V_COLS_1PH;
+      const table = phases === 3 ? FLC_3PH : FLC_1PH;
+      const ratedVoltage = ({ 120: 115, 240: 230, 480: 460, 600: 575 })[voltage] || voltage;
+      const column = voltages.indexOf(Number(ratedVoltage));
+      const row = table[String(horsepower)];
+      return column < 0 ? null : row?.[column] ?? null;
+    };
+    const mcc = calculateMccFeeder({
+      loads: load.mccLoads,
+      voltage: Number(load.voltage),
+      phases: Number(load.phases),
+      frequency: Number(load.frequency),
+      lookupMotorFLC: tableFLC,
+    });
+    return {
+      fla: mcc.totalConnectedCurrent || 0,
+      design: mcc.valid ? mcc.required : 0,
+      basis: mcc.basis || mcc.errors.join(" "),
+      flaBasis: mcc.valid ? "Calculated from connected equipment; individual load currents are shown below." : "Connected-load calculation is incomplete.",
+      warnings: [...mcc.warnings, ...mcc.errors],
+      mcc,
+    };
+  }
 
   switch (load.type) {
     case "motor": {

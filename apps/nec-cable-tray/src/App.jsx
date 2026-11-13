@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 
 /* The NEC data tables and the pure calculation engine live in engine.js so
    they can be unit-tested from Node without a JSX transform. The split is
@@ -9,6 +9,7 @@ import {
   vdPercent, egcSizing, computeSizing, computeLoad,
 } from "./engine.js";
 import { buildReportHtml, openReport } from "./report.js";
+import { calculateMccFeeder, newMccLoad } from "../../../shared/mcc-feeder.js";
 
 /* --------------------------------- THEME ---------------------------------
    Palette and typography come from shared/theme.css (imported by index.css) —
@@ -148,16 +149,130 @@ function FactorNode({ label, value, refText, muted = false }) {
   );
 }
 
+function storedMccProject() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("nec-cable-tray-mcc-v1") || "null");
+    if (raw?.version === 1 && Array.isArray(raw.loads)
+      && raw.loads.every((load) => load && typeof load === "object" && !Array.isArray(load))) return { ...raw, saved: true };
+  } catch {
+    // Ignore unavailable or malformed browser storage and start with a blank load list.
+  }
+  return { feederId: "", description: "", frequency: "60", loads: [], saved: false };
+}
+
+function MccLoadManager({ project, onChange, voltage, feederPhases, calculation }) {
+  const update = (index, key, value) => onChange({
+    ...project,
+    saved: true,
+    loads: project.loads.map((load, i) => i === index ? { ...load, [key]: value } : load),
+  });
+  const input = (index, key, value, type = "number") => (
+    <input
+      type={type}
+      step={type === "number" ? "any" : undefined}
+      placeholder={key === "continuousPercent" ? "% continuous" : key === "powerFactor" ? "PF" : key === "primaryVoltage" ? "Primary V" : key === "secondaryVoltage" ? "Secondary V" : key === "motorJustification" ? "430.6(A)(1) basis" : undefined}
+      aria-label={key}
+      value={type === "number" && !Number.isFinite(value) ? "" : value ?? ""}
+      onChange={(event) => update(index, key, type === "number" ? (event.target.value === "" ? NaN : Number(event.target.value)) : event.target.value)}
+      style={{ ...inputStyle, minWidth: 86, padding: "6px 7px", fontSize: 12 }}
+    />
+  );
+  const select = (index, key, value, options) => (
+    <select value={value} onChange={(event) => update(index, key, key === "phases" ? Number(event.target.value) : event.target.value)} style={{ ...inputStyle, minWidth: 110, padding: "6px 7px", fontSize: 12 }}>
+      {options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+    </select>
+  );
+  const id = () => `load-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const add = (type = "motor", source = null) => {
+    const next = source
+      ? { ...source, id: id(), tag: `${source.tag || "Load"} copy` }
+      : { ...newMccLoad(type, id()), voltage: Number(voltage), phases: Number(feederPhases) };
+    onChange({ ...project, saved: true, loads: [...project.loads, next] });
+  };
+  const typeNames = { motor: "DOL motor", vfd: "VFD input", heater: "Heater", transformer: "Transformer", general: "General load" };
+  const currentOf = (load) => calculation?.loads?.find((item) => item.id === load.id);
+  const ratingEditor = (load, index) => {
+    if (load.type === "motor") return (
+      <>
+        {select(index, "motorCategory", load.motorCategory, [["standard", "Table FLC"], ["low-speed", "Low-speed"], ["high-torque", "High-torque"], ["multispeed", "Multispeed"]])}
+        {load.motorCategory === "standard"
+          ? select(index, "horsepower", load.horsepower, [["", "HP"], ...Object.keys(load.phases === 1 ? FLC_1PH : FLC_3PH).map((hp) => [hp, `${hp} HP`])])
+          : <>{input(index, "motorCurrent", load.motorCurrent)}{input(index, "motorJustification", load.motorJustification, "text")}</>}
+      </>
+    );
+    if (load.type === "vfd") return (
+      <>
+        {input(index, "driveInputCurrent", load.driveInputCurrent)}
+        <label style={{ display: "block", fontSize: 11, color: C.mut }}>
+          <input type="checkbox" checked={!!load.bypass} onChange={(event) => update(index, "bypass", event.target.checked)} /> Bypass
+        </label>
+      </>
+    );
+    if (load.type === "transformer") return (
+      <>
+        {select(index, "transformerBasis", load.transformerBasis, [["rated", "Rated kVA"], ["calculated", "Calculated load"]])}
+        {input(index, "primaryVoltage", load.primaryVoltage)}
+        {input(index, "secondaryVoltage", load.secondaryVoltage)}
+        {select(index, "transformerSide", load.transformerSide, [["primary", "Primary side"], ["secondary", "Secondary side"]])}
+        {load.transformerBasis === "calculated" && select(index, "ratingUnit", load.ratingUnit, [["A", "A"], ["kW", "kW"], ["kVA", "kVA"]])}
+        {input(index, "rating", load.rating)}
+        {load.transformerBasis === "calculated" && input(index, "continuousPercent", load.continuousPercent)}
+        {load.transformerBasis === "calculated" && load.ratingUnit === "kW" && input(index, "powerFactor", load.powerFactor)}
+      </>
+    );
+    return (
+      <>
+        {load.type === "heater" && select(index, "heaterCategory", load.heaterCategory, [["other", "Other heater"], ["process", "Fixed process"], ["space", "Fixed space"]])}
+        {select(index, "ratingUnit", load.ratingUnit, load.type === "heater" ? [["A", "A"], ["kW", "kW"]] : [["A", "A"], ["kW", "kW"], ["kVA", "kVA"]])}
+        {input(index, "rating", load.rating)}
+        {load.ratingUnit === "kW" && input(index, "powerFactor", load.powerFactor)}
+      </>
+    );
+  };
+
+  return (
+    <div style={{ overflowX: "auto", marginTop: 12 }}>
+      <h3 style={{ margin: "10px 0" }}>Connected loads</h3>
+      <table style={{ ...mono, width: "100%", minWidth: 900, borderCollapse: "collapse", fontSize: 11.5 }}>
+        <thead><tr>{["Tag / description", "Load type", "Qty", "V / phases", "Rating & parameters", "Duty", "Calculated A / basis", "Actions"].map((heading) => <th key={heading} style={{ textAlign: "left", padding: 6, borderBottom: `1px solid ${C.line}` }}>{heading}</th>)}</tr></thead>
+        <tbody>
+          {project.loads.map((load, index) => {
+            const calculated = currentOf(load);
+            return (
+              <tr key={load.id} style={{ verticalAlign: "top" }}>
+                <td>{input(index, "tag", load.tag, "text")}</td>
+                <td>{select(index, "type", load.type, Object.entries(typeNames).map(([v, label]) => [v, label]))}</td>
+                <td>{input(index, "quantity", load.quantity)}</td>
+                <td>{input(index, "voltage", load.voltage)}{select(index, "phases", load.phases, [[3, "3 phase"], [1, "1 phase"]])}{feederPhases === 3 && load.phases === 1 && select(index, "phasePair", load.phasePair, [["AB", "AB"], ["BC", "BC"], ["CA", "CA"]])}</td>
+                <td>{ratingEditor(load, index)}</td>
+                <td>{select(index, "duty", load.duty, [["continuous", "Continuous"], ["noncontinuous", "Noncontinuous"], ["other", "Other duty"]])}</td>
+                <td>{calculated ? <>{calculated.current.toFixed(2)} A<br /><span style={{ color: C.faint }}>{calculated.basis}</span></> : "—"}</td>
+                <td><button onClick={() => add(load.type, load)} style={{ ...mono, fontSize: 11, marginBottom: 5 }}>Duplicate</button><button onClick={() => onChange({ ...project, saved: true, loads: project.loads.filter((_, i) => i !== index) })} style={{ ...mono, fontSize: 11 }}>Remove</button></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <button onClick={() => add()} style={{ ...mono, background: C.accent, color: "#fff", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Add Load</button>
+      <div style={{ ...mono, fontSize: 10.5, color: C.mut, marginTop: 8 }}>
+        Standard motor FLC from 430.6(A)(1), Table 430.250 / 430.248. VFD input current under 430.122(D). Special nameplate current requires a documented permitted category.
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------------- APP ---------------------------------- */
 
 export default function App() {
   // Load
-  const [loadType, setLoadType] = useState("motor");
-  const [phases, setPhases] = useState(3);
+  const [mccProject, setMccProject] = useState(storedMccProject);
+  const [loadType, setLoadType] = useState(() => mccProject.saved ? "mcc" : "motor");
+  const [phases, setPhases] = useState(() => mccProject.saved ? Number(mccProject.phases) || 3 : 3);
+  const savedSizing = mccProject.sizing || {};
   const [motorMode, setMotorMode] = useState("table");
   const [hp, setHp] = useState("100");
   const [motorV, setMotorV] = useState(460);
-  const [voltage, setVoltage] = useState("480");
+  const [voltage, setVoltage] = useState(() => mccProject.saved ? String(mccProject.voltage || 480) : "480");
   const [rating, setRating] = useState("500");
   const [ratingUnit, setRatingUnit] = useState("kVA");
   const [pf, setPf] = useState("0.8");
@@ -166,40 +281,64 @@ export default function App() {
   const [nonContA, setNonContA] = useState("50");
   const [continuous, setContinuous] = useState(true);
   const [heaterMode, setHeaterMode] = useState("kw");
+  const [mccImportError, setMccImportError] = useState("");
 
   // System / cable
-  const [vClass, setVClass] = useState("lv");
-  const [construction, setConstruction] = useState("multi");
-  const [insTemp, setInsTemp] = useState(90);
-  const [termTemp, setTermTemp] = useState(75);
-  const [applyNec11014TerminationLimit, setApplyNec11014TerminationLimit] = useState(true);
-  const [ccc, setCcc] = useState("3");
+  const [vClass, setVClass] = useState(() => savedSizing.vClass || "lv");
+  const [construction, setConstruction] = useState(() => savedSizing.construction || "multi");
+  const [insTemp, setInsTemp] = useState(() => savedSizing.insTemp || 90);
+  const [termTemp, setTermTemp] = useState(() => savedSizing.termTemp || 75);
+  const [applyNec11014TerminationLimit, setApplyNec11014TerminationLimit] = useState(() => savedSizing.applyNec11014TerminationLimit ?? true);
+  const [ccc, setCcc] = useState(() => savedSizing.ccc || "3");
 
   // Installation / environment
-  const [arrangement, setArrangement] = useState("touching");
-  const [covered, setCovered] = useState(false);
-  const [ambient, setAmbient] = useState("40");
-  const [maxSets, setMaxSets] = useState("4");
-  const [maxSize, setMaxSize] = useState("500");
-  const [ambMethod, setAmbMethod] = useState("table");
-  const [ocpd, setOcpd] = useState("");
-  const [egcLinked, setEgcLinked] = useState(true);
+  const [arrangement, setArrangement] = useState(() => savedSizing.arrangement || "touching");
+  const [covered, setCovered] = useState(() => savedSizing.covered || false);
+  const [ambient, setAmbient] = useState(() => savedSizing.ambient || "40");
+  const [maxSets, setMaxSets] = useState(() => savedSizing.maxSets || "4");
+  const [maxSize, setMaxSize] = useState(() => savedSizing.maxSize || "500");
+  const [ambMethod, setAmbMethod] = useState(() => savedSizing.ambMethod || "table");
+  const [ocpd, setOcpd] = useState(() => mccProject.saved ? mccProject.upstreamOcpd || "" : "");
+  const [egcLinked, setEgcLinked] = useState(() => savedSizing.egcLinked ?? true);
 
   // Voltage drop
-  const [vdOn, setVdOn] = useState(true);
-  const [vdLength, setVdLength] = useState("100");
-  const [vdUnit, setVdUnit] = useState("m");
-  const [vdMax, setVdMax] = useState("3");
-  const [vdVolts, setVdVolts] = useState("480");
-  const [vdPf, setVdPf] = useState("0.85");
+  const [vdOn, setVdOn] = useState(() => savedSizing.vdOn ?? true);
+  const [vdLength, setVdLength] = useState(() => savedSizing.vdLength || "100");
+  const [vdUnit, setVdUnit] = useState(() => savedSizing.vdUnit || "m");
+  const [vdMax, setVdMax] = useState(() => savedSizing.vdMax || "3");
+  const [vdVolts, setVdVolts] = useState(() => savedSizing.vdVolts || "480");
+  const [vdPf, setVdPf] = useState(() => savedSizing.vdPf || "0.85");
+
+  const mccProjectData = {
+    ...mccProject,
+    version: 1,
+    voltage: Number(voltage),
+    phases,
+    upstreamOcpd: ocpd,
+    sizing: {
+      vClass, construction, insTemp, termTemp, applyNec11014TerminationLimit, ccc,
+      arrangement, covered, ambient, maxSets, maxSize, ambMethod, egcLinked,
+      vdOn, vdLength, vdUnit, vdMax, vdVolts, vdPf,
+    },
+  };
+  useEffect(() => {
+    if (loadType !== "mcc") return;
+    try {
+      localStorage.setItem("nec-cable-tray-mcc-v1", JSON.stringify(mccProjectData));
+      setMccImportError("");
+    } catch {
+      setMccImportError("Browser storage is unavailable; export the complete MCC calculation JSON to keep a copy.");
+    }
+  }, [loadType, mccProject, voltage, phases, ocpd, vClass, construction, insTemp, termTemp, applyNec11014TerminationLimit, ccc, arrangement, covered, ambient, maxSets, maxSize, ambMethod, egcLinked, vdOn, vdLength, vdUnit, vdMax, vdVolts, vdPf]);
 
   const load = useMemo(
     () =>
       computeLoad({
         type: loadType, phases, motorMode, hp, motorV, voltage, rating,
         ratingUnit, pf, customA, contA, nonContA, continuous, heaterMode,
+        mccLoads: mccProject.loads, frequency: Number(mccProject.frequency),
       }),
-    [loadType, phases, motorMode, hp, motorV, voltage, rating, ratingUnit, pf, customA, contA, nonContA, continuous, heaterMode]
+    [loadType, phases, motorMode, hp, motorV, voltage, rating, ratingUnit, pf, customA, contA, nonContA, continuous, heaterMode, mccProject]
   );
 
   const effArrangement = covered && arrangement !== "touching" ? "touching" : arrangement;
@@ -222,9 +361,9 @@ export default function App() {
       volts: parseFloat(vdVolts) || 0,
       pf: parseFloat(vdPf) || 1,
       phases,
-      amps: load.fla, // VD is evaluated at operating (full-load) current
+      amps: load.mcc?.valid ? load.mcc.operatingCurrent : load.fla,
     };
-  }, [vdOn, vdLength, vdUnit, vdMax, vdVolts, vdPf, phases, load.fla]);
+  }, [vdOn, vdLength, vdUnit, vdMax, vdVolts, vdPf, phases, load.fla, load.mcc?.operatingCurrent]);
 
   const result = useMemo(() => {
     if (!(load.design > 0)) return null;
@@ -247,6 +386,8 @@ export default function App() {
   }, [load.design, ambient, effInsTemp, termTemp, applyNec11014TerminationLimit, vClass, construction, effArrangement, covered, ccc, maxSets, effMaxSize, ambMethod, vdCfg]);
 
   const warnings = [...load.warnings];
+  if (load.mcc?.protectionStatus) warnings.push(load.mcc.protectionStatus);
+  if (load.mcc?.valid && vdOn) warnings.push("Mixed-load voltage drop uses the highest per-conductor operating current and the entered power factor; verify voltage drop per load/phase for the final design.");
   if (covered && arrangement !== "touching")
     warnings.push("Maintained-spacing / trefoil ampacities require an UNCOVERED tray. With a solid cover selected, the calculation reverts to the touching-cables rule.");
   if (vClass !== "lv" && insTemp < 90)
@@ -295,6 +436,8 @@ export default function App() {
         inputs: {
           loadType, phases, motorMode, hp, motorV, voltage, rating, ratingUnit, pf,
           customA, contA, nonContA, continuous, heaterMode,
+          mccId: mccProject.feederId, mccDescription: mccProject.description,
+          frequency: mccProject.frequency, mccLoads: mccProject.loads,
           vClass, construction, insTemp: effInsTemp, termTemp,
           applyTermLimit: !terminationOverrideActive, ccc,
           arrangement: effArrangement, arrangementRaw: arrangement, covered,
@@ -310,6 +453,58 @@ export default function App() {
         vd: vdCfg,
       })
     );
+  };
+
+  const exportMccProject = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(mccProjectData, null, 2)], { type: "application/json" }));
+    a.download = "cable-tray-mcc-loads.json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const importMccProject = async (event) => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const project = JSON.parse(await file.text());
+      const loadTypes = ["motor", "vfd", "heater", "transformer", "general"];
+      if (project?.version !== 1 || !Array.isArray(project.loads)
+        || !project.loads.every((load) => load && typeof load === "object" && !Array.isArray(load) && loadTypes.includes(load.type))
+        || ![1, 3].includes(project.phases)
+        || !(Number(project.voltage) > 0) || ![50, 60].includes(Number(project.frequency))) {
+        throw new Error("Unsupported MCC load-list format");
+      }
+      setMccProject({ ...project, frequency: String(project.frequency), saved: true });
+      setLoadType("mcc");
+      setVoltage(String(project.voltage));
+      setPhases(Number(project.phases));
+      setOcpd(project.upstreamOcpd ?? "");
+      const sizing = project.sizing || {};
+      setVClass(sizing.vClass || "lv");
+      setConstruction(sizing.construction || "multi");
+      setInsTemp(sizing.insTemp || 90);
+      setTermTemp(sizing.termTemp || 75);
+      setApplyNec11014TerminationLimit(sizing.applyNec11014TerminationLimit ?? true);
+      setCcc(sizing.ccc || "3");
+      setArrangement(sizing.arrangement || "touching");
+      setCovered(sizing.covered || false);
+      setAmbient(sizing.ambient || "40");
+      setMaxSets(sizing.maxSets || "4");
+      setMaxSize(sizing.maxSize || "500");
+      setAmbMethod(sizing.ambMethod || "table");
+      setEgcLinked(sizing.egcLinked ?? true);
+      setVdOn(sizing.vdOn ?? true);
+      setVdLength(sizing.vdLength || "100");
+      setVdUnit(sizing.vdUnit || "m");
+      setVdMax(sizing.vdMax || "3");
+      setVdVolts(sizing.vdVolts || "480");
+      setVdPf(sizing.vdPf || "0.85");
+      setMccImportError("");
+    } catch (error) {
+      setMccImportError(`MCC load-list import failed: ${error.message}`);
+    } finally {
+      event.target.value = "";
+    }
   };
 
   const screw = (pos) => (
@@ -360,6 +555,14 @@ export default function App() {
             >
               Detailed calculation report
             </button>
+            {loadType === "mcc" && <>
+              <button onClick={exportMccProject} style={{ ...mono, fontSize: 12, color: C.accent, border: `1px solid ${C.line}`, background: C.panel, borderRadius: 4, padding: "6px 12px" }}>
+                Export MCC loads
+              </button>
+              <label style={{ ...mono, fontSize: 12, color: C.accent, border: `1px solid ${C.line}`, background: C.panel, borderRadius: 4, padding: "6px 12px", cursor: "pointer" }}>
+                Import MCC loads<input type="file" accept=".json,application/json" onChange={importMccProject} style={{ display: "none" }} />
+              </label>
+            </>}
             <a
               href="../../index.html"
               style={{
@@ -373,7 +576,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="tool-grid" style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 20, alignItems: "start" }}>
+        <div className="tool-grid" style={{ display: "grid", gridTemplateColumns: loadType === "mcc" ? "minmax(0, 1fr)" : "380px 1fr", gap: 20, alignItems: "start" }}>
 
           {/* ------------------------------ INPUTS ----------------------------- */}
           <div style={{ minWidth: 0 }}>
@@ -383,6 +586,7 @@ export default function App() {
                   value={loadType}
                   onChange={setLoadType}
                   options={[
+                    ["mcc", "MCC / Mixed Load Feeder — NEC 430.24"],
                     ["motor", "Motor (430.22 — 125% of table FLC)"],
                     ["generator", "Generator (445.13 — 115%)"],
                     ["transformer", "Transformer feeder (125% FLA)"],
@@ -500,6 +704,36 @@ export default function App() {
                   <Field label="Duty">
                     <SegBtns value={continuous} onChange={(v) => setContinuous(v === "true" || v === true)} options={[[true, "Continuous (×1.25)"], [false, "Non-continuous (×1.00)"]]} />
                   </Field>
+                </>
+              )}
+
+              {loadType === "mcc" && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Feeder / MCC identification">
+                      <input value={mccProject.feederId || ""} onChange={(e) => setMccProject({ ...mccProject, feederId: e.target.value, saved: true })} style={inputStyle} />
+                    </Field>
+                    <Field label="System voltage (V)">
+                      <Num value={voltage} onChange={setVoltage} min="1" />
+                    </Field>
+                    <Field label="System frequency (Hz)">
+                      <Num value={mccProject.frequency} onChange={(v) => setMccProject({ ...mccProject, frequency: v, saved: true })} min="1" />
+                    </Field>
+                    <Field label="Engineering description">
+                      <input value={mccProject.description || ""} onChange={(e) => setMccProject({ ...mccProject, description: e.target.value, saved: true })} style={inputStyle} />
+                    </Field>
+                    <Field label="Existing upstream protective device (A), optional">
+                      <Num value={ocpd} onChange={(v) => { setOcpd(v); setMccProject({ ...mccProject, upstreamOcpd: v, saved: true }); }} min="0" />
+                    </Field>
+                  </div>
+                  <MccLoadManager
+                    project={mccProject}
+                    onChange={setMccProject}
+                    voltage={voltage}
+                    feederPhases={phases}
+                    calculation={load.mcc}
+                  />
+                  {mccImportError && <div style={{ color: C.err, fontSize: 12, marginTop: 8 }}>{mccImportError}</div>}
                 </>
               )}
             </Section>
@@ -905,6 +1139,21 @@ export default function App() {
                 ))}
               </div>
             </Section>
+            {load.mcc?.valid && (
+              <Section tag="NEC 430.24" title="MCC / mixed-load feeder summary">
+                <div className="equation" style={{ ...mono, fontSize: 12, lineHeight: 1.8 }}>
+                  Feeder: {mccProject.feederId || "Not identified"} · {voltage} V · {phases}-phase · {mccProject.frequency} Hz<br />
+                  Connected current: {load.mcc.totalConnectedCurrent.toFixed(2)} A<br />
+                  Largest motor: {load.mcc.largestMotorTag} · {load.mcc.largestMotorCurrent.toFixed(2)} A × 125% = {load.mcc.largestMotorContribution.toFixed(2)} A<br />
+                  Remaining motor current: {load.mcc.remainingMotorCurrent.toFixed(2)} A<br />
+                  Continuous nonmotor: {load.mcc.continuousNonmotorCurrent.toFixed(2)} A × 125% = {load.mcc.continuousNonmotorContribution.toFixed(2)} A<br />
+                  Noncontinuous nonmotor: {load.mcc.noncontinuousNonmotorCurrent.toFixed(2)} A<br />
+                  Required feeder ampacity: <b>{load.mcc.required.toFixed(2)} A</b><br />
+                  Phase/conductor checks: {Object.entries(load.mcc.currentsByPhase).map(([phase, amps]) => `${phase} ${amps.toFixed(2)} A`).join(" · ")}<br />
+                  {load.mcc.protectionStatus}
+                </div>
+              </Section>
+            )}
 
             {/* Warnings */}
             {warnings.length > 0 && (

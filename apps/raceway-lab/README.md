@@ -9,14 +9,27 @@ The four-step interface sizes/validates cables, EGC and conduit, with an English
 learning guide, traceable calculations, candidate comparison, JSON import/export,
 local browser save and printable draft/final-status calculation records.
 
-The first panel offers eight load types: LV/MV direct-online motor, LV/MV VFD
-input, heater, transformer, distribution-panel feeder and general load. Only
+The first panel offers the existing load types plus **MCC / Mixed Load Feeder
+(NEC 430.24)**. The MCC mode manages a connected-load list (DOL motors, VFD
+inputs, heaters, transformers and general loads), calculates each current, then
+passes the required ampacity into the existing cable and conduit selector. Only
 applicable inputs are displayed. Changing the type clears incompatible load and
 protection data. Circuit Arrangement contains parallel runs and physical circuit
 configuration, not a generic breaker input. The actual protective-device basis
 is entered with the wire EGC and optional protection checks in the installation
 step. Without it, load-based conductor sizing remains available, but EGC and
 raceway fill are explicitly pending and the design cannot be marked Calculated.
+
+MCC feeders use Table 430.250 / 430.248 motor FLC where supported and use VFD
+rated input current under 430.122(D). One largest motor contribution receives
+125%; the remaining motor contributions are 100%, with continuous/noncontinuous
+nonmotor loads treated separately under 430.24 / 215.2. The upstream device is
+not used as a substitute for conductor ampacity and is only an EGC basis; feeder
+protection is explicitly left for engineering verification. Mixed one-/three-
+phase loads are conservatively summed per assigned line conductor without
+vector cancellation. Medium-voltage mixed feeders, VFD bypass arrangements,
+noncontinuous motor duty exceptions and automatic noncoincident-load treatment
+are not implemented and block or flag the calculation for engineering review.
 
 Nominal current, NEC load-based requirement, before-adjustment ampacity,
 termination limit, corrected/adjusted ampacity, selected allowable ampacity,
@@ -25,7 +38,7 @@ unadjusted insulation/termination capacity covers 125% continuous plus 100%
 noncontinuous current; corrected/adjusted capacity covers actual load current.
 Conductor protection is checked separately, conservatively without next-size-up.
 
-Projects use JSON version 5; versions 2-4 are migrated. Blank numbers remain
+Projects use JSON version 6; versions 2-5 are migrated. Blank numbers remain
 blank. Legacy MV motors without an overload setting remain incomplete; old
 neutral designs require the newly collected unbalanced-current input.
 
