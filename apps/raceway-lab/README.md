@@ -13,7 +13,10 @@ The first panel offers the existing load types plus **MCC / Mixed Load Feeder
 (NEC 430.24)**. The MCC mode manages a connected-load list (DOL motors, VFD
 inputs, heaters, transformers and general loads), calculates each current, then
 passes the required ampacity into the existing cable and conduit selector. Only
-applicable inputs are displayed. Changing the type clears incompatible load and
+applicable inputs are displayed. Each connected load has a responsive card with
+labeled rating fields and compact duplicate/remove actions. The load editor spans
+the full input panel rather than sharing a feeder-information grid cell.
+Changing the type clears incompatible load and
 protection data. Circuit Arrangement contains parallel runs and physical circuit
 configuration, not a generic breaker input. The actual protective-device basis
 is entered with the wire EGC and optional protection checks in the installation
