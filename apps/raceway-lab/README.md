@@ -9,6 +9,12 @@ The four-step interface sizes/validates cables, EGC and conduit, with an English
 learning guide, traceable calculations, candidate comparison, JSON import/export,
 local browser save and printable draft/final-status calculation records.
 
+The printed record opens with the selected phase cable, equipment grounding
+conductor and raceway, followed by the input data (including the connected-load
+schedule for MCC feeders), the calculation criteria, a pass/fail summary of
+checks with the detailed arithmetic and candidate comparison, outstanding
+items and references.
+
 The first panel offers the existing load types plus **MCC / Mixed Load Feeder
 (NEC 430.24)**. The MCC mode manages a connected-load list (DOL motors, VFD
 inputs, heaters, transformers and general loads), calculates each current, then

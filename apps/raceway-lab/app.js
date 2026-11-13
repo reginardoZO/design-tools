@@ -148,6 +148,7 @@ function inputRecord(){
  return [['Circuit & load',circuit],['Cable & ampacity',cable],['Raceway & installation',raceway]].map(([section,view])=>{
   t.innerHTML=view();
   const rows=[...t.content.querySelectorAll('.field, label.check')].map(el=>{
+   if(el.querySelector('[data-mcc-field]'))return null;
    if(el.matches('label.check'))return [el.querySelector('span').textContent,el.querySelector('input').checked?'Yes':'No'];
    const control=el.querySelector('select, input');if(!control)return null;
    const title=el.querySelector('label').textContent;
@@ -157,10 +158,85 @@ function inputRecord(){
   return `<tr><th colspan="2">${section}</th></tr>`+rows.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
  }).join('');
 }
+const RACEWAY_NAMES={RMC:'RMC · rigid steel',IMC:'IMC · intermediate steel',EMT:'EMT · steel tubing',PVC40:'PVC Schedule 40',PVC80:'PVC Schedule 80'};
+const passText=ok=>ok===undefined||ok===null?'<span class="pending">Pending</span>':ok?'<span class="ok">Pass</span>':'<span class="fail">Fail</span>';
+function selectionTable(){
+ const s=result.selected,c=s?.cable,g=s?.g,cd=s?.conduit,phaseCount=p.phases===1?2:3;
+ const cond=s?(p.construction==='single'?`${phaseCount} × 1/C ${label(s.size)} Cu`:`1 × 3/C ${label(s.size)} Cu`):'Not determined';
+ const rows=[[
+  'Phase conductors',
+  s?`${p.sets} set${p.sets>1?'s':''} of ${cond} per circuit`:cond,
+  c?`Okonite ${esc(c.catalogNumber)} · ${esc(c.title)}<br>${c.voltage} V · ${c.maxTemp}°C insulation · OD ${fmt(c.odIn,2)} in<br>Allowable ampacity (all sets): <b>${fmt(s.allowed,2)} A</b> vs. required ${fmt(result.load?.required,2)} A`:'No catalog cable selected'
+ ]];
+ if(p.neutral!=='none'&&s)rows.push(['Neutral',`${p.sets} × 1/C ${label(s.size)} Cu (full size)`,`Required ${fmt(s.neutralRequired,2)} A · ${s.neutralPass?'Pass':'Fail'}`]);
+ rows.push([
+  'Equipment grounding conductor',
+  !g?'Pending · enter protective-device rating':p.groundMode==='integral'?`Integral cable grounds: ${c?.ground?`${c.ground.count} × ${label(c.ground.size)} Cu`:'none'}`:`1 × ${label(g.size)} Cu insulated per raceway`,
+  g?`Minimum per 250.122: ${label(g.size)} Cu (${fmt(g.required,2)} kcmil)<br>Device basis ${fmt(p.ocpd,0)} A${g.ratio>1?` · increased by phase-area ratio ${fmt(g.ratio,3)}`:''}`:'250.122 basis not available'
+ ]);
+ rows.push([
+  'Raceway',
+  cd?`${p.sets} × ${esc(cd.trade)} in ${esc(RACEWAY_NAMES[p.conduitType]||p.conduitType)}`:'Not determined',
+  cd?`${p.circuits} circuit${p.circuits>1?'s':''} per raceway · ${cd.count} fill item${cd.count>1?'s':''}<br>Fill <b>${fmt(cd.percent,1)}%</b> of ${cd.nec}% limit · bend radius ${cd.bendRadius} in vs. cable minimum ${fmt(s.bend?.radius,2)} in`:'Fill and bend checks unavailable'
+ ]);
+ return `<table class="print-selection"><thead><tr><th>Item</th><th>Selected</th><th>Key data</th></tr></thead><tbody>${rows.map(([a,b,d])=>`<tr><th scope="row">${a}</th><td class="pick">${b}</td><td>${d}</td></tr>`).join('')}</tbody></table>`;
+}
+const MCC_TYPE_NAMES={motor:'DOL motor',vfd:'VFD input',heater:'Heater',transformer:'Transformer',general:'General load'};
+function mccRatingText(l){
+ if(l.type==='motor')return l.motorCategory==='standard'?`${Number.isFinite(Number(l.horsepower))&&l.horsepower!==''?esc(l.horsepower):'—'} HP · NEC table FLC`:`${fmt(l.motorCurrent,2)} A nameplate · ${esc(l.motorCategory)}`;
+ if(l.type==='vfd')return `${fmt(l.driveInputCurrent,2)} A drive input${l.bypass?' · bypass':''}`;
+ if(l.type==='transformer')return l.transformerBasis==='rated'?`${fmt(l.rating,1)} kVA rated · ${l.primaryVoltage}/${l.secondaryVoltage} V, ${l.transformerSide} side`:`${fmt(l.rating,1)} ${esc(l.ratingUnit)} calculated · ${fmt(l.continuousPercent,0)}% continuous`;
+ return `${fmt(l.rating,2)} ${esc(l.ratingUnit)}${l.ratingUnit==='kW'?` · PF ${fmt(l.powerFactor,2)}`:''}`;
+}
+function mccInputTable(){
+ if(p.loadType!=='mcc-feeder')return '';
+ const loads=p.mccLoads||[];
+ return `<h3>Connected loads</h3>${loads.length?`<table class="print-schedule"><thead><tr><th>Tag</th><th>Type</th><th>Qty</th><th>Voltage / phases</th><th>Rating</th><th>Duty</th></tr></thead><tbody>${loads.map((l,i)=>`<tr><td>${esc(l.tag||`Load ${i+1}`)}</td><td>${esc(MCC_TYPE_NAMES[l.type]||l.type)}</td><td>${esc(l.quantity)}</td><td>${esc(l.voltage)} V · ${l.phases===1?`1Ø ${esc(l.phasePair||'')}`:'3Ø'}</td><td>${mccRatingText(l)}</td><td>${l.type==='transformer'&&l.transformerBasis==='calculated'?'per %':esc(l.duty)}</td></tr>`).join('')}</tbody></table>`:'<p>No connected loads entered.</p>'}`;
+}
+function criteriaList(){
+ const s=result.selected,l=result.load;
+ const items=[
+  ['Code basis','NFPA 70, National Electrical Code 2023 edition. Copper conductors, aboveground raceway, Okonite catalog cable data.'],
+  ['Load / required ampacity',l?`${esc(l.basis)} (${esc(l.reference)})`:'Load not determined'],
+  ['Conductor ampacity',s?`Table ${esc(s.ref)} at ${p.insulation}°C insulation rating; ambient ${fmt(result.ambient)}°C${result.adder?` (including ${result.adder}°C rooftop adder)`:''} → correction ${result.factor}; ${result.ccc} current-carrying conductors → adjustment ${result.adjust}.`:'Not determined'],
+  ['Terminations',s?`Allowable ampacity limited to the ${s.terminal}°C terminal column (${mv()?'110.40':'110.14(C)'}).`:'—'],
+  ['Parallel conductors',p.sets>1?`${p.sets} equal sets in separate raceways (310.10(G)).`:'Single set; no paralleling.'],
+  ['Equipment grounding conductor','Table 250.122 based on the upstream protective device; increased proportionally to phase-conductor area under 250.122(B). Motor overload settings are not used.'],
+  ['Raceway fill','NEC Chapter 9 Table 1 limits (53% / 31% / 40%) using catalog cable outside diameters and Chapter 9 Table 4 internal areas.'],
+  ['Bending radius','Conduit bend radius (Chapter 9 Table 2) must be at least the cable minimum bending radius; total bends ≤ 360°. Pulling tension and sidewall pressure are not calculated.'],
+  ['Selection rule',p.selection==='auto'?'Smallest catalog size passing all numerical checks; smallest passing trade size unless a size was specified.':'User-selected conductor size verified against all numerical checks.']
+ ];
+ return `<table class="print-kv"><tbody>${items.map(([k,v])=>`<tr><th scope="row">${k}</th><td>${v}</td></tr>`).join('')}</tbody></table>`;
+}
+function resultChecks(){
+ const s=result.selected,l=result.load;if(!s)return '<p>No conductor could be evaluated. See outstanding items.</p>';
+ const cd=s.conduit,g=s.g,rows=[
+  ['Ampacity before adjustment (insulation / terminations)',`≥ ${fmt(l.required,2)} A`,`${fmt(s.unadjusted*p.sets,2)} A`,s.terminalPass],
+  ['Corrected and adjusted ampacity',`≥ ${fmt(l.thermal,2)} A`,`${fmt(s.corrected*p.sets,2)} A`,s.thermalPass],
+  ['Final allowable ampacity (all sets)',`≥ ${fmt(l.required,2)} A`,`${fmt(s.allowed,2)} A`,s.ampPass],
+  ['Cable voltage rating',`≥ ${circuitVoltage(p)} V`,s.cable?`${s.cable.voltage} V`:'—',s.cable?s.cablePass&&s.voltageBandPass&&s.levelPass:false],
+  ['Equipment grounding conductor',g?`${label(g.size)} (${fmt(g.required,2)} kcmil)`:'—',g?(p.groundMode==='integral'?`${fmt(s.groundKcmil,2)} kcmil integral`:`${label(g.size)} separate`):'—',g?s.integralPass:null],
+  ['Raceway fill',cd?`≤ ${cd.nec}%`:'—',cd?`${fmt(cd.percent,1)}%`:'—',cd?cd.fillPass:null],
+  ['Conduit bend radius',s.bend?`≥ ${fmt(s.bend.radius,2)} in`:'—',cd?`${cd.bendRadius} in`:'—',cd?cd.bendPass:null]
+ ];
+ if(p.neutral!=='none')rows.splice(3,0,['Full-size neutral',`≥ ${fmt(s.neutralRequired,2)} A`,`${fmt(s.allowed,2)} A`,s.neutralPass]);
+ return `<table class="print-checks"><thead><tr><th>Check</th><th>Required</th><th>Provided</th><th>Result</th></tr></thead><tbody>${rows.map(([a,b,c,d])=>`<tr><td>${a}</td><td class="numeric">${b}</td><td class="numeric">${c}</td><td>${passText(d)}</td></tr>`).join('')}</tbody></table>`;
+}
 function printCalculation(){
  result=calculate(p,catalog);const inputRows=inputRecord();
  const space='<tr><td><div class="print-space"></div></td></tr>';
- $('#printout').innerHTML=`<table class="print-frame"><thead>${space}</thead><tfoot>${space}</tfoot><tbody><tr><td><h1>Conduit Way Lab · NEC 2023</h1><p>${esc(p.name)} · ${new Date().toISOString().slice(0,10)}</p><h2>${result.status==='Calculated'?'CALCULATED':'DRAFT · '+result.status.toUpperCase()}</h2><p>${p.phases===1?'Single-phase two-wire':'Three-phase'} copper power circuit, aboveground raceway, Okonite catalog cable. This calculation is limited to the implemented scope and does not certify the installation.</p>${arithmetic()}<h2>Outstanding items</h2>${issueList()||'<p>None recorded.</p>'}<h2>Candidate checks</h2>${candidateTable()}<h2>Input record</h2><table class="input-record"><thead><tr><th>Input</th><th>Value</th></tr></thead><tbody>${inputRows}</tbody></table><h2>References and calculation method</h2>${SOURCES.map(([n,u,d])=>`<p><b>${n}</b><br>${u}<br>${d}</p>`).join('')}<p>See the app learning guide and SOURCES.md for all scope restrictions.</p></td></tr></tbody></table>`;
+ const blocks=result.issues.filter(x=>x.level==='block').length,reviews=result.issues.filter(x=>x.level==='review').length;
+ const klass=result.status==='Blocked'?'blocked':result.status==='Calculated'?'calculated':'review';
+ $('#printout').innerHTML=`<table class="print-frame"><thead>${space}</thead><tfoot>${space}</tfoot><tbody><tr><td>
+ <div class="print-title"><div><h1>Conduit Way Lab · NEC 2023</h1><p><b>${esc(p.name)}</b> · ${esc(circuitLabel())} · ${circuitVoltage(p)} V ${p.phases===1?'single-phase':'three-phase'} · ${new Date().toISOString().slice(0,10)}</p></div><span class="status ${klass}">${result.status==='Calculated'?'CALCULATED':'DRAFT · '+esc(result.status.toUpperCase())}</span></div>
+ <h2>1. Selected cable, grounding conductor and raceway</h2>${selectionTable()}
+ ${blocks||reviews?`<p class="print-flag">${[blocks?`${blocks} blocking item${blocks>1?'s':''}`:'',reviews?`${reviews} review item${reviews>1?'s':''}`:''].filter(Boolean).join(' and ')} open. See section 5 before issue.</p>`:''}
+ <h2>2. Input data</h2><table class="input-record"><thead><tr><th>Input</th><th>Value</th></tr></thead><tbody>${inputRows}</tbody></table>${mccInputTable()}
+ <h2>3. Calculation criteria</h2>${criteriaList()}
+ <h2>4. Results</h2><h3>Summary of checks</h3>${resultChecks()}${arithmetic()}<h3>Candidate comparison</h3>${candidateTable()}
+ <h2>5. Outstanding items</h2>${result.issues.length?issueList():'<p>None recorded.</p>'}
+ <h2>6. References</h2>${SOURCES.map(([n,u,d])=>`<p class="ref"><b>${n}</b> · ${u}<br>${d}</p>`).join('')}<p class="ref">This calculation is limited to the implemented scope and does not certify the installation. See the app learning guide and SOURCES.md for all scope restrictions.</p>
+ </td></tr></tbody></table>`;
  window.print();
 }
 $('#print').onclick=printCalculation;
