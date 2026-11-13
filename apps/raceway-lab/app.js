@@ -108,9 +108,25 @@ function download(name,text,type){const a=document.createElement('a');a.href=URL
 $('#save').onclick=()=>{try{localStorage.setItem(KEY,JSON.stringify(p));showNotice('Saved on this browser. Export JSON to keep a transferable backup.');}catch{showNotice('Browser storage is unavailable. Use Export JSON instead.');}};
 $('#export').onclick=()=>download('conduit-way-lab-project.json',JSON.stringify(p,null,2),'application/json');
 $('#import').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;const next=loadProject(JSON.parse(await file.text()));p=next;syncFamily();step=0;render();showNotice('Project imported. Recalculate and review the sizing basis before issue.');}catch{showNotice('Import failed: select a valid Conduit Way Lab version 2, 3, 4 or 5 JSON file. Current design retained.');}e.target.value='';};
+// Reuse the editor step markup so the record shows the same labels, units and choices the engineer saw.
+function inputRecord(){
+ const t=document.createElement('template');
+ return [['Circuit & load',circuit],['Cable & ampacity',cable],['Raceway & installation',raceway]].map(([section,view])=>{
+  t.innerHTML=view();
+  const rows=[...t.content.querySelectorAll('.field, label.check')].map(el=>{
+   if(el.matches('label.check'))return [el.querySelector('span').textContent,el.querySelector('input').checked?'Yes':'No'];
+   const control=el.querySelector('select, input');if(!control)return null;
+   const title=el.querySelector('label').textContent;
+   if(control.tagName==='SELECT'){const o=[...control.options].find(o=>o.selected)||control.options[0];return [title,o&&o.value!==''?o.textContent:'Not entered'];}
+   return [title,control.getAttribute('value')?.trim()||'Not entered'];
+  }).filter(Boolean);
+  return `<tr><th colspan="2">${section}</th></tr>`+rows.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
+ }).join('');
+}
 function printCalculation(){
- result=calculate(p,catalog);const inputRows=Object.entries(p).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
- $('#printout').innerHTML=`<h1>Conduit Way Lab · NEC 2023</h1><p>${esc(p.name)} · ${new Date().toISOString().slice(0,10)}</p><h2>${result.status==='Calculated'?'CALCULATED':'DRAFT · '+result.status.toUpperCase()}</h2><p>${p.phases===1?'Single-phase two-wire':'Three-phase'} copper power circuit, aboveground raceway, Okonite catalog cable. This calculation is limited to the implemented scope and does not certify the installation.</p>${arithmetic()}<h2>Outstanding items</h2>${issueList()||'<p>None recorded.</p>'}<h2>Candidate checks</h2>${candidateTable()}<h2>Input record</h2><table><tbody>${inputRows}</tbody></table><h2>References and calculation method</h2>${SOURCES.map(([n,u,d])=>`<p><b>${n}</b><br>${u}<br>${d}</p>`).join('')}<p>See the app learning guide and SOURCES.md for all scope restrictions.</p>`;
+ result=calculate(p,catalog);const inputRows=inputRecord();
+ const space='<tr><td><div class="print-space"></div></td></tr>';
+ $('#printout').innerHTML=`<table class="print-frame"><thead>${space}</thead><tfoot>${space}</tfoot><tbody><tr><td><h1>Conduit Way Lab · NEC 2023</h1><p>${esc(p.name)} · ${new Date().toISOString().slice(0,10)}</p><h2>${result.status==='Calculated'?'CALCULATED':'DRAFT · '+result.status.toUpperCase()}</h2><p>${p.phases===1?'Single-phase two-wire':'Three-phase'} copper power circuit, aboveground raceway, Okonite catalog cable. This calculation is limited to the implemented scope and does not certify the installation.</p>${arithmetic()}<h2>Outstanding items</h2>${issueList()||'<p>None recorded.</p>'}<h2>Candidate checks</h2>${candidateTable()}<h2>Input record</h2><table class="input-record"><thead><tr><th>Input</th><th>Value</th></tr></thead><tbody>${inputRows}</tbody></table><h2>References and calculation method</h2>${SOURCES.map(([n,u,d])=>`<p><b>${n}</b><br>${u}<br>${d}</p>`).join('')}<p>See the app learning guide and SOURCES.md for all scope restrictions.</p></td></tr></tbody></table>`;
  window.print();
 }
 $('#print').onclick=printCalculation;
