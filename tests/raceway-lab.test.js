@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
-import {calculate,defaults,newProject,changeLoadType,LOAD_TYPES,correction,adjustment,fill,grounding,demand,area,cableBend,familyRatings,familyEntries,motorTableFLC} from '../apps/raceway-lab/engine.js';
+import {calculate,defaults,newProject,changeLoadType,LOAD_TYPES,correction,adjustment,fill,grounding,demand,area,cableBend,familyRatings,familyEntries,motorTableFLC,label} from '../apps/raceway-lab/engine.js';
 import {MV_1C,MV_3C,CONDUIT_BEND,SIZES} from '../apps/raceway-lab/data.js';
 import {loadProject} from '../apps/raceway-lab/project.js';
 const cat=JSON.parse(readFileSync(new URL('../apps/raceway-lab/catalog.json',import.meta.url)));
@@ -9,6 +9,20 @@ const run=changes=>calculate({...defaults(),...changes},cat);
 const has=(r,c)=>r.issues.some(x=>x.code===c);
 const near=(a,b,tol=1e-7)=>assert.ok(Math.abs(a-b)<tol,`${a} != ${b}`);
 const mv={voltage:4160,loadType:'mv-motor',motorFLC:250,motorTrip:280,breakerRating:400,family:'2:4',cableVoltage:5000,insulationLevel:100,selection:'auto',terminal:'90',ambient:45,ocpd:400};
+
+test('screen/report cable composition distinguishes phase sizes from actual catalog grounds',()=>{
+ const app=readFileSync(new URL('../apps/raceway-lab/app.js',import.meta.url),'utf8');
+ const helpers=app.slice(app.indexOf('function catalogGround('),app.indexOf('function cableNote('));
+ const describe=(changes)=>{
+  const project={...defaults(),...changes},result=calculate(project,cat);
+  return new Function('label','p',`${helpers}; return cableComposition;`)(label,project)(result.selected);
+ };
+ assert.equal(describe({construction:'multi',family:'4:5',groundMode:'integral'}),'1 multicore cable: 3 × 1/0 AWG Cu phases; 1 × 6 AWG Cu integral ground (inside cable)');
+ assert.equal(describe({construction:'multi',family:'4:5',groundMode:'integral',selection:'manual',size:'1/0',ocpd:NaN}),'1 multicore cable: 3 × 1/0 AWG Cu phases; 1 × 6 AWG Cu integral ground (inside cable)');
+ assert.equal(describe({construction:'multi',family:'4:1',groundMode:'separate',selection:'manual',size:'1/0'}),'1 multicore cable: 3 × 1/0 AWG Cu phases; 3 × 10 AWG Cu integral ground (inside cable)');
+ assert.equal(describe({construction:'multi',family:'4:5',groundMode:'separate'}),'1 multicore cable: 3 × 1/0 AWG Cu phases; no integral ground in catalog');
+ assert.equal(describe({}),'3 × 1/C 1/0 AWG Cu');
+});
 
 test('catalog: Okonite copper families for aboveground raceway only',()=>{
  const specs=[...new Set(cat.map(c=>c.spec))].sort();

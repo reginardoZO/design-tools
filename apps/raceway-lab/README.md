@@ -15,6 +15,13 @@ schedule for MCC feeders), the calculation criteria, a pass/fail summary of
 checks with the detailed arithmetic and candidate comparison, outstanding
 items and references.
 
+For multicore cables, the screen summary and printed selection show the phase
+conductor size and the actual count and size of integral grounds from the selected
+catalog row. These grounds are inside the cable and may be smaller than the phases.
+Their catalog size is distinct from the NEC minimum EGC requirement; a selected
+separate EGC is identified separately. Catalog ground data remains visible even
+when the protective-device basis is missing and EGC verification is pending.
+
 The first panel offers the existing load types plus **MCC / Mixed Load Feeder
 (NEC 430.24)**. The MCC mode manages a connected-load list (DOL motors, VFD
 inputs, heaters, transformers and general loads), calculates each current, then
