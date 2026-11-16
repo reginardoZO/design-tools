@@ -349,7 +349,7 @@ function applyThermalResult(result, operatingCurrent, input) {
     : 'did not converge';
 
   setStatus(
-    !result.temperatureConverged ? 'Did not converge' : temperatureAccepted && ampacityAccepted ? 'Pass' : 'Over temperature',
+    !result.temperatureConverged ? 'Did not converge' : temperatureAccepted && ampacityAccepted ? 'Thermal pass' : 'Over temperature',
     tempTone,
   );
 
@@ -492,7 +492,7 @@ function onLoadTypeChanged() {
   setRow($('rowAuxPower'), $('cmbAuxPower'), showAux);
   setRow($('rowBreaker'), $('txtBreakerRating'), showBreaker);
   $('hintFeeder').hidden = !showBreaker;
-  // the 240.6(A) rating already carries the 125 % continuous allowance
+  // Device-reference thermal mode has no extra multiplier; load sizing is separate.
   $('cmbCurrentFactor').disabled = showBreaker;
   setRow($('rowPower'), $('txtPowerMain'), Boolean(carga) && !showAux && !showBreaker);
   $('cmbUnitsMain').disabled = !carga || showAux || showBreaker;

@@ -59,13 +59,11 @@
       </div>
 
       <p class="hint" id="hintFeeder" hidden>
-        A feeder is sized from the device that protects it, not from its connected load:
-        <b>NEC 240.4</b> requires the conductor to be protected at its ampacity, and the
-        <b>240.6(A)</b> rating of that device already includes the 125&thinsp;% continuous-load
-        allowance of <b>215.2(A)(1)</b> &mdash; so the Factor stays at 1.00 to avoid double counting.
-        Exceptions to keep in mind: <b>240.4(B)</b> allows a device up to 800&nbsp;A to be the next
-        standard size above the conductor ampacity, and motor circuits (<b>430.52</b>, <b>240.4(G)</b>)
-        are still sized from the motor FLC &mdash; use the MOTOR load type for those.
+        This mode uses the entered protective-device value as a thermal-study current,
+        with Factor 1.00. A standard rating in <b>240.6(A)</b> does not establish the
+        continuous-load requirement. Verify load-based sizing under <b>215.2</b>,
+        motor feeders under <b>430.24</b> and conductor protection separately.
+        A thermal pass does not verify conduit fill, EGC, terminations or protection.
       </p>
 
       <div class="row" id="rowPower">

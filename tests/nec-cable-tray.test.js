@@ -140,14 +140,14 @@ test('MV 15 kV 3-conductor cable is capped on the 90 C column per 110.40', () =>
     applyNec11014TerminationLimit: false, // the LV-only override must not bypass 110.40
   });
 
-  assert.equal(result.method.baseTableName, 'Table 315.60(C)(5) (3-conductor cable in air)');
+  assert.equal(result.method.baseTableName, 'Table 315.60(C)(9) (3-conductor cable in isolated conduit in air)');
   assert.equal(result.kAmb, 1); // 40 C ambient on a 40 C table basis
   const row = result.rows.find((r) => r.size === '4/0');
-  near(row.base, 360); // 105 C column, 5001-35000 V
-  near(row.tf, 0.95); // 392.80(B)(1)(a)
-  near(row.derated, 360 * 0.95);
-  near(row.termAmp, 325); // 90 C column of the same table
-  near(row.allowed, 325); // termination governs
+  near(row.base, 320); // C(9), 105 C column, 5001-35000 V
+  near(row.tf, 1); // 392.80(B)(1), ordinary uncovered tray
+  near(row.derated, 320);
+  near(row.termAmp, 290); // C(9), 90 C termination basis
+  near(row.allowed, 290); // termination governs
 });
 
 test('voltage drop can govern over ampacity and is halved by two sets', () => {

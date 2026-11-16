@@ -65,12 +65,12 @@ test('single conductors follow 392.22(B)', () => {
   assert.equal(r.rule, null); assert.equal(r.ratio, null); assert.match(r.notes[0], /ladder and ventilated/);
 });
 
-test('cables above 2,000 V use the sum of diameters; uncovered mixes report no NEC rule', () => {
+test('MV uses diameter sums; LV area-based mixes use the combined rule', () => {
   const mv = cable({conductors: 1, sizeKcmil: 350, odIn: 1.2, voltage: 15000});
   const r = fill([{cable: mv, qty: 3}], {widthIn: 4});
   assert.equal(r.rule, '392.22(C)'); close(r.used, 3.6); close(r.ratio, .9);
   assert.equal(fill([{cable: mv, qty: 3}, {cable: cable(), qty: 1}]).rule, null);
-  assert.equal(fill([{cable: cable({conductors: 1, sizeKcmil: 350}), qty: 3}, {cable: cable(), qty: 1}]).rule, null);
+  assert.equal(fill([{cable: cable({conductors: 1, sizeKcmil: 350}), qty: 3}, {cable: cable(), qty: 1}]).rule, '392.80(A)(3)');
 });
 
 test('empty input and size parsing', () => {

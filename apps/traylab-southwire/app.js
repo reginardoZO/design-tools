@@ -54,20 +54,20 @@ function heading() {
 function reportSummary() {
   const rows = [['Tray tag', tray.trayTag || '—'], ['Inside width', dimension(tray.widthIn)], ['Usable depth', dimension(tray.depthIn)], ['Tray type', TRAY_TYPES[tray.trayType]],
     ['Cover', tray.covered ? 'Yes' : 'No'], ['Dividers', tray.dividers.length ? `${tray.dividers.length} × ${dimension(tray.dividerThicknessIn)} at ${tray.dividers.map(d => fmt(d, 3)).join(', ')} in` : 'None'],
-    ['Spare reserve', `${fmt(tray.reserve, 0)}%`], ['Result', evaluation.ok ? 'All compartments fit' : 'Over capacity']];
+    ['Spare reserve', `${fmt(tray.reserve, 0)}%`], ['Result', evaluation.ok ? 'All compartments verified' : !evaluation.verified ? 'NEC fill unverified' : 'Over capacity']];
   return `<section class="report-only report-summary"><div class="report-title"><strong>TrayLab · Cable tray sizing report</strong><span>${esc(new Date().toLocaleString('en-US', {dateStyle: 'long', timeStyle: 'short'}))}</span></div><dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>`;
 }
 
 function metrics() {
   const ev = evaluation, limit = 100 - tray.reserve, over = ev.results.filter(r => r.status === 'over').length;
-  const noRule = ev.cableCount > 0 && !ev.results.some(r => r.fill.rule);
-  return `<div class="metrics"><div class="metric accent"><div class="metric-label">Highest NEC fill</div><div class="metric-value">${noRule ? '—' : fmt(ev.maxRatio * 100, 1)}<small>${noRule ? 'no NEC rule' : '%'}</small></div><div class="meter"><span style="width:${Math.min(100, ev.maxRatio * 100)}%;${ev.maxRatio * 100 > limit + 1e-9 ? 'background:var(--bad)' : ''}"></span></div><div class="metric-foot">Limit ${fmt(limit, 0)}%${tray.reserve ? ` · ${fmt(tray.reserve, 0)}% spare reserve` : ''}</div></div>`
+  const noRule = ev.cableCount > 0 && !ev.verified;
+  return `<div class="metrics"><div class="metric accent"><div class="metric-label">Highest NEC fill</div><div class="metric-value">${noRule ? '—' : fmt(ev.maxRatio * 100, 1)}<small>${noRule ? 'verification pending' : '%'}</small></div><div class="meter"><span style="width:${Math.min(100, ev.maxRatio * 100)}%;${ev.maxRatio * 100 > limit + 1e-9 ? 'background:var(--bad)' : ''}"></span></div><div class="metric-foot">Limit ${fmt(limit, 0)}%${tray.reserve ? ` · ${fmt(tray.reserve, 0)}% spare reserve` : ''}</div></div>`
     + `<div class="metric"><div class="metric-label">Cables in tray</div><span class="metric-ico">${icon('cable')}</span><div class="metric-value">${integer(ev.cableCount)}<small>cables</small></div><div class="metric-foot">${tray.cables.length} ${tray.cables.length === 1 ? 'cable type' : 'cable types'}</div></div>`
     + `<div class="metric"><div class="metric-label">Cable weight</div><span class="metric-ico">${icon('scale')}</span><div class="metric-value">${fmt(ev.weightLbFt, 2)}<small>lb/ft</small></div><div class="metric-foot">Catalog nominal weights · tray excluded</div></div>`
-    + `<div class="metric ${over ? 'bad' : ''}"><div class="metric-label">Tray size</div><span class="metric-ico">${icon('tray')}</span><div class="metric-value">${fmt(tray.widthIn, 2).replace(/\.00$/, '')} × ${fmt(tray.depthIn, 2).replace(/\.00$/, '')}<small>in</small></div><div class="metric-foot">${!ev.cableCount ? 'Add cables to check the size' : over ? `${over} ${over === 1 ? 'compartment' : 'compartments'} over capacity` : 'All compartments fit'}</div></div></div>`;
+    + `<div class="metric ${over ? 'bad' : ''}"><div class="metric-label">Tray size</div><span class="metric-ico">${icon('tray')}</span><div class="metric-value">${fmt(tray.widthIn, 2).replace(/\.00$/, '')} × ${fmt(tray.depthIn, 2).replace(/\.00$/, '')}<small>in</small></div><div class="metric-foot">${!ev.cableCount ? 'Add cables to check the size' : over ? `${over} ${over === 1 ? 'compartment' : 'compartments'} over capacity` : !ev.verified ? 'NEC fill unverified — separate unsupported mixes' : 'All compartments verified'}</div></div></div>`;
 }
 
-const statusPill = r => r.status === 'empty' ? '<span class="pill neutral">Empty</span>' : r.status === 'over' ? '<span class="pill fail">Over capacity</span>' : '<span class="pill">Fits</span>';
+const statusPill = r => r.status === 'empty' ? '<span class="pill neutral">Empty</span>' : r.status === 'over' ? '<span class="pill fail">Over capacity</span>' : r.status === 'review' ? '<span class="pill neutral">NEC fill unverified</span>' : '<span class="pill">Fits</span>';
 
 function layoutSelect(comp, kind, compact = false) {
   const key = kind === 'multi' ? 'multiLayout' : 'singleLayout';
@@ -136,7 +136,7 @@ function resultsCard() {
     const {comp, fill, fit, layout, plan} = r;
     const fillLine = r.status === 'empty' ? 'No cables.' : fill.rule
       ? `NEC ${esc(fill.rule)}: ${fmt(fill.used, 3)} / ${fmt(fill.allowed, 3)} ${esc(fill.unit)} allowed → <strong>${fmt(fill.ratio * 100, 1)}%</strong>`
-      : 'No NEC fill rule for this mix of cables. The physical layout governs.';
+      : 'NEC fill is unverified for this combination. Physical fit alone does not approve it; separate the cable groups into compartments.';
     const layoutLine = plan.cableCount ? `Layout: ${esc(layout.multi.label)} (multiconductor) · ${esc(layout.single.label)} (single conductor). Uses ${dimension(fit.usedWidthIn)} of ${dimension(comp.widthIn)} clear width and ${dimension(fit.usedHeightIn)} of ${dimension(tray.depthIn)} depth.` : '';
     const notes = [...r.problems.map(p => `<span class="policy-error">${esc(p)}</span>`), ...fill.notes.map(esc)];
     return `<div class="validation-item ${r.status === 'over' ? 'fail' : r.status === 'ok' ? 'pass' : 'review'}"><span class="status-icon">${icon(r.status === 'over' ? 'close' : r.status === 'ok' ? 'check' : 'info')}</span><div><p><strong>${esc(comp.name)}</strong> · ${dimension(comp.widthIn)} clear · ${plan.cableCount} cables · ${fmt(r.weightLbFt, 2)} lb/ft</p><small>${fillLine}${layoutLine ? '<br>' + layoutLine : ''}${notes.length ? '<br>' + notes.join('<br>') : ''}</small></div></div>`;
@@ -258,7 +258,7 @@ function smallDialog(title, body, actionLabel, onSubmit) {
 function suggest() {
   const found = suggestSize(tray);
   if (!found) {
-    smallDialog('Suggested tray size', `<p>${tray.cables.length ? 'No standard tray up to 48 × 6 in fits these cables with the current dividers, arrangements and spare reserve. Try more compartments, another arrangement or a lower reserve, or enter a larger width manually.' : 'Add cables first.'}</p>`, 'OK', () => {});
+    smallDialog('Suggested tray size', `<p>${!evaluation.verified ? 'NEC fill is unverified for a compartment. Separate unsupported cable groups before requesting a size.' : tray.cables.length ? 'No standard tray up to 48 × 6 in fits these cables with the current dividers, arrangements and spare reserve. Try more compartments, another arrangement or a lower reserve, or enter a larger width manually.' : 'Add cables first.'}</p>`, 'OK', () => {});
     return;
   }
   const t = found.tray;

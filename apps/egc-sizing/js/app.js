@@ -2,7 +2,7 @@
  * Equipment Grounding Conductor Sizing — NEC Table 250.122
  *
  * Given the rating (or setting) of the overcurrent device ahead of the
- * equipment/raceway (or the ampacity of the circuit conductors), finds the
+ * equipment/raceway, finds the
  * minimum copper or aluminum equipment grounding conductor size.
  */
 
