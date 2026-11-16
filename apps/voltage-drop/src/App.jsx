@@ -43,7 +43,7 @@ export default function App() {
   const result = useMemo(() => {
     const lengthFt = Number(length);
     const params = { material, phases, current: Number(current), lengthFt, pf: Number(pf), n: Number(n), voltage: Number(voltage) };
-    if (!(params.current > 0) || !(lengthFt > 0) || !(params.voltage > 0) || !(params.pf > 0 && params.pf <= 1) || !(params.n >= 1)) {
+    if (!(params.current > 0) || !(lengthFt > 0) || !(params.voltage > 0) || !(params.pf > 0 && params.pf <= 1) || !(Number.isInteger(params.n) && params.n >= 1)) {
       return { error: "Enter valid values for current, distance, voltage, power factor (0–1), and conductors per phase." };
     }
 
@@ -110,7 +110,7 @@ export default function App() {
     }
   };
 
-  const ok = result.chosen && result.chosen.pct < limit;
+  const ok = result.chosen && result.chosen.pct < limit && result.chosen.parallelOK;
 
   // Smallest cable meeting the dragged gauge threshold (probePct), same n + ampacity
   const probe = useMemo(() => {
@@ -431,7 +431,7 @@ export default function App() {
                     </div>
                     <div style={{ paddingBottom: 6 }}>
                       <span className={"status " + (ok ? "st-ok" : "st-bad")}>
-                        {ok ? `Pass · < ${limit}%` : `Fail · ≥ ${limit}%`}
+                        {!result.chosen.parallelOK ? 'Invalid parallel arrangement' : ok ? `Pass · < ${limit}%` : `Fail · ≥ ${limit}%`}
                       </span>
                     </div>
                   </div>
@@ -477,7 +477,9 @@ export default function App() {
 
                 {!result.chosen.ampOk && (
                   <div className="warn">
-                    ⚠ Current per conductor exceeds the 75°C ampacity (NEC 310.16) of the selected cable.
+                    {result.chosen.parallelOK
+                      ? 'Current per conductor exceeds the 75°C reference ampacity (NEC 310.16) of the selected cable.'
+                      : 'Ordinary power conductors in parallel must be 1/0 AWG or larger (310.10(G)(1)). The voltage drop is mathematical only; this arrangement is not a valid sizing recommendation.'}
                   </div>
                 )}
 

@@ -1,5 +1,6 @@
 // Physical layout of one compartment. D is the outside diameter of one cable.
 // Spacing is edge to edge; between unequal neighbours the larger OD governs.
+import {kcmilOf} from './nec.js';
 const EPS = 1e-9;
 export const TREFOIL_HEIGHT = 1 + Math.sqrt(3) / 2;
 
@@ -47,7 +48,10 @@ export function planLayout(rows = [], comp = {}) {
       } else {
         linear.push({...base, kind: 'single', count: n, cablesPerUnit: 1, width: d, height: d, gap: single.gap});
       }
-    } else if (multi.layer) {
+    } else if (multi.layer || Number(c.voltage) > 2000 || kcmilOf(c) >= 211.5) {
+      // 392.22(A)(1)/(3)(c): nothing may be stacked above >=4/0 cables.
+      // 392.22(C): MV multiconductor cables also require a single layer.
+      // Their linear zone is reserved before any smaller stacked cables.
       linear.push({...base, kind: 'multi', count: n, cablesPerUnit: 1, width: d, height: d, gap: multi.gap});
     } else {
       stacked.push({...base, kind: 'multi', count: n});

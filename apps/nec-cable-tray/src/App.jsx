@@ -272,6 +272,7 @@ export default function App() {
   const [motorMode, setMotorMode] = useState("table");
   const [hp, setHp] = useState("100");
   const [motorV, setMotorV] = useState(460);
+  const [motorTrip, setMotorTrip] = useState('');
   const [voltage, setVoltage] = useState(() => mccProject.saved ? String(mccProject.voltage || 480) : "480");
   const [rating, setRating] = useState("500");
   const [ratingUnit, setRatingUnit] = useState("kVA");
@@ -290,6 +291,7 @@ export default function App() {
   const [termTemp, setTermTemp] = useState(() => savedSizing.termTemp || 75);
   const [applyNec11014TerminationLimit, setApplyNec11014TerminationLimit] = useState(() => savedSizing.applyNec11014TerminationLimit ?? true);
   const [ccc, setCcc] = useState(() => savedSizing.ccc || "3");
+  const [insulatedConductors, setInsulatedConductors] = useState(() => savedSizing.insulatedConductors || '3');
 
   // Installation / environment
   const [arrangement, setArrangement] = useState(() => savedSizing.arrangement || "touching");
@@ -300,6 +302,7 @@ export default function App() {
   const [ambMethod, setAmbMethod] = useState(() => savedSizing.ambMethod || "table");
   const [ocpd, setOcpd] = useState(() => mccProject.saved ? mccProject.upstreamOcpd || "" : "");
   const [egcLinked, setEgcLinked] = useState(() => savedSizing.egcLinked ?? true);
+  const [egcInstallation, setEgcInstallation] = useState(() => savedSizing.egcInstallation || 'separate-tray');
 
   // Voltage drop
   const [vdOn, setVdOn] = useState(() => savedSizing.vdOn ?? true);
@@ -316,8 +319,8 @@ export default function App() {
     phases,
     upstreamOcpd: ocpd,
     sizing: {
-      vClass, construction, insTemp, termTemp, applyNec11014TerminationLimit, ccc,
-      arrangement, covered, ambient, maxSets, maxSize, ambMethod, egcLinked,
+      vClass, construction, insTemp, termTemp, applyNec11014TerminationLimit, ccc, insulatedConductors,
+      arrangement, covered, ambient, maxSets, maxSize, ambMethod, egcLinked, egcInstallation,
       vdOn, vdLength, vdUnit, vdMax, vdVolts, vdPf,
     },
   };
@@ -329,16 +332,16 @@ export default function App() {
     } catch {
       setMccImportError("Browser storage is unavailable; export the complete MCC calculation JSON to keep a copy.");
     }
-  }, [loadType, mccProject, voltage, phases, ocpd, vClass, construction, insTemp, termTemp, applyNec11014TerminationLimit, ccc, arrangement, covered, ambient, maxSets, maxSize, ambMethod, egcLinked, vdOn, vdLength, vdUnit, vdMax, vdVolts, vdPf]);
+  }, [loadType, mccProject, voltage, phases, ocpd, vClass, construction, insTemp, termTemp, applyNec11014TerminationLimit, ccc, insulatedConductors, arrangement, covered, ambient, maxSets, maxSize, ambMethod, egcLinked, egcInstallation, vdOn, vdLength, vdUnit, vdMax, vdVolts, vdPf]);
 
   const load = useMemo(
     () =>
       computeLoad({
-        type: loadType, phases, motorMode, hp, motorV, voltage, rating,
+        type: loadType, phases, motorMode, hp, motorV, motorTrip, vClass, voltage, rating,
         ratingUnit, pf, customA, contA, nonContA, continuous, heaterMode,
         mccLoads: mccProject.loads, frequency: Number(mccProject.frequency),
       }),
-    [loadType, phases, motorMode, hp, motorV, voltage, rating, ratingUnit, pf, customA, contA, nonContA, continuous, heaterMode, mccProject]
+    [loadType, phases, motorMode, hp, motorV, motorTrip, vClass, voltage, rating, ratingUnit, pf, customA, contA, nonContA, continuous, heaterMode, mccProject]
   );
 
   const effArrangement = covered && arrangement !== "touching" ? "touching" : arrangement;
@@ -377,15 +380,17 @@ export default function App() {
       construction,
       arrangement: effArrangement,
       covered,
-      ccc: parseInt(ccc, 10) || 3,
+      ccc: Number(ccc),
+      insulatedConductors: Number(insulatedConductors),
       maxSets: Math.min(Math.max(parseInt(maxSets, 10) || 1, 1), 12),
       maxSize: effMaxSize,
       ambMethod,
       vd: vdCfg,
     });
-  }, [load.design, ambient, effInsTemp, termTemp, applyNec11014TerminationLimit, vClass, construction, effArrangement, covered, ccc, maxSets, effMaxSize, ambMethod, vdCfg]);
+  }, [load.design, ambient, effInsTemp, termTemp, applyNec11014TerminationLimit, vClass, construction, effArrangement, covered, ccc, insulatedConductors, maxSets, effMaxSize, ambMethod, vdCfg]);
 
   const warnings = [...load.warnings];
+  if (result) warnings.push('Conductor ampacity only: verify circuit overcurrent protection separately, including 240.4(D) for small conductors and the applicable motor/transformer rules.');
   if (load.mcc?.protectionStatus) warnings.push(load.mcc.protectionStatus);
   if (load.mcc?.valid && vdOn) warnings.push("Mixed-load voltage drop uses the highest per-conductor operating current and the entered power factor; verify voltage drop per load/phase for the final design.");
   if (covered && arrangement !== "touching")
@@ -415,8 +420,8 @@ export default function App() {
     const a = parseFloat(ocpd);
     if (!(a > 0)) return null;
     if (!egcLinked) return egcSizing(a, null, null); // standalone: table only
-    return egcSizing(a, rec?.row?.size || null, rec?.ampRow?.size || null);
-  }, [ocpd, rec, egcLinked]);
+    return egcSizing(a, rec?.row?.size || null, rec?.ampRow?.size || null, {installation:egcInstallation, mediumVoltage:vClass !== 'lv' || load.mvMotor});
+  }, [ocpd, rec, egcLinked, egcInstallation, vClass, load.mvMotor]);
 
   const arrangementOptions =
     construction === "multi"
@@ -434,16 +439,16 @@ export default function App() {
     openReport(
       buildReportHtml({
         inputs: {
-          loadType, phases, motorMode, hp, motorV, voltage, rating, ratingUnit, pf,
+          loadType, phases, motorMode, hp, motorV, motorTrip, voltage, rating, ratingUnit, pf,
           customA, contA, nonContA, continuous, heaterMode,
           mccId: mccProject.feederId, mccDescription: mccProject.description,
           frequency: mccProject.frequency, mccLoads: mccProject.loads,
           vClass, construction, insTemp: effInsTemp, termTemp,
-          applyTermLimit: !terminationOverrideActive, ccc,
+          applyTermLimit: !terminationOverrideActive, ccc, insulatedConductors,
           arrangement: effArrangement, arrangementRaw: arrangement, covered,
           ambient, ambMethod, maxSets, maxSize: effMaxSize,
           vdOn: vdCfg.on, vdLength, vdUnit, vdMax, vdVolts, vdPf,
-          ocpd, egcLinked,
+          ocpd, egcLinked, egcInstallation,
         },
         load,
         result,
@@ -486,6 +491,7 @@ export default function App() {
       setTermTemp(sizing.termTemp || 75);
       setApplyNec11014TerminationLimit(sizing.applyNec11014TerminationLimit ?? true);
       setCcc(sizing.ccc || "3");
+      setInsulatedConductors(sizing.insulatedConductors || '3');
       setArrangement(sizing.arrangement || "touching");
       setCovered(sizing.covered || false);
       setAmbient(sizing.ambient || "40");
@@ -493,6 +499,7 @@ export default function App() {
       setMaxSize(sizing.maxSize || "500");
       setAmbMethod(sizing.ambMethod || "table");
       setEgcLinked(sizing.egcLinked ?? true);
+      setEgcInstallation(sizing.egcInstallation || 'separate-tray');
       setVdOn(sizing.vdOn ?? true);
       setVdLength(sizing.vdLength || "100");
       setVdUnit(sizing.vdUnit || "m");
@@ -587,7 +594,7 @@ export default function App() {
                   onChange={setLoadType}
                   options={[
                     ["mcc", "MCC / Mixed Load Feeder — NEC 430.24"],
-                    ["motor", "Motor (430.22 — 125% of table FLC)"],
+                    ["motor", "Motor (LV 430.22 / MV 430.205(A))"],
                     ["generator", "Generator (445.13 — 115%)"],
                     ["transformer", "Transformer feeder (125% FLA)"],
                     ["heater", "Fixed electric heater (424.3(B) — 125%)"],
@@ -626,8 +633,18 @@ export default function App() {
                       </Field>
                     </div>
                   ) : (
-                    <Field label="Full-load current (A)">
-                      <Num value={customA} onChange={setCustomA} min="0" />
+                    <>
+                      <Field label="Motor circuit voltage (V)">
+                        <Num value={voltage} onChange={setVoltage} min="1" />
+                      </Field>
+                      <Field label="Motor current reference (A)">
+                        <Num value={customA} onChange={setCustomA} min="0" />
+                      </Field>
+                    </>
+                  )}
+                  {Number(motorMode === 'table' ? motorV : voltage) > 1000 && (
+                    <Field label="Effective motor overload trip setting (A) · 430.205(A)">
+                      <Num value={motorTrip} onChange={setMotorTrip} min="0" />
                     </Field>
                   )}
                 </>
@@ -800,6 +817,11 @@ export default function App() {
               {vClass === "lv" && construction === "multi" && (
                 <Field label="Current-carrying conductors in the cable (310.15(C)(1))">
                   <Num value={ccc} onChange={setCcc} step="1" min="1" />
+                </Field>
+              )}
+              {vClass === 'lv' && construction === 'multi' && effArrangement === 'spaced1' && (
+                <Field label="Insulated circuit conductors, including neutral (excluding EGC)">
+                  <Num value={insulatedConductors} onChange={setInsulatedConductors} step="1" min="1" />
                 </Field>
               )}
             </Section>
@@ -1078,6 +1100,12 @@ export default function App() {
                   options={[[true, "Tied to this circuit"], [false, "Standalone — table only"]]}
                 />
               </Field>
+              {egcLinked && <Field label="EGC installation">
+                <Sel value={egcInstallation} onChange={setEgcInstallation} options={[
+                  ['separate-tray','Separate conductor in cable tray — minimum #4 AWG'],
+                  ['integral','Integral conductor inside the multiconductor cable'],
+                ]} />
+              </Field>}
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
                 <Field label="Upstream OCPD rating (A)">
                   <Num value={ocpd} onChange={setOcpd} step="1" min="1" />
@@ -1112,7 +1140,9 @@ export default function App() {
                     <>
                       {egc.upsized && <>Phase conductors were increased beyond the ampacity minimum (voltage drop), so the EGC area was raised proportionally [250.122(B)]. </>}
                       {rec && rec.n > 1 && <>Parallel runs: one full-size EGC must be installed with EACH parallel set / tray [250.122(F)]. </>}
-                      The EGC is not required to be larger than the phase conductors [250.122(A)].
+                      {egc.installationMinimum
+                        ? <>Separate tray EGC: at least {sizeLabel(egc.installationMinimum)} under 392.10(B)(1)(c). This installation minimum is retained even for smaller phase conductors.</>
+                        : <>Integral EGC: verify the actual cable construction against the required size. The separate-tray #4 minimum does not apply inside the cable.</>}
                     </>
                   ) : (
                     <>Standalone lookup: minimum copper EGC directly from Table 250.122 for the OCPD rating, independent of this circuit's conductors. Where the ungrounded conductors of the actual circuit are upsized, remember 250.122(B) still applies to that design.</>
@@ -1144,7 +1174,9 @@ export default function App() {
                 <div className="equation" style={{ ...mono, fontSize: 12, lineHeight: 1.8 }}>
                   Feeder: {mccProject.feederId || "Not identified"} · {voltage} V · {phases}-phase · {mccProject.frequency} Hz<br />
                   Connected current: {load.mcc.totalConnectedCurrent.toFixed(2)} A<br />
-                  Largest motor: {load.mcc.largestMotorTag} · {load.mcc.largestMotorCurrent.toFixed(2)} A × 125% = {load.mcc.largestMotorContribution.toFixed(2)} A<br />
+                  {load.mcc.mixedSinglePhase
+                    ? <>Largest motor per conductor: {Object.entries(load.mcc.largestMotorByPhase).map(([phase,amps])=>`${phase} ${amps.toFixed(2)} A`).join(' · ')}; 25% extra applied separately.</>
+                    : <>Largest motor: {load.mcc.largestMotorTag} · {load.mcc.largestMotorCurrent.toFixed(2)} A × 125% = {load.mcc.largestMotorContribution.toFixed(2)} A</>}<br />
                   Remaining motor current: {load.mcc.remainingMotorCurrent.toFixed(2)} A<br />
                   Continuous nonmotor: {load.mcc.continuousNonmotorCurrent.toFixed(2)} A × 125% = {load.mcc.continuousNonmotorContribution.toFixed(2)} A<br />
                   Noncontinuous nonmotor: {load.mcc.noncontinuousNonmotorCurrent.toFixed(2)} A<br />

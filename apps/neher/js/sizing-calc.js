@@ -31,10 +31,9 @@ export function usesBreakerRating(carga) {
 }
 
 /**
- * NEC 240.4 requires a feeder conductor to be protected at its ampacity, and the
- * 240.6(A) rating of the upstream device already embeds the 125 % continuous-load
- * allowance of 215.2(A)(1) — so the design current is the device rating itself and
- * no further factor is applied.
+ * Optional protective-device reference current for the thermal study. This is
+ * not a load calculation: 240.6(A) standard ratings do not establish compliance
+ * with 215.2 or 430.24. Those checks must be made independently.
  */
 export function calculateFeederCurrent({ breakerRating }) {
   return breakerRating > 0 ? breakerRating : NaN;

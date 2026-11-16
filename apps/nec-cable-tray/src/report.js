@@ -64,6 +64,8 @@ function stepInputs(i, inp, load) {
     rows.push(inp.motorMode === "table"
       ? ["Motor rating", `${esc(inp.hp)} HP at ${esc(inp.motorV)} V (NEC FLC table)`]
       : ["Motor FLC entered", `${esc(inp.customA)} A (manual)`]);
+  if (load.mvMotor) rows.push(['Effective motor overload trip', `${esc(inp.motorTrip)} A · 430.205(A)`]);
+  if (inp.loadType === 'motor') rows.push(['Motor circuit voltage', `${esc(load.circuitVoltage)} V`]);
   if (inp.loadType === "generator")
     rows.push(["Generator rating", `${esc(inp.rating)} ${esc(inp.ratingUnit)}${inp.ratingUnit === "kW" ? ` at PF ${esc(inp.pf)}` : ""} · ${esc(inp.voltage)} V`]);
   if (inp.loadType === "transformer") rows.push(["Transformer rating", `${esc(inp.rating)} kVA · ${esc(inp.voltage)} V`]);
@@ -78,6 +80,7 @@ function stepInputs(i, inp, load) {
   rows.push(["Insulation rating", `${esc(inp.insTemp)} °C`]);
   if (inp.vClass === "lv") rows.push(["Termination rating", `${esc(inp.termTemp)} °C${inp.applyTermLimit ? "" : " — 110.14(C) limit intentionally NOT applied"}`]);
   if (inp.vClass === "lv" && inp.construction === "multi") rows.push(["Current-carrying conductors", `${esc(inp.ccc)} per cable`]);
+  if (inp.vClass === 'lv' && inp.construction === 'multi' && inp.arrangement === 'spaced1') rows.push(['Insulated circuit conductors', `${esc(inp.insulatedConductors ?? inp.ccc)} including neutral, excluding EGC`]);
   rows.push(["Arrangement in tray", esc(arrangementLabel(inp.arrangement, inp.construction))]);
   rows.push(["Tray cover", inp.covered ? "Solid cover over more than 1.8 m (6 ft)" : "Uncovered"]);
   rows.push(["Ambient temperature", `${esc(inp.ambient)} °C`]);
@@ -86,6 +89,7 @@ function stepInputs(i, inp, load) {
   if (inp.vdOn) rows.push(["Voltage-drop criterion", `≤ ${esc(inp.vdMax)} % over ${esc(inp.vdLength)} ${esc(inp.vdUnit)} (one way) at ${esc(inp.vdVolts)} V, PF ${esc(inp.vdPf)}`]);
   else rows.push(["Voltage-drop criterion", "not evaluated (disabled by the user)"]);
   if (inp.ocpd) rows.push(["Upstream OCPD", `${esc(inp.ocpd)} A`]);
+  if (inp.egcLinked) rows.push(['EGC installation', inp.egcInstallation === 'integral' ? 'Integral conductor inside cable' : 'Separate conductor in cable tray']);
 
   return step(i, "Design data taken as given", "inputs", `
     ${kv(rows)}
@@ -110,7 +114,9 @@ function stepLoad(i, inp, load) {
     const table = `<table class="scan"><thead><tr>${["Tag", "Type", "Qty", "Current / unit", "Connected current", "NEC basis"].map(x => `<th>${x}</th>`).join("")}</tr></thead><tbody>${loadRows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
     const phaseRows = Object.entries(mcc?.currentsByPhase || {}).map(([phase, amps]) => `${phase} ${f(amps, 2)} A`).join(" · ");
     const calculation = mcc?.valid
-      ? `I<sub>required</sub> = 1.25 × ${f(mcc.largestMotorCurrent, 2)} A + ${f(mcc.remainingMotorCurrent, 2)} A + 1.25 × ${f(mcc.continuousNonmotorCurrent, 2)} A + ${f(mcc.noncontinuousNonmotorCurrent, 2)} A = <b>${f(mcc.required, 2)} A</b>`
+      ? mcc.mixedSinglePhase
+        ? `I<sub>required</sub> = max(${phaseRows}) = <b>${f(mcc.required, 2)} A</b><br>Each conductor includes 25% extra of its own largest connected motor: ${Object.entries(mcc.largestMotorByPhase).map(([phase,amps])=>`${esc(phase)}: ${f(amps,2)} A`).join(' · ')}.`
+        : `I<sub>required</sub> = 1.25 × ${f(mcc.largestMotorCurrent, 2)} A + ${f(mcc.remainingMotorCurrent, 2)} A + 1.25 × ${f(mcc.continuousNonmotorCurrent, 2)} A + ${f(mcc.noncontinuousNonmotorCurrent, 2)} A = <b>${f(mcc.required, 2)} A</b>`
       : `No feeder ampacity is issued because the connected-load list is incomplete or contains unsupported data.`;
     return step(i, "MCC / mixed-load feeder current", "430.24", `
       ${rule("For standard motor feeders, add 125% of one largest applicable motor current, 100% of all remaining motor currents, 125% of continuous nonmotor loads and 100% of noncontinuous nonmotor loads [430.24]. VFD rated input current is used as the motor contribution under 430.122(D).")}
@@ -122,7 +128,9 @@ function stepLoad(i, inp, load) {
       ])}`);
   }
 
-  if (inp.loadType === "motor" && inp.motorMode === "table") {
+  if (load.mvMotor) {
+    bits.push(rule('For a motor circuit above 1000 V, conductor ampacity must cover the effective motor overload protection trip current [430.205(A)]. No automatic 125% FLC multiplier is applied.'));
+  } else if (inp.loadType === "motor" && inp.motorMode === "table") {
     bits.push(rule(`Conductors supplying a single motor must have an ampacity of at least <b>125 % of the motor full-load current</b> [430.22(A)]. The full-load current used for conductor sizing is the value from <b>Table 430.250</b> (three-phase) or <b>Table 430.248</b> (single-phase) — <b>not</b> the motor nameplate current [430.6(A)(1)].`));
   } else if (inp.loadType === "motor") {
     bits.push(rule(`Conductors supplying a single motor must be rated at least <b>125 % of the motor full-load current</b> [430.22(A)]. NEC 430.6(A)(1) requires the FLC value to come from Table 430.250/430.248; a manually entered current was used here.`));
@@ -163,10 +171,11 @@ function stepLoad(i, inp, load) {
     `The design current <b>${f(load.design, 1)} A</b> is the minimum <i>allowable ampacity</i> the conductors must show <i>after</i> all derating — it is not the current the cable actually carries.`,
     "Overcurrent protection, motor short-circuit and ground-fault protection, and starting/inrush behaviour are outside the scope of this calculation.",
   ];
-  if (inp.loadType === "motor" && inp.motorMode === "manual")
+  if (inp.loadType === "motor" && !load.mvMotor && inp.motorMode === "manual")
     cons.push("A manually entered FLC was used. NEC 430.6(A)(1) requires conductor sizing to be based on the table FLC value; confirm the entry matches the table.");
-  if (inp.loadType === "motor")
+  if (inp.loadType === "motor" && !load.mvMotor)
     cons.push("Only one motor is assumed on this circuit. For several motors on a common feeder, 430.24 (125 % of the largest motor + 100 % of the others) applies instead.");
+  if (load.mvMotor) cons.push('Multiple MV motors require a separately verified MV feeder calculation; this result covers a single motor.');
   if (inp.loadType === "generator")
     cons.push("The 115 % rule of 445.13 applies to the conductors from the generator terminals up to the first overcurrent device.");
   if (inp.loadType === "transformer")
@@ -423,7 +432,9 @@ function stepEgc(i, inp, egc, rec) {
 
   const cons = [
     "The equipment grounding conductor is selected from the rating of the overcurrent device, not from the load current.",
-    "It is never required to be larger than the ungrounded (phase) conductors of the circuit [250.122(A)].",
+    egc.installationMinimum
+      ? `Separate cable-tray EGC minimum: ${esc(sizeLabel(egc.installationMinimum))} [392.10(B)(1)(c)].`
+      : "Apply the circuit-conductor size provision of 250.122(A); an integral cable EGC is not subject to the separate-tray #4 minimum.",
   ];
   if (egc.upsized)
     cons.push(`The phase conductors were increased beyond the size required for ampacity, so the equipment grounding conductor area was increased in the same proportion (× ${f(egc.ratio, 2)}) [250.122(B)].`);
@@ -433,7 +444,7 @@ function stepEgc(i, inp, egc, rec) {
     cons.push("Standalone mode: the table value alone is shown, with no relation to the conductors sized above. If the real circuit's conductors are upsized, 250.122(B) still applies to it.");
 
   return step(i, "Equipment grounding conductor", "250.122", `
-    ${rule(`Table 250.122 gives the minimum copper equipment grounding conductor for each overcurrent device rating; 250.122(B) requires it to be increased proportionally where the ungrounded conductors are upsized, and 250.122(A) caps it at the size of those conductors.`)}
+    ${rule(`Table 250.122 establishes the device-based copper EGC size. Apply proportional upsizing under 250.122(B) where applicable, and the installation-specific minimum for a separate EGC in cable tray. Integral cable grounds are evaluated separately.`)}
     ${applied(eqn(`OCPD ${esc(inp.ocpd)} A → Table 250.122 minimum = ${esc(sizeLabel(egc.tableSize))} Cu<br>
       Selected equipment grounding conductor = <b>${inp.egcLinked && rec && rec.n > 1 ? `${rec.n} × ` : ""}${esc(sizeLabel(egc.finalSize))} Cu</b>`))}
     ${considerations(cons)}`);

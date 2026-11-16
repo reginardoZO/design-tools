@@ -1,4 +1,5 @@
 import { calculateMccFeeder } from "../../../shared/mcc-feeder.js";
+import {MV_3C as MV_3C_CONDUIT_DATA} from '../../raceway-lab/data.js';
 
 /* ============================================================================
    NEC CABLE TRAY AMPACITY & CABLE SIZING TOOL — COPPER CONDUCTORS ONLY
@@ -48,6 +49,21 @@ const T310_17 = {
   "1000": [780, 935, 1055],
 };
 
+// Engineering reference for <=3 insulated conductors within a common covering,
+// isolated in free air at 40°C. [60,75,90°C], copper. Annex B multi-cable
+// table reproduced in NFPA 70 A2020 CMP-6 FR-7968 (legacy B.310.15(B)(2)(3)).
+// Used under 310.14(B)/392.80(A)(1)(c), NOT as a single-conductor 310.17 table.
+const LV_MULTI_FREE_AIR = {
+  '14':[18,21,25], '12':[21,28,32], '10':[28,36,43], '8':[39,50,59],
+  '6':[52,68,79], '4':[69,89,104], '3':[81,104,121], '2':[92,118,138],
+  '1':[107,138,161], '1/0':[124,160,186], '2/0':[143,184,215],
+  '3/0':[165,213,249], '4/0':[190,245,287], '250':[212,274,320],
+  '300':[237,306,357], '350':[261,337,394], '400':[281,363,425],
+  '500':[321,416,487], '600':[354,459,538], '700':[387,502,589],
+  '750':[404,523,615], '800':[415,539,633], '900':[438,570,670],
+  '1000':[461,601,707],
+};
+
 // NEC Table 310.20 — Bare/covered messenger-supported (triplexed) — 40°C ambient.
 // [75°C, 90°C] — copper. Used by 392.80(A)(2)(d) for trefoil @ 2.15×OD spacing.
 const T310_20 = {
@@ -83,7 +99,7 @@ const MV_SINGLE_AIR = {
 };
 
 // NEC 2023 Table 315.60(C)(1) [legacy 310.60/311.60(C)(67)] — Insulated copper
-// conductors TRIPLEXED IN AIR, 40°C ambient. Used by 392.80(B)(2)(d) for
+// conductors TRIPLEXED IN AIR, 40°C ambient. Used by 392.80(B)(2)(3) for
 // trefoil groups spaced ≥ 2.15×OD. VALUES VERIFIED against the official
 // NEC 2023 table (user-provided scan, Jul 2026).
 const MV_TRIPLEXED_AIR = {
@@ -124,6 +140,11 @@ const MV_3C_AIR = {
   "750": { v5: [615, 685], v15: [670, 745] },
   "1000":{ v5: [705, 790], v15: [770, 860] },
 };
+
+// 315.60(C)(9), 3/C copper in isolated conduit in air (40°C). This is the
+// ordinary MV multiconductor tray basis under 392.80(B)(1), not C(5).
+// Shared with the independently checked aboveground raceway data.
+const MV_3C_CONDUIT = Object.fromEntries(Object.entries(MV_3C_CONDUIT_DATA).map(([size,row]) => [size, {v5:row.slice(0,2),v15:row.slice(2,4)}]));
 
 // Copper cross-section in kcmil for comparison of parallel alternatives.
 const KCMIL = {
@@ -228,8 +249,9 @@ const T250_122 = [
 //   area increases at least proportionally (kcmil ratio).
 // - 250.122(A): the EGC is not required to be larger than the circuit
 //   conductors supplying the equipment.
-export function egcSizing(ocpdA, selectedPhaseSize, minAmpacityPhaseSize) {
+export function egcSizing(ocpdA, selectedPhaseSize, minAmpacityPhaseSize, {installation = 'table', mediumVoltage = false} = {}) {
   if (!(ocpdA > 0)) return null;
+  if (!['table','separate-tray','integral','separate-raceway'].includes(installation)) return {error:'Select a supported EGC installation.'};
   const entry = T250_122.find(([a]) => ocpdA <= a);
   if (!entry) return { error: "OCPD above 6000 A — Table 250.122 does not cover this rating." };
   const tableSize = entry[1];
@@ -247,7 +269,11 @@ export function egcSizing(ocpdA, selectedPhaseSize, minAmpacityPhaseSize) {
   if (selectedPhaseSize && KCMIL[finalSize] > KCMIL[selectedPhaseSize]) {
     finalSize = selectedPhaseSize; // 250.122(A) cap
   }
-  return { tableSize, finalSize, upsized, ratio };
+  const installationMinimum = installation === 'separate-tray' ? '4'
+    : installation === 'separate-raceway' && mediumVoltage ? '6' : null;
+  const floorApplied = !!installationMinimum && KCMIL[finalSize] < KCMIL[installationMinimum];
+  if (floorApplied) finalSize = installationMinimum;
+  return { tableSize, finalSize, upsized, ratio, installation, installationMinimum, floorApplied };
 }
 // NEC Table 310.15(C)(1) — Adjustment factors for more than 3 CCC.
 export function adjustmentFactor(ccc) {
@@ -283,7 +309,8 @@ export function ambientCorrection(condTempC, ambientC, tableBaseC, method = "tab
 // Returns { sizes, base(size), baseTableName, tableBaseAmbient, trayFactor,
 //           trayRef, adjApplies, notes[] } for the selected installation.
 function resolveMethod(cfg) {
-  const { vClass, construction, arrangement, covered, insTemp } = cfg;
+  const { vClass, construction, covered, insTemp } = cfg;
+  const arrangement = covered ? 'touching' : cfg.arrangement;
   const notes = [];
 
   if (vClass === "lv") {
@@ -291,11 +318,15 @@ function resolveMethod(cfg) {
 
     if (construction === "multi") {
       if (arrangement === "spaced1") {
+        const ccc = Number(cfg.ccc), cores = Number(cfg.insulatedConductors ?? cfg.ccc);
+        const referenceApplies = Number.isInteger(ccc) && ccc >= 1 && Number.isInteger(cores) && cores >= ccc && cores <= 3;
+        if (!referenceApplies) notes.push('Spaced multiconductor free-air reference is limited to at most three insulated circuit conductors, including the neutral; no recommendation is issued for this conductor count.');
+        notes.push('Engineering reference: Annex B multiconductor free-air ampacities at 40°C, applied under 310.14(B); verify the cable construction and maintained 1D spacing.');
         return {
-          sizes: LV_SIZE_ORDER,
-          base: (s) => T310_17[s]?.[col] ?? null,
-          baseTableName: "Table 310.17 (free air)",
-          tableBaseAmbient: 30,
+          sizes: referenceApplies ? LV_SIZE_ORDER : [],
+          base: (s) => LV_MULTI_FREE_AIR[s]?.[col] ?? null,
+          baseTableName: "Annex B (multiconductor cable in free air, engineering reference)",
+          tableBaseAmbient: 40,
           trayFactor: 1.0,
           trayRef: "392.80(A)(1)(c) — single layer, maintained spacing ≥ 1 cable diameter, uncovered tray",
           adjApplies: false,
@@ -324,9 +355,9 @@ function resolveMethod(cfg) {
 
     if (arrangement === "trefoil215") {
       const col20 = insTemp === 75 ? 0 : 1;
-      if (insTemp === 60) notes.push("Table 310.20 has no 60°C column — 75°C column used conservatively.");
+      if (insTemp === 60) notes.push("Table 310.20 has no 60°C column; choose a supported insulation rating. No recommendation is issued.");
       return {
-        sizes: sglSizes.filter((s) => T310_20[s]),
+        sizes: insTemp === 60 ? [] : sglSizes.filter((s) => T310_20[s]),
         base: (s) => T310_20[s]?.[insTemp === 60 ? 0 : col20] ?? null,
         baseTableName: "Table 310.20 (triplexed, messenger-supported)",
         tableBaseAmbient: 40,
@@ -386,30 +417,30 @@ function resolveMethod(cfg) {
         baseTableName: "Table 315.60(C)(5) (3-conductor cable in air)",
         tableBaseAmbient: 40,
         trayFactor: 1.0,
-        trayRef: "392.80(B)(1)(c) — single layer, maintained spacing ≥ 1 cable diameter, uncovered tray",
+        trayRef: "392.80(B)(1)(2) — single layer, maintained spacing ≥ 1 cable diameter, uncovered tray",
         adjApplies: false,
         notes,
       };
     }
-    const tf = covered ? 0.70 : 0.95;
+    const tf = covered ? 0.95 : 1.0;
     return {
       sizes: mvSizes,
-      base: pick(MV_3C_AIR),
-      base90: pick90(MV_3C_AIR),
-      baseTableName: "Table 315.60(C)(5) (3-conductor cable in air)",
+      base: pick(MV_3C_CONDUIT),
+      base90: pick90(MV_3C_CONDUIT),
+      baseTableName: "Table 315.60(C)(9) (3-conductor cable in isolated conduit in air)",
       tableBaseAmbient: 40,
       trayFactor: tf,
       trayRef: covered
-        ? "392.80(B)(1)(b) — covered tray (solid cover > 1.8 m): 70% of Table 315.60(C)(5)"
-        : "392.80(B)(1)(a) — uncovered tray: 95% of Table 315.60(C)(5)",
+        ? "392.80(B)(1)(1) — covered tray (solid cover > 1.8 m): 95% of Table 315.60(C)(9)"
+        : "392.80(B)(1) — uncovered tray: Table 315.60(C)(9)",
       adjApplies: false,
       notes,
     };
   }
 
-  // MV single-conductor cables — 1/0 AWG and larger in tray [392.10 / 392.80(B)(2)(a)].
-  const mvSglSizes = mvSizes.filter((s) => sizeIdx(s) >= MV_SIZE_ORDER.indexOf("1/0"));
-  notes.push("Single-conductor MV cables in tray must be 1/0 AWG or larger [392.80(B)(2)(a)].");
+  // MV single-conductor cables — 1/0 AWG and larger in tray [392.10 / 392.80(B)(2)(1)].
+  const mvSglSizes = mvSizes.filter((s) => KCMIL[s] >= KCMIL['1/0']);
+  notes.push("Single-conductor MV cables in tray must be 1/0 AWG or larger [392.80(B)(2)(1)].");
 
   if (arrangement === "trefoil215") {
     return {
@@ -419,7 +450,7 @@ function resolveMethod(cfg) {
       baseTableName: "Table 315.60(C)(1) (triplexed in air)",
       tableBaseAmbient: 40,
       trayFactor: 1.0,
-      trayRef: "392.80(B)(2)(d) — trefoil groups, spacing ≥ 2.15 × OD between groups, uncovered tray",
+      trayRef: "392.80(B)(2)(3) — trefoil groups, spacing ≥ 2.15 × OD between groups, uncovered tray",
       adjApplies: false,
       notes,
     };
@@ -432,7 +463,7 @@ function resolveMethod(cfg) {
       baseTableName: "Table 315.60(C)(3) (single conductor in air)",
       tableBaseAmbient: 40,
       trayFactor: 1.0,
-      trayRef: "392.80(B)(2)(c) — single layer, maintained spacing ≥ 1 cable diameter, uncovered tray",
+      trayRef: "392.80(B)(2)(2) — single layer, maintained spacing ≥ 1 cable diameter, uncovered tray",
       adjApplies: false,
       notes,
     };
@@ -446,8 +477,8 @@ function resolveMethod(cfg) {
     tableBaseAmbient: 40,
     trayFactor: tf,
     trayRef: covered
-      ? "392.80(B)(2)(b) — covered tray: 70% of Table 315.60(C)(3)"
-      : "392.80(B)(2)(a) — uncovered tray: 75% of Table 315.60(C)(3)",
+      ? "392.80(B)(2)(1) — covered tray: 70% of Table 315.60(C)(3)"
+      : "392.80(B)(2)(1) — uncovered tray: 75% of Table 315.60(C)(3)",
     adjApplies: false,
     notes,
   };
@@ -552,6 +583,7 @@ export function computeLoad(load) {
   const w = [];
   const num = (x) => (isFinite(parseFloat(x)) ? parseFloat(x) : 0);
   let fla = 0, design = 0, basis = "", flaBasis = "";
+  let mvMotor = false, circuitVoltage = null;
 
   const threePhI = (kva, v) => (v > 0 ? (kva * 1000) / (Math.sqrt(3) * v) : 0);
   const onePhI = (kva, v) => (v > 0 ? (kva * 1000) / v : 0);
@@ -584,6 +616,21 @@ export function computeLoad(load) {
 
   switch (load.type) {
     case "motor": {
+      circuitVoltage = Number(load.motorMode === 'table' ? load.motorV : load.voltage);
+      mvMotor = circuitVoltage > 1000;
+      if (mvMotor && load.phases !== 3) {
+        w.push('The implemented MV ampacity tables require a three-phase motor circuit.');
+        basis = 'MV phase configuration unsupported';
+        break;
+      }
+      if (load.vClass && (!(circuitVoltage > 0) ||
+        (load.vClass === 'lv' && circuitVoltage > 2000) ||
+        (load.vClass === 'mv5' && circuitVoltage > 5000) ||
+        (load.vClass === 'mv15' && circuitVoltage > 15000))) {
+        w.push('Enter a positive motor circuit voltage no higher than the selected cable voltage range.');
+        basis = 'Motor voltage / cable range incomplete';
+        break;
+      }
       if (load.motorMode === "table") {
         const tbl = load.phases === 3 ? FLC_3PH : FLC_1PH;
         const cols = load.phases === 3 ? V_COLS_3PH : V_COLS_1PH;
@@ -596,10 +643,17 @@ export function computeLoad(load) {
       } else {
         fla = num(load.customA);
         flaBasis = "user-entered FLC";
-        w.push("NEC 430.6(A)(1): conductor sizing must use table FLC values (430.250/430.248), not nameplate current — verify your entry.");
+        if (!mvMotor) w.push("NEC 430.6(A)(1): conductor sizing must use table FLC values (430.250/430.248), not nameplate current — verify your entry.");
       }
-      design = fla * 1.25;
-      basis = "125% of motor FLC [430.22]";
+      if (mvMotor) {
+        design = num(load.motorTrip);
+        basis = 'Motor overload protection trip setting [430.205(A)]';
+        if (!(design > 0)) w.push('Enter the effective motor overload protection trip current under 430.205(A); instantaneous pickup or breaker frame rating is not its substitute.');
+        if (!(fla > 0)) { design = 0; w.push('Enter a valid motor current reference for the MV circuit.'); }
+      } else {
+        design = fla * 1.25;
+        basis = "125% of motor FLC [430.22]";
+      }
       break;
     }
     case "generator": {
@@ -646,13 +700,13 @@ export function computeLoad(load) {
       basis = load.continuous ? "125% — continuous load [210.19 / 215.2]" : "100% — non-continuous load";
     }
   }
-  return { fla, design, basis, flaBasis, warnings: w };
+  return { fla, design, basis, flaBasis, warnings: w, mvMotor, circuitVoltage };
 }
 
 
 export {
-  T310_16, T310_17, T310_20,
-  MV_SINGLE_AIR, MV_TRIPLEXED_AIR, MV_3C_AIR,
+  T310_16, T310_17, T310_20, LV_MULTI_FREE_AIR,
+  MV_SINGLE_AIR, MV_TRIPLEXED_AIR, MV_3C_AIR, MV_3C_CONDUIT,
   KCMIL, Z_TABLE9,
   FLC_3PH, FLC_1PH, V_COLS_3PH, V_COLS_1PH, T250_122,
   LV_SIZE_ORDER, MV_SIZE_ORDER, sizeIdx, isKcmil, sizeLabel,

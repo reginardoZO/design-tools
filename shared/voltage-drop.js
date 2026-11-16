@@ -23,6 +23,13 @@ export const CABLES = [
   { size: "1000 kcmil", rCu: 0.015, rAl: 0.023, x: 0.037, ampCu: 545, ampAl: 445 },
 ];
 
+// 310.10(G)(1), ordinary power circuits. Special control/neutral exceptions
+// are not modeled by these sizing tools.
+export function powerParallelAllowed(size, n) {
+  const rank = CABLES.findIndex(c => c.size === size);
+  return Number.isInteger(n) && n >= 1 && (n === 1 || rank >= CABLES.findIndex(c => c.size === '1/0 AWG'));
+}
+
 export function calcVD(cable, { material, phases, current, lengthFt, pf, n, voltage }) {
   const r = material === "cu" ? cable.rCu : cable.rAl;
   const amp = material === "cu" ? cable.ampCu : cable.ampAl;
@@ -32,5 +39,6 @@ export function calcVD(cable, { material, phases, current, lengthFt, pf, n, volt
   const k = phases === 3 ? Math.sqrt(3) : 2;
   const vd = (k * current * zEff * (lengthFt / 1000)) / n;
   const pct = (vd / voltage) * 100;
-  return { vd, pct, zEff, amp, ampOk: amp != null && current / n <= amp };
+  const parallelOK = powerParallelAllowed(cable.size, n);
+  return { vd, pct, zEff, amp, parallelOK, ampOk: parallelOK && amp != null && current / n <= amp };
 }

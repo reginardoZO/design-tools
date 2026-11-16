@@ -205,10 +205,12 @@ export function calculateMccFeeder({ loads, voltage, phases, frequency = 60, loo
     if (phases === 1 || load.phases === 3) return Object.keys(currentsByPhase);
     return pairByPhase[load.phasePair];
   };
+  const largestMotorByPhase = Object.fromEntries(Object.keys(currentsByPhase).map(phase => [phase, 0]));
   for (const motor of motors) {
     for (const phase of phaseConductors(motor.load)) {
       currentsByPhase[phase] += motor.current;
       operatingCurrentByPhase[phase] += motor.current;
+      largestMotorByPhase[phase] = Math.max(largestMotorByPhase[phase], motor.current);
     }
   }
   for (const item of nonmotorContributions) {
@@ -221,9 +223,9 @@ export function calculateMccFeeder({ loads, voltage, phases, frequency = 60, loo
   }
 
   const largestMotor = motors.reduce((largest, motor) => !largest || motor.current > largest.current ? motor : largest, null);
-  if (largestMotor) {
-    for (const phase of phaseConductors(largestMotor.load)) currentsByPhase[phase] += largestMotor.current * 0.25;
-  }
+  // Each conductor must cover its own largest connected motor. A global tie
+  // broken by list order could omit the extra 25% from the governing phase.
+  for (const phase of Object.keys(currentsByPhase)) currentsByPhase[phase] += largestMotorByPhase[phase] * 0.25;
   const required = Math.max(...Object.values(currentsByPhase));
   const motorCurrent = motors.reduce((sum, motor) => sum + motor.current, 0);
   const nonmotorCurrent = nonmotorContributions.reduce((sum, item) => sum + item.current * item.quantity, 0);
@@ -251,9 +253,11 @@ export function calculateMccFeeder({ loads, voltage, phases, frequency = 60, loo
     continuousNonmotorContribution: continuousNonmotor * 1.25,
     noncontinuousNonmotorCurrent: noncontinuousNonmotor,
     currentsByPhase,
+    largestMotorByPhase,
+    mixedSinglePhase,
     operatingCurrentByPhase,
     operatingCurrent: Math.max(...Object.values(operatingCurrentByPhase)),
-    basis: "125% of one largest applicable motor contribution + 100% of remaining motors + 125% continuous nonmotor loads + 100% noncontinuous nonmotor loads (430.24); VFD input current under 430.122(D).",
+    basis: "For each conductor: 125% of its largest connected motor contribution + 100% of its remaining motors + 125% continuous nonmotor loads + 100% noncontinuous nonmotor loads (430.24); VFD input current under 430.122(D).",
     reference: "430.24; 430.6(A)(1); 430.22; 430.122(D); 215.2(A)(1)",
     protectionStatus: "Conductor ampacity calculated; feeder short-circuit/ground-fault protection verification remains separate and is not certified here (430.52 / 430.62).",
   };

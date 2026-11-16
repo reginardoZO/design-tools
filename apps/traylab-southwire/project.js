@@ -85,7 +85,7 @@ export function evaluateCompartment(comp, rows, t) {
   const problems = [];
   if (fill.rule && fill.ratio > limit + EPS) problems.push(`NEC fill ${fill.ratio === Infinity ? 'exceeds the limit' : (fill.ratio * 100).toFixed(1) + '%'}${t.reserve ? ` is above the ${(limit * 100).toFixed(0)}% allowed with the spare reserve` : ' is above 100%'} (${fill.rule}).`);
   if (!fit.fits) problems.push(`The selected arrangement does not fit ${t.reserve ? 'the width left after the spare reserve' : 'the clear width'} × ${t.depthIn} in usable depth.`);
-  const status = !plan.cableCount ? 'empty' : problems.length ? 'over' : 'ok';
+  const status = !plan.cableCount ? 'empty' : problems.length ? 'over' : !fill.rule ? 'review' : 'ok';
   return {comp, rows, fill, plan, fit, weightLbFt, problems, status, layout: layoutOf(comp),
     widthUse: comp.widthIn > 0 ? fit.usedWidthIn / comp.widthIn : 0};
 }
@@ -94,7 +94,8 @@ export function evaluateTray(t) {
   const results = compartmentsOf(t).map(co => evaluateCompartment(co, t.cables.filter(r => r.compartmentId === co.id), t));
   return {
     results,
-    ok: results.every(r => r.status !== 'over'),
+    ok: results.every(r => r.status === 'ok' || r.status === 'empty'),
+    verified: results.every(r => !r.plan.cableCount || !!r.fill.rule),
     maxRatio: Math.max(0, ...results.map(r => r.fill.ratio ?? 0)),
     cableCount: results.reduce((n, r) => n + r.plan.cableCount, 0),
     weightLbFt: results.reduce((n, r) => n + r.weightLbFt, 0)

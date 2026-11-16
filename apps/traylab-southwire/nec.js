@@ -123,7 +123,16 @@ export function necFill({widthIn, trayType = 'ladder', rows = []} = {}) {
       if (large.length) notes.push(`Allowable area = table area − ${k} × sum of diameters of 4/0 AWG and larger cables.`);
     }
   } else {
-    notes.push('Single-conductor and multiconductor cables share this compartment. NEC 392.22 has no combined fill rule, so only the physical layout is checked. Use a divider to get a fill result for each group.');
+    const singles = necFill({widthIn: width, trayType, rows: rows.filter(r => r.cable?.conductors === 1)});
+    const multis = necFill({widthIn: width, trayType, rows: rows.filter(r => r.cable?.conductors > 1)});
+    // 392.80(A)(3): add the two normalized area occupancies. Do not invent
+    // an area conversion for a single-conductor rule based on linear width.
+    if (singles.rule && multis.rule && singles.unit === 'in²' && multis.unit === 'in²') {
+      set(100 * (singles.ratio + multis.ratio), 100, '%', '392.80(A)(3)');
+      notes.push(`Combined area occupancy: ${round(singles.ratio * 100)}% single-conductor + ${round(multis.ratio * 100)}% multiconductor; total must not exceed 100%.`, ...singles.notes, ...multis.notes);
+    } else {
+      notes.push('Combined area fill is not implemented for this mix of width-based or unsupported rules. Use separate compartments; NEC fill remains unverified.');
+    }
   }
   return out;
 }

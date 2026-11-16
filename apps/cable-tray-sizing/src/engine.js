@@ -179,7 +179,7 @@ export function layoutItems(items, opts) {
     const item = items[i];
     const widthIn = itemWidthIn(item);
     const trefoil = usesTrefoilLayout(item.type, item.load);
-    const depthIn = trefoil ? item.od * (1 + Math.sqrt(3)) : item.od; // floor -> top of tallest conductor
+    const depthIn = trefoil ? item.od * (1 + Math.sqrt(3) / 2) : item.od; // three equal tangent circles
     placements.push({ item, xIn: cursor, widthIn, trefoil });
     maxDepthIn = Math.max(maxDepthIn, depthIn);
     cursor += widthIn;

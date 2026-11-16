@@ -76,6 +76,10 @@ GitHub Actions**. The site is served at `https://<user>.github.io/<repo>/`.
 
 ## Tests
 
+The [November 2026 NEC corrections](docs/nec-audit-fixes-2026-11.md) document the
+corrected tray tables, MV motor criterion, EGC installation context, MCC phase
+allocation, physical tray constraints and regression cases.
+
 ```bash
 npm test
 ```
